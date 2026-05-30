@@ -14,7 +14,7 @@ Build a local-first Copilot usage tracker in four slices: easy-install CLI/scrip
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions, if needed later
 
-- [ ] **Phase 1: Project Foundation and Local Setup** - Create Node.js/npm CLI/script/hook skeleton and local telemetry setup helpers.
+- [x] **Phase 1: Project Foundation and Local Setup** - Create Node.js/npm CLI/script/hook skeleton and local telemetry setup helpers.
 - [ ] **Phase 2: OTel Ingestion, Normalization, and Cost Model** - Parse local telemetry, normalize LLM calls, and estimate AI Credits.
 - [ ] **Phase 3: Jira Label Attribution and CLI Querying** - Attribute usage to Jira labels/repos and expose local query commands.
 - [ ] **Phase 4: Hardening and Release Readiness** - Add durable verification and first-release docs.
@@ -130,7 +130,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Project Foundation and Local Setup | 0/0 | Not started | - |
+| 1. Project Foundation and Local Setup | 1/1 | Complete | 2026-05-30 |
 | 2. OTel Ingestion, Normalization, and Cost Model | 0/0 | Not started | - |
 | 3. Jira Label Attribution and CLI Querying | 0/0 | Not started | - |
 | 4. Hardening and Release Readiness | 0/0 | Not started | - |

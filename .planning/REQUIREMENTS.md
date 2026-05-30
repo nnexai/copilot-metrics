@@ -7,19 +7,19 @@
 
 ### Project Foundation
 
-- [ ] **FOUND-01**: Project uses Node.js with npm scripts for development, verification, and runnable commands.
-- [ ] **FOUND-02**: Project defines a central user-level data directory for all local metadata and generated stores.
-- [ ] **FOUND-03**: Project documents supported local inputs: VS Code Insiders Copilot OTel JSONL, Copilot CLI OTel JSONL, and Copilot CLI hook JSONL.
-- [ ] **FOUND-04**: Project keeps content capture disabled by default in generated setup guidance.
-- [ ] **FOUND-05**: Project is structured as easy-to-install local CLI tools, scripts, and hooks rather than a dashboard-first app.
+- [x] **FOUND-01**: Project uses Node.js with npm scripts for development, verification, and runnable commands.
+- [x] **FOUND-02**: Project defines a central user-level data directory for all local metadata and generated stores.
+- [x] **FOUND-03**: Project documents supported local inputs: VS Code Insiders Copilot OTel JSONL, Copilot CLI OTel JSONL, and Copilot CLI hook JSONL.
+- [x] **FOUND-04**: Project keeps content capture disabled by default in generated setup guidance.
+- [x] **FOUND-05**: Project is structured as easy-to-install local CLI tools, scripts, and hooks rather than a dashboard-first app.
 
 ### Setup
 
-- [ ] **SETUP-01**: User can initialize the central data directory from an npm script or CLI command.
-- [ ] **SETUP-02**: User can generate or view VS Code Insiders OTel settings that export to the central data directory.
-- [ ] **SETUP-03**: User can generate or view Copilot CLI OTel environment exports that write to the central data directory.
-- [ ] **SETUP-04**: User can install or preview Copilot CLI hook configuration for local attribution logging.
-- [ ] **SETUP-05**: User can complete setup from npm scripts or CLI commands without manually editing generated hook/script files.
+- [x] **SETUP-01**: User can initialize the central data directory from an npm script or CLI command.
+- [x] **SETUP-02**: User can generate or view VS Code Insiders OTel settings that export to the central data directory.
+- [x] **SETUP-03**: User can generate or view Copilot CLI OTel environment exports that write to the central data directory.
+- [x] **SETUP-04**: User can install or preview Copilot CLI hook configuration for local attribution logging.
+- [x] **SETUP-05**: User can complete setup from npm scripts or CLI commands without manually editing generated hook/script files.
 
 ### Ingestion
 
@@ -97,16 +97,16 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01 | Phase 1 | Pending |
-| FOUND-02 | Phase 1 | Pending |
-| FOUND-03 | Phase 1 | Pending |
-| FOUND-04 | Phase 1 | Pending |
-| FOUND-05 | Phase 1 | Pending |
-| SETUP-01 | Phase 1 | Pending |
-| SETUP-02 | Phase 1 | Pending |
-| SETUP-03 | Phase 1 | Pending |
-| SETUP-04 | Phase 1 | Pending |
-| SETUP-05 | Phase 1 | Pending |
+| FOUND-01 | Phase 1 | Complete |
+| FOUND-02 | Phase 1 | Complete |
+| FOUND-03 | Phase 1 | Complete |
+| FOUND-04 | Phase 1 | Complete |
+| FOUND-05 | Phase 1 | Complete |
+| SETUP-01 | Phase 1 | Complete |
+| SETUP-02 | Phase 1 | Complete |
+| SETUP-03 | Phase 1 | Complete |
+| SETUP-04 | Phase 1 | Complete |
+| SETUP-05 | Phase 1 | Complete |
 | INGEST-01 | Phase 2 | Pending |
 | INGEST-02 | Phase 2 | Pending |
 | INGEST-03 | Phase 2 | Pending |
@@ -145,4 +145,4 @@
 
 ---
 *Requirements defined: 2026-05-30*
-*Last updated: 2026-05-30 after initial definition*
+*Last updated: 2026-05-30 after Phase 1 execution*

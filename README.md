@@ -1,0 +1,87 @@
+# Copilot Metrics
+
+Local-first tools for estimating Copilot usage from local telemetry and hook metadata. The project is CLI-first and keeps official billing separate: reported costs are estimates, not GitHub billing records.
+
+## Install And Run
+
+From this checkout:
+
+```bash
+npm test
+npm run cli -- --help
+```
+
+After publishing or linking the package, the same command surface is intended to work through `npx`:
+
+```bash
+npx copilot-metrics init
+npx copilot-metrics setup vscode
+npx copilot-metrics setup copilot-cli
+npx copilot-metrics hooks preview --scope local
+npx copilot-metrics hooks install --scope global
+```
+
+## Data Directory
+
+By default, metadata is stored in a user-level folder:
+
+- Linux: `$XDG_DATA_HOME/copilot-metrics` or `~/.local/share/copilot-metrics`
+- macOS: `~/Library/Application Support/copilot-metrics`
+- Windows: `%LOCALAPPDATA%\\copilot-metrics`
+
+Override with:
+
+```bash
+export COPILOT_METRICS_HOME=/path/to/copilot-metrics-data
+```
+
+Run:
+
+```bash
+npx copilot-metrics init
+npx copilot-metrics paths
+```
+
+## Telemetry Setup
+
+`setup vscode` prints VS Code Insiders Copilot Chat OpenTelemetry settings that write JSONL to the central data directory:
+
+```bash
+npx copilot-metrics setup vscode
+```
+
+`setup copilot-cli` prints Copilot CLI OpenTelemetry environment exports:
+
+```bash
+npx copilot-metrics setup copilot-cli
+```
+
+Content capture is disabled by default in generated setup output. Do not enable richer prompt capture unless you explicitly accept the privacy tradeoff.
+
+## Hook Setup
+
+Preview hook configuration without writing files:
+
+```bash
+npx copilot-metrics hooks preview --scope local
+npx copilot-metrics hooks preview --scope global
+```
+
+Install hook configuration:
+
+```bash
+npx copilot-metrics hooks install --scope local
+npx copilot-metrics hooks install --scope global
+```
+
+Local scope writes `.github/hooks/copilot-metrics.json` in the current repo. Global scope writes `~/.copilot/hooks/copilot-metrics.json`.
+
+The hook logger appends redacted JSONL metadata to the central data directory. It extracts Jira-style labels such as `HDASPF-12345` from safe metadata and does not store full prompt text by default.
+
+## LLM Skill
+
+An installable skill template is available at `skills/copilot-metrics/SKILL.md`. It tells LLM agents to query local paths and reports through the CLI, and to avoid reading raw prompt content unless content capture has been explicitly enabled.
+
+## Current Limits
+
+Phase 1 provides setup and capture scaffolding. Ingestion, normalization, cost estimation, and reports are planned in later phases.
