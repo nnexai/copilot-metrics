@@ -4,15 +4,15 @@ milestone: v1.0
 milestone_name: Local Copilot Usage Tracker
 status: executing
 last_updated: "2026-05-30T06:20:00Z"
-last_activity: 2026-05-30 -- Phase 1 completed
+last_activity: 2026-05-30 -- Phase 2 completed
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
-  percent: 20
-current_phase: 2
-current_phase_name: OTel Ingestion, Normalization, and Cost Model
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
+  percent: 40
+current_phase: 3
+current_phase_name: Jira Label Attribution and CLI Querying
 current_plan: 0
 total_plans_in_phase: 0
 ---
@@ -20,14 +20,14 @@ total_plans_in_phase: 0
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** Phase 1 complete; ready for Phase 2 discussion
+**Status:** Phase 2 complete; ready for Phase 3 discussion
 
 ## Project Reference
 
 See: `.planning/PROJECT.md` (updated 2026-05-30)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Phase 2 - OTel Ingestion, Normalization, and Cost Model
+**Current focus:** Phase 3 - Jira Label Attribution and CLI Querying
 
 ## Workflow Settings
 
@@ -43,11 +43,11 @@ See: `.planning/PROJECT.md` (updated 2026-05-30)
 
 ## Current Phase
 
-Phase 2: OTel Ingestion, Normalization, and Cost Model
+Phase 3: Jira Label Attribution and CLI Querying
 
 ## Current Position
 
-Phase: 2
+Phase: 3
 Plan: Not started
 Status: Ready to discuss
 Last activity: 2026-05-30
@@ -55,7 +55,7 @@ Last activity: 2026-05-30
 Next command:
 
 ```bash
-$gsd-discuss-phase 2
+$gsd-discuss-phase 3
 ```
 
 ## Notes
@@ -70,3 +70,4 @@ $gsd-discuss-phase 2
 - Official billing/usage details are date-sensitive; pricing and API behavior should be refreshed during implementation.
 - Phase 1 created the initial npm/npx-friendly CLI, central data directory helper, setup guidance, local/global hook config preview/install, redacted hook logger, README, tests, and `skills/copilot-metrics/SKILL.md`.
 - Phase 5 added for GitHub Actions, GitHub repository readiness, npm package metadata, and npm publishing preparation.
+- Phase 2 added SQLite-backed import, OTel normalization, GitHub AI Credit estimate pricing, malformed-row warnings, unknown-model warnings, and fixture coverage for VS Code, Copilot CLI, and hook JSONL.

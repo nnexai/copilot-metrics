@@ -23,28 +23,28 @@
 
 ### Ingestion
 
-- [ ] **INGEST-01**: Tool can read VS Code Copilot OTel JSONL files from configured local paths.
-- [ ] **INGEST-02**: Tool can read Copilot CLI OTel JSONL files from configured local paths.
-- [ ] **INGEST-03**: Tool can read Copilot CLI hook JSONL files from configured local paths.
-- [ ] **INGEST-04**: Tool tolerates malformed or partial JSONL records and reports skipped rows.
-- [ ] **INGEST-05**: Tool stores imported records in a local queryable store without requiring a remote service.
+- [x] **INGEST-01**: Tool can read VS Code Copilot OTel JSONL files from configured local paths.
+- [x] **INGEST-02**: Tool can read Copilot CLI OTel JSONL files from configured local paths.
+- [x] **INGEST-03**: Tool can read Copilot CLI hook JSONL files from configured local paths.
+- [x] **INGEST-04**: Tool tolerates malformed or partial JSONL records and reports skipped rows.
+- [x] **INGEST-05**: Tool stores imported records in a local queryable store without requiring a remote service.
 
 ### Normalization
 
-- [ ] **NORM-01**: Tool identifies billing-like LLM chat/model-call spans separately from root agent and tool spans.
-- [ ] **NORM-02**: Tool extracts timestamp, surface, conversation ID or session ID, requested model, resolved model, repo, branch, cwd, and commit when available.
-- [ ] **NORM-03**: Tool extracts input, output, cache read, cache creation, and reasoning token fields when present.
+- [x] **NORM-01**: Tool identifies billing-like LLM chat/model-call spans separately from root agent and tool spans.
+- [x] **NORM-02**: Tool extracts timestamp, surface, conversation ID or session ID, requested model, resolved model, repo, branch, cwd, and commit when available.
+- [x] **NORM-03**: Tool extracts input, output, cache read, cache creation, and reasoning token fields when present.
 - [ ] **NORM-04**: Tool extracts Jira-style labels such as `HDASPF-12345` from prompts, directories, branch names, hook metadata, and tool-call context.
-- [ ] **NORM-05**: Tool prevents double-counting when both root agent spans and lower-level LLM spans contain token totals.
+- [x] **NORM-05**: Tool prevents double-counting when both root agent spans and lower-level LLM spans contain token totals.
 - [ ] **NORM-06**: Tool preserves enough source context to explain where a label came from without storing full prompt content by default.
 
 ### Cost Estimation
 
-- [ ] **COST-01**: Tool includes a versioned model pricing table for GitHub Copilot model token categories.
-- [ ] **COST-02**: Tool estimates USD cost from model-specific input, output, cache read, and cache creation rates.
-- [ ] **COST-03**: Tool converts estimated USD to GitHub AI Credits.
-- [ ] **COST-04**: Tool flags unknown models or missing pricing instead of silently producing false precision.
-- [ ] **COST-05**: Tool labels all costs as estimates, not official billing records.
+- [x] **COST-01**: Tool includes a versioned model pricing table for GitHub Copilot model token categories.
+- [x] **COST-02**: Tool estimates USD cost from model-specific input, output, cache read, and cache creation rates.
+- [x] **COST-03**: Tool converts estimated USD to GitHub AI Credits.
+- [x] **COST-04**: Tool flags unknown models or missing pricing instead of silently producing false precision.
+- [x] **COST-05**: Tool labels all costs as estimates, not official billing records.
 
 ### Reporting
 
@@ -115,22 +115,22 @@
 | SETUP-03 | Phase 1 | Complete |
 | SETUP-04 | Phase 1 | Complete |
 | SETUP-05 | Phase 1 | Complete |
-| INGEST-01 | Phase 2 | Pending |
-| INGEST-02 | Phase 2 | Pending |
-| INGEST-03 | Phase 2 | Pending |
-| INGEST-04 | Phase 2 | Pending |
-| INGEST-05 | Phase 2 | Pending |
-| NORM-01 | Phase 2 | Pending |
-| NORM-02 | Phase 2 | Pending |
-| NORM-03 | Phase 2 | Pending |
+| INGEST-01 | Phase 2 | Complete |
+| INGEST-02 | Phase 2 | Complete |
+| INGEST-03 | Phase 2 | Complete |
+| INGEST-04 | Phase 2 | Complete |
+| INGEST-05 | Phase 2 | Complete |
+| NORM-01 | Phase 2 | Complete |
+| NORM-02 | Phase 2 | Complete |
+| NORM-03 | Phase 2 | Complete |
 | NORM-04 | Phase 3 | Pending |
-| NORM-05 | Phase 2 | Pending |
+| NORM-05 | Phase 2 | Complete |
 | NORM-06 | Phase 3 | Pending |
-| COST-01 | Phase 2 | Pending |
-| COST-02 | Phase 2 | Pending |
-| COST-03 | Phase 2 | Pending |
-| COST-04 | Phase 2 | Pending |
-| COST-05 | Phase 2 | Pending |
+| COST-01 | Phase 2 | Complete |
+| COST-02 | Phase 2 | Complete |
+| COST-03 | Phase 2 | Complete |
+| COST-04 | Phase 2 | Complete |
+| COST-05 | Phase 2 | Complete |
 | REPORT-01 | Phase 3 | Pending |
 | REPORT-02 | Phase 3 | Pending |
 | REPORT-03 | Phase 3 | Pending |
@@ -158,4 +158,4 @@
 
 ---
 *Requirements defined: 2026-05-30*
-*Last updated: 2026-05-30 after adding Phase 5*
+*Last updated: 2026-05-30 after Phase 2 execution*

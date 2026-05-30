@@ -8,11 +8,14 @@
   },
   "scripts": {
     "cli": "node bin/copilot-metrics.js",
-    "check": "node --check bin/copilot-metrics.js && node --check src/cli.js && node --check src/paths.js && node --check src/setup.js && node --check src/hook-logger.js",
+    "check": "node --check bin/copilot-metrics.js && node --check src/*.js",
     "test": "node --test"
   },
   "engines": {
     "node": ">=20"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "sql.js": "^1.14.1"
+  }
 }

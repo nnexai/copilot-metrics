@@ -11,6 +11,9 @@ const {
   setupSnapshot,
 } = require('./setup');
 const { appendHookEvent, readJsonFromStream } = require('./hook-logger');
+const { initStore } = require('./sqlite-store');
+const { ingestFile } = require('./ingest');
+const { MODEL_PRICES, PRICING_VERSION } = require('./pricing');
 
 function parseFlags(args) {
   const flags = {};
@@ -54,6 +57,9 @@ Usage:
   copilot-metrics hooks preview [--scope local|global] [--json]
   copilot-metrics hooks install [--scope local|global] [--json]
   copilot-metrics hook-log --event <name>
+  copilot-metrics store init [--json]
+  copilot-metrics import --source vscode|copilot-cli|hooks --file <path> [--json]
+  copilot-metrics pricing list [--json]
 
 Environment:
   COPILOT_METRICS_HOME  Override the central data directory.
@@ -69,6 +75,7 @@ function formatPaths(paths) {
     `VS Code OTel JSONL: ${paths.vscodeOtelJsonl}`,
     `Copilot CLI OTel JSONL: ${paths.copilotCliOtelJsonl}`,
     `Hook events JSONL: ${paths.hookEventsJsonl}`,
+    `SQLite store: ${paths.usageDb}`,
   ].join('\n');
 }
 
@@ -163,6 +170,48 @@ async function main(args, io) {
       includePromptPreview: flags.includePromptPreview === true,
     });
     writeOutput(io.stdout, json ? result : `Logged hook event: ${result.path}`, json);
+    return;
+  }
+
+  if (command === 'store') {
+    if (subcommand !== 'init') {
+      throw new Error(`Unknown store action "${subcommand}". Use init.`);
+    }
+    ensureDataDirs(paths);
+    await initStore(paths.usageDb);
+    writeOutput(io.stdout, json ? { dbPath: paths.usageDb } : `Initialized SQLite store: ${paths.usageDb}`, json);
+    return;
+  }
+
+  if (command === 'import') {
+    const source = flags.source;
+    const file = flags.file || (source === 'vscode'
+      ? paths.vscodeOtelJsonl
+      : source === 'copilot-cli'
+        ? paths.copilotCliOtelJsonl
+        : source === 'hooks'
+          ? paths.hookEventsJsonl
+          : null);
+    if (!['vscode', 'copilot-cli', 'hooks'].includes(source)) {
+      throw new Error('import requires --source vscode|copilot-cli|hooks');
+    }
+    if (!file) throw new Error('import requires --file <path>');
+    ensureDataDirs(paths);
+    const result = await ingestFile({ dbPath: paths.usageDb, file, source });
+    writeOutput(io.stdout, json ? result : [
+      `Imported ${result.raw_records} raw ${source} records into ${result.dbPath}`,
+      `Normalized usage records: ${result.usage_records}`,
+      `Hook events: ${result.hook_events}`,
+      `Warnings: ${result.warnings.length}`,
+      `Costs are ${result.estimate_label}`,
+    ].join('\n'), json);
+    return;
+  }
+
+  if (command === 'pricing') {
+    if (subcommand !== 'list') throw new Error(`Unknown pricing action "${subcommand}". Use list.`);
+    const payload = { version: PRICING_VERSION, unit: 'USD per 1M tokens', models: MODEL_PRICES };
+    writeOutput(io.stdout, json ? payload : JSON.stringify(payload, null, 2), json);
     return;
   }
 

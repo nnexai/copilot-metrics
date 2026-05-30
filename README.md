@@ -82,6 +82,20 @@ The hook logger appends redacted JSONL metadata to the central data directory. I
 
 An installable skill template is available at `skills/copilot-metrics/SKILL.md`. It tells LLM agents to query local paths and reports through the CLI, and to avoid reading raw prompt content unless content capture has been explicitly enabled.
 
+## Import Telemetry
+
+Phase 2 adds a local SQLite store through the portable npm dependency `sql.js`; npm/npx/node are the only runtime prerequisites.
+
+```bash
+npx copilot-metrics store init
+npx copilot-metrics import --source vscode --file ~/.local/share/copilot-metrics/telemetry/vscode-copilot-otel.jsonl
+npx copilot-metrics import --source copilot-cli --file ~/.local/share/copilot-metrics/telemetry/copilot-cli-otel.jsonl
+npx copilot-metrics import --source hooks --file ~/.local/share/copilot-metrics/hooks/copilot-cli-hooks.jsonl
+npx copilot-metrics pricing list --json
+```
+
+Imports persist raw records, normalized LLM usage records, hook events, and import warnings. Costs are labeled estimates and use the local pricing table version shown by `pricing list`.
+
 ## Current Limits
 
-Phase 1 provides setup and capture scaffolding. Ingestion, normalization, cost estimation, and reports are planned in later phases.
+Reporting and label attribution are planned in later phases. Phase 2 stores normalized usage in SQLite and estimates costs, but the estimates are not official billing records.

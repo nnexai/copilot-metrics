@@ -38,6 +38,7 @@ function resolvePaths(options = {}) {
     vscodeOtelJsonl: path.join(telemetryDir, 'vscode-copilot-otel.jsonl'),
     copilotCliOtelJsonl: path.join(telemetryDir, 'copilot-cli-otel.jsonl'),
     hookEventsJsonl: path.join(hooksDir, 'copilot-cli-hooks.jsonl'),
+    usageDb: path.join(storeDir, 'copilot-metrics.sqlite'),
     configJson: path.join(home, 'config.json'),
     localHookConfig: path.join(cwd, '.github', 'hooks', 'copilot-metrics.json'),
     globalHookConfig: path.join(copilotHome, 'hooks', 'copilot-metrics.json'),
