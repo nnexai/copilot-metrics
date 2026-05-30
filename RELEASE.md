@@ -5,7 +5,11 @@ This project publishes `copilot-metrics` to npm through GitHub Actions. The huma
 ## Prerequisites
 
 - GitHub repository exists at `nnexai/copilot-metrics`.
-- GitHub Actions secret `NPM_TOKEN` is configured with npm publish rights.
+- npm Trusted Publishing is configured for package `copilot-metrics`:
+  - Publisher: GitHub Actions
+  - Repository: `nnexai/copilot-metrics`
+  - Workflow filename: `npm-publish.yml`
+  - Allowed action: `npm publish`
 - npm package name is available or owned by the publishing account.
 - Local working tree is clean before tagging.
 
@@ -48,7 +52,7 @@ The script creates an example workspace, configures `copilot-metrics`, installs 
 2. Commit all release changes.
 3. Push `main`.
 4. Create a GitHub release for `v0.1.0`.
-5. Confirm the `Node.js Package` workflow passes and publishes to npm.
+5. Confirm the `Node.js Package` workflow passes and publishes to npm through Trusted Publishing.
 
 ## Post-Publish Verification
 
