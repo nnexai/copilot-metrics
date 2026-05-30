@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 const { resolvePaths } = require('../src/paths');
-const { vscodeSettings, copilotCliEnvironment, hookConfig, installHook, mergeGlobalSettingsHooks } = require('../src/setup');
+const { vscodeSettings, copilotCliEnvironment, hookConfig, installHook, mergeGlobalSettingsHooks, setupSnapshot } = require('../src/setup');
 const { appendHookEvent, redactHookPayload } = require('../src/hook-logger');
 
 test('resolvePaths uses COPILOT_METRICS_HOME override', () => {
@@ -38,9 +38,23 @@ test('setup snippets disable content capture by default', () => {
   assert.equal(cli.COPILOT_OTEL_FILE_EXPORTER_PATH, paths.copilotCliOtelJsonl);
 });
 
+test('setup snapshot persists central config for setup-once flow', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-setup-'));
+  const snapshot = setupSnapshot({
+    env: { COPILOT_METRICS_HOME: tmp },
+    cwd: '/tmp/work',
+    command: '/usr/bin/copilot-metrics',
+  });
+  assert.ok(fs.existsSync(snapshot.paths.configJson));
+  const config = JSON.parse(fs.readFileSync(snapshot.paths.configJson, 'utf8'));
+  assert.equal(config.dataHome, tmp);
+  assert.equal(config.telemetry.vscode, snapshot.paths.vscodeOtelJsonl);
+  assert.equal(config.sources.copilotCli.telemetry, snapshot.paths.copilotCliOtelJsonl);
+});
+
 test('default hook config uses CLI-compatible events for both surfaces', () => {
   const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: '/tmp/copilot-metrics' }, cwd: '/tmp/work' });
-  const config = hookConfig(paths, { cwd: '/repo', scope: 'local', command: '/usr/bin/copilot-metrics' });
+  const config = hookConfig(paths, { cwd: '/repo', scope: 'local', command: '/repo/bin/copilot-metrics.js' });
   assert.equal(config.version, 1);
   assert.equal(config.surface, undefined);
   assert.equal(config.contentCapture, undefined);
@@ -52,8 +66,17 @@ test('default hook config uses CLI-compatible events for both surfaces', () => {
     assert.match(commandHook.command, /hook-log/);
     assert.match(commandHook.command, /--quiet/);
     assert.match(commandHook.command, new RegExp(event));
-    assert.match(commandHook.command, /\/usr\/bin\/copilot-metrics/);
+    assert.match(commandHook.command, /\/repo\/bin\/copilot-metrics\.js/);
   }
+});
+
+test('installed executable hook commands do not wrap the shim with node', () => {
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: '/tmp/copilot-metrics' }, cwd: '/tmp/work' });
+  const config = hookConfig(paths, { cwd: '/repo', scope: 'local', command: '/usr/bin/copilot-metrics' });
+  const command = config.hooks.sessionStart[0].command;
+  assert.match(command, /COPILOT_METRICS_HOME=/);
+  assert.match(command, /'\/usr\/bin\/copilot-metrics' hook-log/);
+  assert.doesNotMatch(command, /node '\/usr\/bin\/copilot-metrics'/);
 });
 
 test('copilot-cli hook config can emit CLI-native event names', () => {

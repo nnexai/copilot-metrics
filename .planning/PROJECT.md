@@ -12,20 +12,20 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 
 ### Validated
 
-(None yet - ship to validate)
+- Validated: Collect VS Code Insiders Copilot OpenTelemetry JSONL from user-configured file exports - v0.1.1
+- Validated: Collect Copilot CLI OpenTelemetry JSONL from user-configured file exports - v0.1.1
+- Validated: Capture Copilot CLI task attribution metadata through local hooks - v0.1.1
+- Validated: Store all application metadata locally in a central user-level folder - v0.1.1
+- Validated: Extract Jira-style labels such as `DEMO-12345` from prompts, directories, branches, tool calls, and hook metadata - v0.1.1
+- Validated: Normalize LLM chat/model-call spans into a local queryable store without double-counting root agent spans - v0.1.1
+- Validated: Estimate GitHub AI Credits from model-specific token categories and pricing tables - v0.1.1
+- Validated: Provide CLI-first reports for label overview, summarized usage per label, detailed usage per label, model, repo/directory, and unattributed usage - v0.1.1
+- Validated: Provide both human-readable and machine-readable output for queries and reports - v0.1.1
+- Validated: Keep sensitive content capture disabled by default and avoid storing full prompts unless explicitly enabled - v0.1.1
 
 ### Active
 
-- [ ] Collect VS Code Insiders Copilot OpenTelemetry JSONL from user-configured file exports.
-- [ ] Collect Copilot CLI OpenTelemetry JSONL from user-configured file exports.
-- [ ] Capture Copilot CLI task attribution metadata through local hooks.
-- [ ] Store all application metadata locally in a central user-level folder.
-- [ ] Extract Jira-style labels such as `DEMO-12345` from prompts, directories, branches, tool calls, and hook metadata.
-- [ ] Normalize LLM chat/model-call spans into a local queryable store without double-counting root agent spans.
-- [ ] Estimate GitHub AI Credits from model-specific token categories and pricing tables.
-- [ ] Provide CLI-first reports for label overview, summarized usage per label, detailed usage per label, model, repo/directory, and unattributed usage.
-- [ ] Provide both human-readable and machine-readable output for queries and reports.
-- [ ] Keep sensitive content capture disabled by default and avoid storing full prompts unless explicitly enabled.
+(None currently - start the next milestone to define new active requirements.)
 
 ### Out of Scope
 
@@ -65,15 +65,15 @@ The most important attribution convention is Jira ticket IDs such as `DEMO-12345
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Use Node.js and npm scripts | User requested this stack for implementation and automation. | - Pending |
-| Use a central user-level data directory | Keeps metadata local, independent of individual repos, and suitable for cross-project Copilot usage. | - Pending |
-| Start with file-based OTel ingestion | JSONL exports are simple, local, auditable, and lower-friction than a collector. | - Pending |
-| Add CLI hooks for attribution | OTel provides tokens and models; hooks add task, cwd, transcript, and session context. | - Pending |
-| Prioritize Jira labels | User's primary grouping is ticket IDs such as `DEMO-12345`, extracted from prompt, directory, branch, and tool-call context. | - Pending |
-| Build CLI reports before dashboards | The user wants scripts/hooks/query tools first; dashboard is not a current priority. | - Pending |
-| Use cheap models for Copilot CLI verification | Integration tests can call Copilot CLI, but the goal is validating output/telemetry, not paying for high-quality answers. | - Pending |
-| Avoid full content capture by default | Work prompts, code, tool args, and outputs can be sensitive. | - Pending |
-| Treat official GitHub metrics as reconciliation only | Non-admins may not have access, and official reports are not designed for local task-level attribution. | - Pending |
+| Use Node.js and npm scripts | User requested this stack for implementation and automation. | Validated in v0.1.1 |
+| Use a central user-level data directory | Keeps metadata local, independent of individual repos, and suitable for cross-project Copilot usage. | Validated in v0.1.1 |
+| Start with file-based OTel ingestion | JSONL exports are simple, local, auditable, and lower-friction than a collector. | Validated in v0.1.1 |
+| Add CLI hooks for attribution | OTel provides tokens and models; hooks add task, cwd, transcript, and session context. | Validated in v0.1.1 |
+| Prioritize Jira labels | User's primary grouping is ticket IDs such as `DEMO-12345`, extracted from prompt, directory, branch, and tool-call context. | Validated in v0.1.1 |
+| Build CLI reports before dashboards | The user wants scripts/hooks/query tools first; dashboard is not a current priority. | Validated in v0.1.1 |
+| Use cheap models for Copilot CLI verification | Integration tests can call Copilot CLI, but the goal is validating output/telemetry, not paying for high-quality answers. | Validated in v0.1.1 |
+| Avoid full content capture by default | Work prompts, code, tool args, and outputs can be sensitive. | Validated in v0.1.1 |
+| Treat official GitHub metrics as reconciliation only | Non-admins may not have access, and official reports are not designed for local task-level attribution. | Validated in v0.1.1 |
 
 ## Evolution
 
@@ -93,4 +93,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-30 after initialization*
+*Last updated: 2026-05-30 after v0.1.1 milestone completion*

@@ -29,6 +29,19 @@ function persistDatabase(dbPath, db) {
   }
 }
 
+function hasColumn(db, table, column) {
+  const result = db.exec(`PRAGMA table_info(${table})`);
+  if (!result.length) return false;
+  const nameIndex = result[0].columns.indexOf('name');
+  return result[0].values.some((row) => row[nameIndex] === column);
+}
+
+function addColumnIfMissing(db, table, column, definition) {
+  if (!hasColumn(db, table, column)) {
+    db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
 async function initStore(dbPath) {
   const db = await openDatabase(dbPath);
   db.run(`
@@ -36,7 +49,9 @@ CREATE TABLE IF NOT EXISTS raw_records (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   imported_at TEXT NOT NULL,
   source TEXT NOT NULL,
+  source_file TEXT,
   line INTEGER NOT NULL,
+  raw_fingerprint TEXT,
   payload_json TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS usage_records (
@@ -105,6 +120,9 @@ CREATE TABLE IF NOT EXISTS import_warnings (
   message TEXT NOT NULL
 );
 `);
+  addColumnIfMissing(db, 'raw_records', 'source_file', 'TEXT');
+  addColumnIfMissing(db, 'raw_records', 'raw_fingerprint', 'TEXT');
+  db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_records_fingerprint ON raw_records (source, source_file, raw_fingerprint)');
   persistDatabase(dbPath, db);
 }
 
@@ -147,7 +165,25 @@ function insertLabelEvidence(db, importedAt, evidenceRows) {
   );
 }
 
-async function insertImport(dbPath, source, rawRecords, usageRecords, hookEvents, warnings) {
+async function existingRawFingerprints(dbPath, source, sourceFile, fingerprints) {
+  await initStore(dbPath);
+  if (!fingerprints.length) return new Set();
+  const db = await openDatabase(dbPath);
+  const existing = new Set();
+  const statement = db.prepare('SELECT 1 FROM raw_records WHERE source = ? AND source_file = ? AND raw_fingerprint = ? LIMIT 1');
+  try {
+    for (const fingerprint of fingerprints) {
+      statement.bind([source, sourceFile, fingerprint]);
+      if (statement.step()) existing.add(fingerprint);
+      statement.reset();
+    }
+  } finally {
+    statement.free();
+  }
+  return existing;
+}
+
+async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords, hookEvents, warnings) {
   await initStore(dbPath);
   const db = await openDatabase(dbPath);
   const importedAt = new Date().toISOString();
@@ -156,8 +192,8 @@ async function insertImport(dbPath, source, rawRecords, usageRecords, hookEvents
   try {
     runPrepared(
       db,
-      'INSERT INTO raw_records (imported_at, source, line, payload_json) VALUES (?, ?, ?, ?)',
-      rawRecords.map((record) => [importedAt, source, record.line, JSON.stringify(record.value)]),
+      'INSERT OR IGNORE INTO raw_records (imported_at, source, source_file, line, raw_fingerprint, payload_json) VALUES (?, ?, ?, ?, ?, ?)',
+      rawRecords.map((record) => [importedAt, source, sourceFile, record.line, record.raw_fingerprint || null, JSON.stringify(record.value)]),
     );
 
     const labelEvidence = [];
@@ -283,6 +319,7 @@ async function queryRows(dbPath, sql, params = []) {
 }
 
 module.exports = {
+  existingRawFingerprints,
   initStore,
   insertImport,
   queryOne,

@@ -45,6 +45,7 @@ function ensureDataDirs(paths) {
   if (!fs.existsSync(paths.configJson)) {
     writePrivateFile(paths.configJson, `${JSON.stringify({
       version: 1,
+      dataHome: paths.home,
       contentCapture: false,
       telemetry: {
         vscode: paths.vscodeOtelJsonl,
@@ -93,6 +94,11 @@ function packageBinCommand(cwd) {
   return path.join(cwd, 'bin', 'copilot-metrics.js');
 }
 
+function commandInvocation(command) {
+  const quoted = shellQuote(command);
+  return command.endsWith('.js') ? `node ${quoted}` : quoted;
+}
+
 function hookEventsForSurface(surface) {
   if (surface === 'copilot-cli' || surface === 'both') return COPILOT_CLI_HOOK_EVENTS;
   if (surface === 'vscode') return VSCODE_HOOK_EVENTS;
@@ -100,7 +106,7 @@ function hookEventsForSurface(surface) {
 }
 
 function hookCommand(command, event, metricsHome) {
-  return `COPILOT_METRICS_HOME=${shellQuote(metricsHome)} node ${shellQuote(command)} hook-log --event ${shellQuote(event)} --quiet`;
+  return `COPILOT_METRICS_HOME=${shellQuote(metricsHome)} ${commandInvocation(command)} hook-log --event ${shellQuote(event)} --quiet`;
 }
 
 function hookConfig(paths, options = {}) {
@@ -171,6 +177,7 @@ function installHook(paths, options = {}) {
 
 function setupSnapshot(options = {}) {
   const paths = resolvePaths(options);
+  ensureDataDirs(paths);
   return {
     paths,
     vscode: vscodeSettings(paths),

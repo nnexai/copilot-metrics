@@ -1,29 +1,29 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
+milestone: v0.1.1
 milestone_name: Local Copilot Usage Tracker
-status: ready_for_audit
-last_updated: "2026-05-30T07:20:00.000Z"
-last_activity: 2026-05-30 -- Phase 4/4.1 release readiness complete; manual Copilot CLI telemetry and hook validation passed with gpt-5-mini
+status: completed
+last_updated: "2026-05-30T08:07:34.481Z"
+last_activity: 2026-05-30 — Milestone v0.1.1 completed and archived
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 5
-  completed_plans: 5
+  total_phases: 7
+  completed_phases: 7
+  total_plans: 6
+  completed_plans: 6
   percent: 100
 ---
 
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** Ready for audit
+**Status:** v0.1.1 milestone complete
 
 ## Project Reference
 
 See: `.planning/PROJECT.md` (updated 2026-05-30)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Release-candidate audit
+**Current focus:** Milestone v0.1.1 archived; cleanup/commit gate pending
 
 ## Workflow Settings
 
@@ -43,16 +43,10 @@ All planned implementation phases complete
 
 ## Current Position
 
-Phase: All
-Plan: 5 of 5
-Status: Ready for audit
-Last activity: 2026-05-30 -- Phase 4/4.1 release readiness complete; manual Copilot CLI telemetry and hook validation passed with gpt-5-mini
-
-Next command:
-
-```bash
-$gsd-audit-milestone
-```
+Phase: Milestone v0.1.1 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-05-30 — Milestone v0.1.1 completed and archived
 
 ## Notes
 
@@ -71,3 +65,15 @@ $gsd-audit-milestone
 - Phase 4 added release candidate docs, MIT license, changelog, package metadata/files allowlist, smoke/package verification, GitHub Actions npm publish workflow, and manual Copilot CLI validation helper.
 - Automated verification passed: `npm test`, `npm run check`, `npm run smoke`, and `npm run verify:package`.
 - Manual Copilot CLI validation passed with `gpt-5-mini`: telemetry JSONL existed and imported, hook JSONL existed, and hook import recorded 16 hook events.
+- Phase 6 added and completed `copilot-metrics@0.1.1`: setup-once config persistence, idempotent auto-import before reports, complete cache/reasoning token reporting, hook-only label status, installed shim hook command support, docs/changelog/package version updates.
+- Phase 6 automated verification passed: `npm test`, `npm run check`, `npm run smoke`, and `npm run verify:package`.
+
+## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 6 added: `copilot-metrics@0.1.1` patch release for setup-once behavior, automatic hook/source imports before reports, complete token reporting including cache/reasoning tokens, and clear hook-only attribution semantics.
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

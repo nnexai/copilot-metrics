@@ -1,6 +1,6 @@
 'use strict';
 
-const { queryRows } = require('./sqlite-store');
+const { initStore, queryRows } = require('./sqlite-store');
 const { canonicalLabel } = require('./label-extractors');
 
 function n(value) {
@@ -31,6 +31,7 @@ function table(headers, rows) {
 }
 
 async function labelOverview(dbPath) {
+  await initStore(dbPath);
   return queryRows(dbPath, `
 SELECT
   labels.label,
@@ -43,6 +44,10 @@ SELECT
   COALESCE((SELECT SUM(cache_creation_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS cache_creation_tokens,
   COALESCE((SELECT SUM(reasoning_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS reasoning_tokens,
   COALESCE((SELECT SUM(COALESCE(estimated_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS estimated_ai_credits,
+  CASE
+    WHEN (SELECT COUNT(DISTINCT usage_record_id) FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL) = 0 THEN 'hook-only'
+    ELSE 'token-bearing'
+  END AS token_status,
   (SELECT MIN(COALESCE(ur.timestamp, le.timestamp, le.imported_at)) FROM label_evidence le LEFT JOIN usage_records ur ON ur.id = le.usage_record_id WHERE le.label = labels.label) AS first_seen,
   (SELECT MAX(COALESCE(ur.timestamp, le.timestamp, le.imported_at)) FROM label_evidence le LEFT JOIN usage_records ur ON ur.id = le.usage_record_id WHERE le.label = labels.label) AS last_seen,
   (SELECT MAX(estimate_label) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS estimate_label
@@ -51,6 +56,7 @@ ORDER BY estimated_ai_credits DESC, labels.label`);
 }
 
 async function labelSummary(dbPath, label) {
+  await initStore(dbPath);
   const rows = await queryRows(dbPath, `
 SELECT
   labels.label,
@@ -63,6 +69,10 @@ SELECT
   COALESCE((SELECT SUM(cache_creation_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS cache_creation_tokens,
   COALESCE((SELECT SUM(reasoning_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS reasoning_tokens,
   COALESCE((SELECT SUM(COALESCE(estimated_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS estimated_ai_credits,
+  CASE
+    WHEN (SELECT COUNT(DISTINCT usage_record_id) FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL) = 0 THEN 'hook-only'
+    ELSE 'token-bearing'
+  END AS token_status,
   (SELECT MIN(COALESCE(ur.timestamp, le.timestamp, le.imported_at)) FROM label_evidence le LEFT JOIN usage_records ur ON ur.id = le.usage_record_id WHERE le.label = labels.label) AS first_seen,
   (SELECT MAX(COALESCE(ur.timestamp, le.timestamp, le.imported_at)) FROM label_evidence le LEFT JOIN usage_records ur ON ur.id = le.usage_record_id WHERE le.label = labels.label) AS last_seen,
   (SELECT MAX(estimate_label) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS estimate_label
@@ -71,6 +81,7 @@ FROM (SELECT DISTINCT label FROM label_evidence WHERE label = ?) labels`, [canon
 }
 
 async function labelDetails(dbPath, label) {
+  await initStore(dbPath);
   return queryRows(dbPath, `
 SELECT
   le.label,
@@ -87,6 +98,9 @@ SELECT
   ur.resolved_model,
   ur.input_tokens,
   ur.output_tokens,
+  ur.cache_read_tokens,
+  ur.cache_creation_tokens,
+  ur.reasoning_tokens,
   ur.estimated_ai_credits,
   ur.estimate_label,
   COALESCE(ur.timestamp, le.timestamp, le.imported_at) AS timestamp
@@ -97,6 +111,7 @@ ORDER BY timestamp, le.source_type, le.source_field`, [canonicalLabel(label)]);
 }
 
 async function modelReport(dbPath) {
+  await initStore(dbPath);
   return queryRows(dbPath, `
 SELECT
   COALESCE(resolved_model, requested_model, 'unknown') AS model,
@@ -114,6 +129,7 @@ ORDER BY estimated_ai_credits DESC, model`);
 }
 
 async function repoReport(dbPath) {
+  await initStore(dbPath);
   return queryRows(dbPath, `
 SELECT
   COALESCE(repo, 'unknown') AS repo,
@@ -130,6 +146,7 @@ ORDER BY estimated_ai_credits DESC, repo, cwd`);
 }
 
 async function unattributedReport(dbPath) {
+  await initStore(dbPath);
   return queryRows(dbPath, `
 SELECT
   ur.id,
@@ -156,13 +173,18 @@ ORDER BY ur.timestamp, ur.id`);
 function formatLabels(rows) {
   return [
     table(
-      ['Label', 'Sessions', 'Input', 'Output', 'Credits', 'Evidence', 'Last seen'],
+      ['Label', 'Sessions', 'Usage', 'Input', 'Output', 'Cache read', 'Cache create', 'Reasoning', 'Credits', 'Status', 'Evidence', 'Last seen'],
       rows.map((row) => [
         row.label,
         row.sessions,
+        row.usage_records,
         formatNumber(row.input_tokens),
         formatNumber(row.output_tokens),
+        formatNumber(row.cache_read_tokens),
+        formatNumber(row.cache_creation_tokens),
+        formatNumber(row.reasoning_tokens),
         formatCredits(row.estimated_ai_credits),
+        row.token_status,
         row.evidence_count,
         row.last_seen || '',
       ]),
@@ -176,18 +198,35 @@ function formatLabelSummary(summary, details = null) {
   if (!summary) return 'No usage found for label.';
   const lines = [
     table(
-      ['Label', 'Sessions', 'Input', 'Output', 'Credits', 'Evidence'],
-      [[summary.label, summary.sessions, formatNumber(summary.input_tokens), formatNumber(summary.output_tokens), formatCredits(summary.estimated_ai_credits), summary.evidence_count]],
+      ['Label', 'Sessions', 'Usage', 'Input', 'Output', 'Cache read', 'Cache create', 'Reasoning', 'Credits', 'Status', 'Evidence'],
+      [[
+        summary.label,
+        summary.sessions,
+        summary.usage_records,
+        formatNumber(summary.input_tokens),
+        formatNumber(summary.output_tokens),
+        formatNumber(summary.cache_read_tokens),
+        formatNumber(summary.cache_creation_tokens),
+        formatNumber(summary.reasoning_tokens),
+        formatCredits(summary.estimated_ai_credits),
+        summary.token_status,
+        summary.evidence_count,
+      ]],
     ),
   ];
   if (details) {
     lines.push('', table(
-      ['Source', 'Field', 'Session', 'Model', 'Credits', 'Value'],
+      ['Source', 'Field', 'Session', 'Model', 'Input', 'Output', 'Cache read', 'Cache create', 'Reasoning', 'Credits', 'Value'],
       details.map((row) => [
         row.source_type,
         row.source_field,
         row.session_id || '',
         row.resolved_model || '',
+        formatNumber(row.input_tokens),
+        formatNumber(row.output_tokens),
+        formatNumber(row.cache_read_tokens),
+        formatNumber(row.cache_creation_tokens),
+        formatNumber(row.reasoning_tokens),
         formatCredits(row.estimated_ai_credits),
         row.source_value || '',
       ]),

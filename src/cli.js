@@ -12,7 +12,7 @@ const {
 } = require('./setup');
 const { appendHookEvent, readJsonFromStream } = require('./hook-logger');
 const { initStore } = require('./sqlite-store');
-const { ingestFile } = require('./ingest');
+const { autoImportConfiguredSources, ingestFile } = require('./ingest');
 const { MODEL_PRICES, PRICING_VERSION } = require('./pricing');
 const {
   labelOverview,
@@ -236,6 +236,12 @@ async function main(args, io) {
   }
 
   if (command === 'report') {
+    ensureDataDirs(paths);
+    await autoImportConfiguredSources(paths, {
+      cwd: io.cwd,
+      extractors: loadConfiguredExtractors(paths.configJson, io.cwd),
+    });
+
     if (subcommand === 'labels') {
       const rows = await labelOverview(paths.usageDb);
       writeOutput(io.stdout, json ? { labels: rows } : formatLabels(rows), json);
