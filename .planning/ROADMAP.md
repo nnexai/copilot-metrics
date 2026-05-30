@@ -86,7 +86,7 @@ Build a local-first Copilot usage tracker in five slices: easy-install CLI/scrip
 - Clear labels that reported costs are estimates.
 
 **Success Criteria** (what must be TRUE):
-  1. User can list discovered Jira labels such as `HDASPF-12345` with sessions, tokens, credits, first seen, and last seen.
+  1. User can list discovered Jira labels such as `DEMO-12345` with sessions, tokens, credits, first seen, and last seen.
   2. User can query summarized and detailed usage for a single label.
   3. User can inspect unattributed usage and see enough context to improve labels.
   4. Query commands run from local telemetry and the local store without remote services.

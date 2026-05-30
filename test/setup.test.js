@@ -63,11 +63,11 @@ test('hook logger redacts raw prompt content and extracts Jira labels', () => {
   const payload = {
     event: 'userPromptSubmitted',
     sessionId: 's1',
-    cwd: '/work/HDASPF-12345',
-    prompt: 'Please fix HDASPF-12345 and include secret implementation details',
+    cwd: '/work/DEMO-12345',
+    prompt: 'Please fix DEMO-12345 and include secret implementation details',
   };
   const redacted = redactHookPayload(payload, { event: 'userPromptSubmitted' });
-  assert.deepEqual(redacted.labels, ['HDASPF-12345']);
+  assert.deepEqual(redacted.labels, ['DEMO-12345']);
   assert.equal(redacted.prompt_preview, undefined);
   assert.equal(redacted.raw_prompt_stored, false);
 });
@@ -81,11 +81,11 @@ test('hook logger tolerates non-object JSON payloads', () => {
 test('appendHookEvent writes JSONL', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-log-'));
   const result = appendHookEvent(
-    { event: 'agentStop', cwd: '/repo', branch: 'feature/HDASPF-222' },
+    { event: 'agentStop', cwd: '/repo', branch: 'feature/DEMO-222' },
     { env: { COPILOT_METRICS_HOME: tmp }, cwd: '/repo' },
   );
   assert.ok(fs.existsSync(result.path));
   const lines = fs.readFileSync(result.path, 'utf8').trim().split('\n');
   assert.equal(lines.length, 1);
-  assert.deepEqual(JSON.parse(lines[0]).labels, ['HDASPF-222']);
+  assert.deepEqual(JSON.parse(lines[0]).labels, ['DEMO-222']);
 });

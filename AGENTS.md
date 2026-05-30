@@ -14,7 +14,7 @@ This repo uses GSD planning artifacts under `.planning/`. Read these first:
 - Use Node.js and npm scripts.
 - Store app metadata locally in a central user-level folder by default.
 - Prioritize easy-to-install CLI tools, scripts, and hooks over dashboard work.
-- Treat Jira ticket IDs such as `HDASPF-12345` as the primary label format.
+- Treat Jira ticket IDs such as `DEMO-12345` as the primary label format.
 - Extract labels from prompts, directories, branches, hooks, and tool-call context when available.
 - Provide human-readable and machine-readable output for query/report commands.
 - Prefer local JSONL ingestion and local storage before adding services.

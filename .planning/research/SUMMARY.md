@@ -7,7 +7,7 @@
 
 **Stack:** Build Node.js/npm CLI tools, scripts, and hooks around file-based OpenTelemetry JSONL ingestion first. Use a central user-level data directory, SQLite or DuckDB for normalized local storage, and optional OTLP collector support later.
 
-**Table Stakes:** The tool must install easily, ingest VS Code Insiders Copilot OTel, ingest Copilot CLI OTel, capture CLI hook metadata, normalize token fields, estimate AI Credits, extract Jira labels such as `HDASPF-12345`, and expose label/model/repo/unattributed CLI views.
+**Table Stakes:** The tool must install easily, ingest VS Code Insiders Copilot OTel, ingest Copilot CLI OTel, capture CLI hook metadata, normalize token fields, estimate AI Credits, extract Jira labels such as `DEMO-12345`, and expose label/model/repo/unattributed CLI views.
 
 **Watch Out For:** Do not double-count root agent spans and lower-level chat spans. Do not treat local estimates as official billing. Do not enable full content capture by default. Do not depend on admin-only GitHub metrics APIs for v1.
 

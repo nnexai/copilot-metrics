@@ -76,7 +76,7 @@ npx copilot-metrics hooks install --scope global
 
 Local scope writes `.github/hooks/copilot-metrics.json` in the current repo. Global scope writes `~/.copilot/hooks/copilot-metrics.json`.
 
-The hook logger appends redacted JSONL metadata to the central data directory. It extracts Jira-style labels such as `HDASPF-12345` from safe metadata and does not store full prompt text by default.
+The hook logger appends redacted JSONL metadata to the central data directory. It extracts Jira-style labels such as `DEMO-12345` from safe metadata and does not store full prompt text by default.
 
 ## LLM Skill
 
@@ -96,6 +96,45 @@ npx copilot-metrics pricing list --json
 
 Imports persist raw records, normalized LLM usage records, hook events, and import warnings. Costs are labeled estimates and use the local pricing table version shown by `pricing list`.
 
+## Reports
+
+Phase 3 adds local reports over the SQLite store:
+
+```bash
+npx copilot-metrics report labels
+npx copilot-metrics report label DEMO-12345
+npx copilot-metrics report label DEMO-12345 --detail
+npx copilot-metrics report models
+npx copilot-metrics report repos
+npx copilot-metrics report unattributed
+```
+
+Every report supports `--json` for machine-readable output:
+
+```bash
+npx copilot-metrics report labels --json
+```
+
+The default extractor finds Jira-style labels such as `DEMO-12345` from safe metadata including hook labels, branch names, cwd/path values, repo metadata, and task hints. Attribution is stored as evidence with source, field, session, repo, branch, cwd, confidence, and related usage or hook record IDs. This keeps the data useful for later analysis, such as deciding whether a label was the main task or a sidetrack.
+
+Full prompt content is not stored by default. Prompt-like fields are only used to extract labels and the stored source value is reduced to the matched label.
+
+## Custom Label Extractors
+
+Custom extractors can be plugged into the label extraction pipeline by calling `runLabelExtractors(sourceType, sourceData, customExtractors)` from `src/label-extractors.js`. Each extractor receives:
+
+- `sourceType`: for example `usage` or `hook`
+- `sourceData`: safe metadata for that source
+
+It returns zero or more labels, either as strings or evidence objects:
+
+```js
+const extractor = (sourceType, sourceData) => {
+  if (sourceData.branch === 'main') return [];
+  return [{ label: 'TEAM-123', source_field: 'branch', source_type: sourceType, confidence: 0.5 }];
+};
+```
+
 ## Current Limits
 
-Reporting and label attribution are planned in later phases. Phase 2 stores normalized usage in SQLite and estimates costs, but the estimates are not official billing records.
+Costs are estimates, not official billing records. Primary-label and sidetrack classification are intentionally left to downstream analysis built on top of the stored label evidence.

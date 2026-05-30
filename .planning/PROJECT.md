@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Copilot Metrics is a local Node.js/npm-based toolkit for estimating GitHub Copilot usage costs from local OpenTelemetry and session metadata. Its focus is easy-to-install CLI tools, scripts, and hooks that attribute VS Code Insiders Copilot Chat/agent and Copilot CLI usage to Jira-style labels such as `HDASPF-12345`, then expose human-readable and machine-readable reports without depending on admin-only GitHub billing access.
+Copilot Metrics is a local Node.js/npm-based toolkit for estimating GitHub Copilot usage costs from local OpenTelemetry and session metadata. Its focus is easy-to-install CLI tools, scripts, and hooks that attribute VS Code Insiders Copilot Chat/agent and Copilot CLI usage to Jira-style labels such as `DEMO-12345`, then expose human-readable and machine-readable reports without depending on admin-only GitHub billing access.
 
 ## Core Value
 
@@ -20,7 +20,7 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 - [ ] Collect Copilot CLI OpenTelemetry JSONL from user-configured file exports.
 - [ ] Capture Copilot CLI task attribution metadata through local hooks.
 - [ ] Store all application metadata locally in a central user-level folder.
-- [ ] Extract Jira-style labels such as `HDASPF-12345` from prompts, directories, branches, tool calls, and hook metadata.
+- [ ] Extract Jira-style labels such as `DEMO-12345` from prompts, directories, branches, tool calls, and hook metadata.
 - [ ] Normalize LLM chat/model-call spans into a local queryable store without double-counting root agent spans.
 - [ ] Estimate GitHub AI Credits from model-specific token categories and pricing tables.
 - [ ] Provide CLI-first reports for label overview, summarized usage per label, detailed usage per label, model, repo/directory, and unattributed usage.
@@ -47,7 +47,7 @@ The project should start with file-based exports because they are easy to inspec
 - Copilot CLI writes to a user-level JSONL path such as `~/.local/share/copilot-usage/copilot-cli-otel.jsonl`.
 - Copilot CLI hooks write redacted task/session metadata such as session ID, cwd, transcript path, task hint, and prompt preview.
 
-The most important attribution convention is Jira ticket IDs such as `HDASPF-12345`. Labels should be extracted from explicit prompt text, the current directory, branch names, hook payloads, transcript references, and tool-call metadata where available. Branch names and cwd/repo provide fallback attribution when prompt labels are missing.
+The most important attribution convention is Jira ticket IDs such as `DEMO-12345`. Labels should be extracted from explicit prompt text, the current directory, branch names, hook payloads, transcript references, and tool-call metadata where available. Branch names and cwd/repo provide fallback attribution when prompt labels are missing.
 
 ## Constraints
 
@@ -69,7 +69,7 @@ The most important attribution convention is Jira ticket IDs such as `HDASPF-123
 | Use a central user-level data directory | Keeps metadata local, independent of individual repos, and suitable for cross-project Copilot usage. | - Pending |
 | Start with file-based OTel ingestion | JSONL exports are simple, local, auditable, and lower-friction than a collector. | - Pending |
 | Add CLI hooks for attribution | OTel provides tokens and models; hooks add task, cwd, transcript, and session context. | - Pending |
-| Prioritize Jira labels | User's primary grouping is ticket IDs such as `HDASPF-12345`, extracted from prompt, directory, branch, and tool-call context. | - Pending |
+| Prioritize Jira labels | User's primary grouping is ticket IDs such as `DEMO-12345`, extracted from prompt, directory, branch, and tool-call context. | - Pending |
 | Build CLI reports before dashboards | The user wants scripts/hooks/query tools first; dashboard is not a current priority. | - Pending |
 | Use cheap models for Copilot CLI verification | Integration tests can call Copilot CLI, but the goal is validating output/telemetry, not paying for high-quality answers. | - Pending |
 | Avoid full content capture by default | Work prompts, code, tool args, and outputs can be sensitive. | - Pending |

@@ -1,2 +1,2 @@
-{"event":"userPromptSubmitted","session_id":"s1","cwd":"/repo/HDASPF-12345","repo":"copilot-metrics","branch":"feature/HDASPF-12345","labels":["HDASPF-12345"],"raw_prompt_stored":false}
-{"event":"agentStop","session_id":"s1","cwd":"/repo/HDASPF-12345","labels":["HDASPF-12345"],"raw_prompt_stored":false}
+{"event":"userPromptSubmitted","session_id":"s1","cwd":"/repo/DEMO-12345","repo":"copilot-metrics","branch":"feature/DEMO-12345","labels":["DEMO-12345"],"raw_prompt_stored":false}
+{"event":"agentStop","session_id":"s1","cwd":"/repo/DEMO-12345","labels":["DEMO-12345","DEMO-54321"],"raw_prompt_stored":false}

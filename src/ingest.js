@@ -4,6 +4,7 @@ const { readJsonl } = require('./jsonl');
 const { normalizePayload, normalizeHookEvent } = require('./otel');
 const { estimateCost, PRICING_VERSION } = require('./pricing');
 const { insertImport } = require('./sqlite-store');
+const { attachUsageLabelEvidence, attachHookLabelEvidence } = require('./labels');
 
 function enrichCosts(records) {
   return records.map((record) => {
@@ -36,7 +37,8 @@ async function ingestFile(options) {
     usageRecords.push(...normalizePayload(record.value, source, record.line));
   }
 
-  const enrichedUsage = enrichCosts(usageRecords);
+  const enrichedUsage = attachUsageLabelEvidence(enrichCosts(usageRecords));
+  const enrichedHooks = attachHookLabelEvidence(hookEvents);
   for (const usage of enrichedUsage) {
     for (const warning of usage.warnings) {
       warnings.push({
@@ -47,7 +49,7 @@ async function ingestFile(options) {
     }
   }
 
-  await insertImport(dbPath, source, parsed.records, enrichedUsage, hookEvents, warnings);
+  await insertImport(dbPath, source, parsed.records, enrichedUsage, enrichedHooks, warnings);
 
   return {
     source,
@@ -55,7 +57,9 @@ async function ingestFile(options) {
     dbPath,
     raw_records: parsed.records.length,
     usage_records: enrichedUsage.length,
-    hook_events: hookEvents.length,
+    hook_events: enrichedHooks.length,
+    label_evidence: enrichedUsage.reduce((sum, usage) => sum + (usage.label_evidence || []).length, 0)
+      + enrichedHooks.reduce((sum, event) => sum + (event.label_evidence || []).length, 0),
     warnings,
     estimate_label: `estimate:${PRICING_VERSION}`,
   };

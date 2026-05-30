@@ -29,7 +29,7 @@ Future report commands should be preferred when present, for example:
 
 ```bash
 copilot-metrics report labels --json
-copilot-metrics report label HDASPF-12345 --json
+copilot-metrics report label DEMO-12345 --json
 copilot-metrics report unattributed --json
 ```
 

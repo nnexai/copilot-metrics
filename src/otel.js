@@ -85,6 +85,8 @@ function normalizeSpan(span, source, rawLine) {
     branch: pick(attrs, ['vcs.branch.name', 'git.branch', 'branch']),
     cwd: pick(attrs, ['process.command_line.cwd', 'cwd', 'working_directory']),
     commit_sha: pick(attrs, ['vcs.revision', 'git.commit', 'commit']),
+    task_hint: pick(attrs, ['task_hint', 'task.hint', 'copilot.task.hint', 'title']),
+    prompt_preview: pick(attrs, ['prompt_preview', 'prompt.preview']),
     input_tokens: number(attrs, ['gen_ai.usage.input_tokens', 'llm.usage.prompt_tokens', 'input_tokens', 'prompt_tokens']),
     output_tokens: number(attrs, ['gen_ai.usage.output_tokens', 'llm.usage.completion_tokens', 'output_tokens', 'completion_tokens']),
     cache_read_tokens: number(attrs, ['gen_ai.usage.cache_read_input_tokens', 'gen_ai.usage.cached_input_tokens', 'cache_read_tokens']),
@@ -109,6 +111,7 @@ function normalizeHookEvent(payload, source, rawLine) {
     cwd: payload.cwd || null,
     repo: payload.repo || payload.repository || null,
     branch: payload.branch || payload.gitBranch || null,
+    task_hint: payload.task_hint || payload.taskHint || null,
     labels: Array.isArray(payload.labels) ? payload.labels : [],
     payload,
   };

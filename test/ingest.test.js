@@ -11,6 +11,7 @@ const { normalizePayload } = require('../src/otel');
 const { estimateCost, PRICING_VERSION } = require('../src/pricing');
 const { ingestFile } = require('../src/ingest');
 const { queryOne } = require('../src/sqlite-store');
+const { runLabelExtractors } = require('../src/label-extractors');
 
 const fixtures = path.join(__dirname, 'fixtures');
 
@@ -74,6 +75,8 @@ test('ingestFile stores vscode usage and warnings in SQLite', async () => {
   const rows = await queryOne(paths.usageDb, 'SELECT COUNT(*) AS count, SUM(input_tokens) AS input FROM usage_records');
   assert.equal(rows[0].count, 2);
   assert.equal(rows[0].input, 1010);
+  const evidence = await queryOne(paths.usageDb, "SELECT label, source_field FROM label_evidence WHERE label = 'DEMO-12345'");
+  assert.ok(evidence.some((row) => row.source_field === 'branch'));
 });
 
 test('ingestFile stores copilot cli records and hook events', async () => {
@@ -93,4 +96,24 @@ test('ingestFile stores copilot cli records and hook events', async () => {
   assert.equal(hooks.hook_events, 2);
   const rows = await queryOne(paths.usageDb, 'SELECT COUNT(*) AS count FROM hook_events');
   assert.equal(rows[0].count, 2);
+  const evidence = await queryOne(paths.usageDb, 'SELECT label, source_type, session_id FROM label_evidence ORDER BY label');
+  assert.ok(evidence.some((row) => row.label === 'DEMO-200' && row.source_type === 'usage'));
+  assert.ok(evidence.some((row) => row.label === 'DEMO-54321'));
+  assert.ok(evidence.some((row) => row.session_id === 's1'));
+});
+
+test('custom extractors can return zero or more labels', () => {
+  const none = runLabelExtractors('usage', { branch: 'main' }, [
+    () => [],
+  ]);
+  assert.deepEqual(none, []);
+
+  const custom = runLabelExtractors('usage', { branch: 'main' }, [
+    (sourceType, sourceData) => sourceData.branch === 'main'
+      ? [{ label: 'custom-42', source_field: 'branch', confidence: 0.25, source_type: sourceType }]
+      : [],
+  ]);
+  assert.equal(custom.length, 1);
+  assert.equal(custom[0].label, 'CUSTOM-42');
+  assert.equal(custom[0].source_field, 'branch');
 });

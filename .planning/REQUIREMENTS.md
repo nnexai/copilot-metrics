@@ -34,7 +34,7 @@
 - [x] **NORM-01**: Tool identifies billing-like LLM chat/model-call spans separately from root agent and tool spans.
 - [x] **NORM-02**: Tool extracts timestamp, surface, conversation ID or session ID, requested model, resolved model, repo, branch, cwd, and commit when available.
 - [x] **NORM-03**: Tool extracts input, output, cache read, cache creation, and reasoning token fields when present.
-- [ ] **NORM-04**: Tool extracts Jira-style labels such as `HDASPF-12345` from prompts, directories, branch names, hook metadata, and tool-call context.
+- [ ] **NORM-04**: Tool extracts Jira-style labels such as `DEMO-12345` from prompts, directories, branch names, hook metadata, and tool-call context.
 - [x] **NORM-05**: Tool prevents double-counting when both root agent spans and lower-level LLM spans contain token totals.
 - [ ] **NORM-06**: Tool preserves enough source context to explain where a label came from without storing full prompt content by default.
 

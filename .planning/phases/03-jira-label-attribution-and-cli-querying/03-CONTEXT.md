@@ -14,7 +14,7 @@ Attribute usage to Jira-style labels, repos, branches, directories, tool-call co
 ## Implementation Decisions
 
 ### Attribution Model
-- Use canonical uppercase Jira-style labels such as `HDASPF-12345`, deduping case-insensitively while storing the canonical uppercase form.
+- Use canonical uppercase Jira-style labels such as `DEMO-12345`, deduping case-insensitively while storing the canonical uppercase form.
 - Preserve label attribution as evidence by source and session, so later analysis can decide whether a label is the main task or a sidetrack.
 - Store label matches and source field names by default, avoiding full prompt text or full content capture.
 - Support multi-label records by preserving all label evidence and marking shared/multi-label usage in detail output instead of forcing a single exclusive label.
@@ -39,7 +39,7 @@ Attribute usage to Jira-style labels, repos, branches, directories, tool-call co
 
 ### Verification and Smoke Scope
 - Prioritize fixture tests for Jira extraction, evidence precedence, session joins, report JSON shapes, and human table output smoke.
-- Use `HDASPF-12345` plus at least one second label in fixtures to prove multi-label and statistical attribution behavior.
+- Use `DEMO-12345` plus at least one second label in fixtures to prove multi-label and statistical attribution behavior.
 - Verify unattributed usage appears in `report unattributed` with enough session/source context to improve labeling, but without storing prompt content.
 - Include a smoke path that imports fixtures into a temp store, runs reports with `--json` and human output, and confirms costs are marked as estimates.
 
@@ -97,7 +97,7 @@ The agent may choose table names, SQL schema details, confidence weights, exact 
 
 - Attribution should be statistical and evidence-preserving, including source and session, so downstream analysis can classify labels as primary work or sidetrack work.
 - Users should be able to provide a custom label extractor called with source type and source data, returning zero or more labels.
-- Jira IDs such as `HDASPF-12345` remain the default primary label format.
+- Jira IDs such as `DEMO-12345` remain the default primary label format.
 
 </specifics>
 

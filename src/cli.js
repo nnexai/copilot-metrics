@@ -14,6 +14,19 @@ const { appendHookEvent, readJsonFromStream } = require('./hook-logger');
 const { initStore } = require('./sqlite-store');
 const { ingestFile } = require('./ingest');
 const { MODEL_PRICES, PRICING_VERSION } = require('./pricing');
+const {
+  labelOverview,
+  labelSummary,
+  labelDetails,
+  modelReport,
+  repoReport,
+  unattributedReport,
+  formatLabels,
+  formatLabelSummary,
+  formatModels,
+  formatRepos,
+  formatUnattributed,
+} = require('./reports');
 
 function parseFlags(args) {
   const flags = {};
@@ -59,6 +72,11 @@ Usage:
   copilot-metrics hook-log --event <name>
   copilot-metrics store init [--json]
   copilot-metrics import --source vscode|copilot-cli|hooks --file <path> [--json]
+  copilot-metrics report labels [--json]
+  copilot-metrics report label <id> [--detail] [--json]
+  copilot-metrics report models [--json]
+  copilot-metrics report repos [--json]
+  copilot-metrics report unattributed [--json]
   copilot-metrics pricing list [--json]
 
 Environment:
@@ -202,10 +220,47 @@ async function main(args, io) {
       `Imported ${result.raw_records} raw ${source} records into ${result.dbPath}`,
       `Normalized usage records: ${result.usage_records}`,
       `Hook events: ${result.hook_events}`,
+      `Label evidence: ${result.label_evidence}`,
       `Warnings: ${result.warnings.length}`,
       `Costs are ${result.estimate_label}`,
     ].join('\n'), json);
     return;
+  }
+
+  if (command === 'report') {
+    if (subcommand === 'labels') {
+      const rows = await labelOverview(paths.usageDb);
+      writeOutput(io.stdout, json ? { labels: rows } : formatLabels(rows), json);
+      return;
+    }
+    if (subcommand === 'label') {
+      const label = rest[2];
+      if (!label) throw new Error('report label requires <id>');
+      const summary = await labelSummary(paths.usageDb, label);
+      if (flags.detail === true) {
+        const details = await labelDetails(paths.usageDb, label);
+        writeOutput(io.stdout, json ? { label: summary, details } : formatLabelSummary(summary, details), json);
+        return;
+      }
+      writeOutput(io.stdout, json ? { label: summary } : formatLabelSummary(summary), json);
+      return;
+    }
+    if (subcommand === 'models') {
+      const rows = await modelReport(paths.usageDb);
+      writeOutput(io.stdout, json ? { models: rows } : formatModels(rows), json);
+      return;
+    }
+    if (subcommand === 'repos') {
+      const rows = await repoReport(paths.usageDb);
+      writeOutput(io.stdout, json ? { repos: rows } : formatRepos(rows), json);
+      return;
+    }
+    if (subcommand === 'unattributed') {
+      const rows = await unattributedReport(paths.usageDb);
+      writeOutput(io.stdout, json ? { unattributed: rows } : formatUnattributed(rows), json);
+      return;
+    }
+    throw new Error(`Unknown report "${subcommand}". Use labels, label, models, repos, or unattributed.`);
   }
 
   if (command === 'pricing') {
