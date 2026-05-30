@@ -4,6 +4,7 @@ npm-debug.log*
 # Local telemetry and generated stores
 .copilot-metrics/
 copilot-metrics-data/
+.tmp/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal

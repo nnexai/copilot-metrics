@@ -12,9 +12,7 @@ const COPILOT_CLI_HOOK_EVENTS = [
   'userPromptSubmitted',
   'preToolUse',
   'postToolUse',
-  'postToolUseFailure',
   'agentStop',
-  'subagentStart',
   'subagentStop',
   'errorOccurred',
 ];
@@ -109,20 +107,21 @@ function hookConfig(paths, options = {}) {
   const surface = options.surface || 'both';
   const events = hookEventsForSurface(surface);
   const command = options.command || packageBinCommand(options.cwd || process.cwd());
+  const commandHook = (event) => ({
+    type: 'command',
+    bash: hookCommand(command, event, paths.home),
+    command: hookCommand(command, event, paths.home),
+    env: {
+      COPILOT_METRICS_HOME: paths.home,
+    },
+    timeout: 10,
+    timeoutSec: 10,
+  });
   return {
     version: 1,
     hooks: Object.fromEntries(events.map((event) => [
       event,
-      [{
-        type: 'command',
-        bash: hookCommand(command, event, paths.home),
-        command: hookCommand(command, event, paths.home),
-        env: {
-          COPILOT_METRICS_HOME: paths.home,
-        },
-        timeout: 10,
-        timeoutSec: 10,
-      }],
+      [commandHook(event)],
     ])),
   };
 }
@@ -133,10 +132,39 @@ function hookTarget(paths, scope) {
   throw new Error(`Unknown hook scope "${scope}". Use "local" or "global".`);
 }
 
+function mergeGlobalSettingsHooks(settings, hooks) {
+  const next = { ...settings };
+  const existingHooks = next.hooks || {};
+  const mergedHooks = {};
+  const isMetricsHook = (hook) => {
+    const command = `${hook.bash || ''}\n${hook.powershell || ''}\n${hook.command || ''}`;
+    return command.includes('copilot-metrics') && command.includes('hook-log');
+  };
+
+  for (const event of new Set([...Object.keys(existingHooks), ...Object.keys(hooks)])) {
+    const existing = Array.isArray(existingHooks[event]) ? existingHooks[event].filter((hook) => !isMetricsHook(hook)) : [];
+    const additions = Array.isArray(hooks[event]) ? hooks[event] : [];
+    if (existing.length > 0 || additions.length > 0) {
+      mergedHooks[event] = [...existing, ...additions];
+    }
+  }
+
+  next.hooks = mergedHooks;
+  return next;
+}
+
 function installHook(paths, options = {}) {
   const scope = options.scope || 'local';
   const target = hookTarget(paths, scope);
   const config = hookConfig(paths, { ...options, scope });
+  if (scope === 'global') {
+    let settings = {};
+    if (fs.existsSync(target)) {
+      settings = JSON.parse(fs.readFileSync(target, 'utf8'));
+    }
+    writePrivateFile(target, `${JSON.stringify(mergeGlobalSettingsHooks(settings, config.hooks), null, 2)}\n`);
+    return { target, config };
+  }
   writePrivateFile(target, `${JSON.stringify(config, null, 2)}\n`);
   return { target, config };
 }
@@ -163,5 +191,6 @@ module.exports = {
   hookConfig,
   hookTarget,
   installHook,
+  mergeGlobalSettingsHooks,
   setupSnapshot,
 };

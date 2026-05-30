@@ -5,6 +5,7 @@ const { execFileSync, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { mergeGlobalSettingsHooks } = require('../src/setup');
 
 const root = path.join(__dirname, '..');
 const cli = path.join(root, 'bin', 'copilot-metrics.js');
@@ -46,9 +47,14 @@ fs.writeFileSync(path.join(workspace, 'README.md'), '# copilot-metrics validatio
 if (!fs.existsSync(path.join(workspace, '.git'))) {
   run('git', ['init'], { cwd: workspace });
 }
+try {
+  run('git', ['remote', 'get-url', 'origin'], { cwd: workspace });
+} catch {
+  run('git', ['remote', 'add', 'origin', 'https://github.com/nnexai/copilot-metrics.git'], { cwd: workspace });
+}
 
 runCli(['init', '--json'], workspace, metricsHome);
-runCli(['hooks', 'install', '--scope', 'local', '--surface', 'both', '--json'], workspace, metricsHome);
+const hookInstall = JSON.parse(runCli(['hooks', 'install', '--scope', 'local', '--surface', 'both', '--json'], workspace, metricsHome));
 const envConfig = JSON.parse(runCli(['setup', 'copilot-cli', '--json'], workspace, metricsHome));
 const paths = JSON.parse(runCli(['paths', '--json'], workspace, metricsHome));
 
@@ -59,7 +65,8 @@ const result = {
   workspace,
   metricsHome,
   envFile,
-  hookConfig: path.join(workspace, '.github', 'hooks', 'copilot-metrics.json'),
+  hookConfig: hookInstall.target,
+  temporaryGlobalSettings: path.join(process.env.COPILOT_HOME || path.join(os.homedir(), '.copilot'), 'settings.json'),
   copilotCliOtelJsonl: paths.copilotCliOtelJsonl,
   hookEventsJsonl: paths.hookEventsJsonl,
   ranPrompt: false,
@@ -72,16 +79,31 @@ if (setupOnly) {
   process.exit(0);
 }
 
-const copilot = spawnSync('copilot', ['-p', prompt, '--allow-all-tools', '--model', model, '--no-auto-update', '--silent'], {
-  cwd: workspace,
-  env: {
-    ...process.env,
-    ...envConfig,
-    COPILOT_METRICS_HOME: metricsHome,
-  },
-  encoding: 'utf8',
-  maxBuffer: 1024 * 1024 * 8,
-});
+const settingsExisted = fs.existsSync(result.temporaryGlobalSettings);
+const originalSettings = settingsExisted ? fs.readFileSync(result.temporaryGlobalSettings, 'utf8') : null;
+let copilot;
+try {
+  const settings = settingsExisted ? JSON.parse(originalSettings) : {};
+  fs.mkdirSync(path.dirname(result.temporaryGlobalSettings), { recursive: true });
+  fs.writeFileSync(
+    result.temporaryGlobalSettings,
+    `${JSON.stringify(mergeGlobalSettingsHooks(settings, hookInstall.config.hooks), null, 2)}\n`,
+  );
+
+  copilot = spawnSync('copilot', ['-p', prompt, '--yolo', '--model', model, '--no-auto-update', '--silent'], {
+    cwd: workspace,
+    env: {
+      ...process.env,
+      ...envConfig,
+      COPILOT_METRICS_HOME: metricsHome,
+    },
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024 * 8,
+  });
+} finally {
+  if (settingsExisted) fs.writeFileSync(result.temporaryGlobalSettings, originalSettings);
+  else if (fs.existsSync(result.temporaryGlobalSettings)) fs.rmSync(result.temporaryGlobalSettings);
+}
 
 result.ranPrompt = true;
 result.exitCode = copilot.status;

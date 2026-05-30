@@ -19,15 +19,15 @@ Prepared `copilot-metrics@0.1.0` as a first release candidate with safe npm pack
 
 ## Verification
 
-- `npm test`: PASS, 23 tests.
+- `npm test`: PASS, 24 tests.
 - `npm run check`: PASS.
 - `npm run smoke`: PASS.
 - `npm run verify:package`: PASS.
-- Manual Copilot CLI validation helper exists; final authenticated hook run is blocked by current local CLI auth state.
+- Manual Copilot CLI validation passed locally with `gpt-5-mini`: telemetry JSONL existed and imported, hook JSONL existed, and hook import recorded 16 hook events.
 
 ## Follow-Up
 
-After local Copilot auth is restored, rerun:
+For future release candidates, rerun:
 
 ```bash
 node scripts/manual-copilot-cli-flow.js --run-prompt --model gpt-5-mini

@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Local Copilot Usage Tracker
 status: ready_for_audit
-last_updated: "2026-05-30T07:15:00.000Z"
-last_activity: 2026-05-30 -- Phase 4/4.1 release readiness complete; manual Copilot CLI hook rerun blocked by local auth
+last_updated: "2026-05-30T07:20:00.000Z"
+last_activity: 2026-05-30 -- Phase 4/4.1 release readiness complete; manual Copilot CLI telemetry and hook validation passed with gpt-5-mini
 progress:
   total_phases: 6
   completed_phases: 6
@@ -46,7 +46,7 @@ All planned implementation phases complete
 Phase: All
 Plan: 5 of 5
 Status: Ready for audit
-Last activity: 2026-05-30 -- Phase 4/4.1 release readiness complete; manual Copilot CLI hook rerun blocked by local auth
+Last activity: 2026-05-30 -- Phase 4/4.1 release readiness complete; manual Copilot CLI telemetry and hook validation passed with gpt-5-mini
 
 Next command:
 
@@ -70,4 +70,4 @@ $gsd-audit-milestone
 - Phase 4.1 was inserted after user correction that VS Code also has hook support and must be researched instead of guessed.
 - Phase 4 added release candidate docs, MIT license, changelog, package metadata/files allowlist, smoke/package verification, GitHub Actions npm publish workflow, and manual Copilot CLI validation helper.
 - Automated verification passed: `npm test`, `npm run check`, `npm run smoke`, and `npm run verify:package`.
-- Manual Copilot CLI telemetry collection succeeded earlier in Phase 4, but the final cheap-model hook validation rerun is blocked because the local Copilot CLI currently cannot retrieve authentication.
+- Manual Copilot CLI validation passed with `gpt-5-mini`: telemetry JSONL existed and imported, hook JSONL existed, and hook import recorded 16 hook events.

@@ -12,11 +12,11 @@ Result: PASS
 
 Evidence:
 
-- `node --test`: 23 passing tests.
+- `node --test`: 24 passing tests.
 - `npm run check`: syntax check passed for `bin/copilot-metrics.js` and `src/*.js`.
 - `npm run smoke`: fixture end-to-end import/report smoke passed in a temporary home.
 - `npm run verify:package`: package verification passed for `copilot-metrics@0.1.0`.
-- Package dry-run reported 20 files and unpacked size around 70 KB.
+- Package dry-run reported 20 files and unpacked size around 72 KB.
 
 ## Manual Copilot CLI Validation
 
@@ -27,12 +27,13 @@ node scripts/manual-copilot-cli-flow.js --setup-only
 node scripts/manual-copilot-cli-flow.js --run-prompt --model gpt-5-mini
 ```
 
-Status:
+Result: PASS
 
 - Setup/helper path exists and creates an isolated example Git workspace.
-- The helper initializes `copilot-metrics`, installs repo-local hooks, writes Copilot CLI OTel environment exports, and imports collected telemetry/hooks when present.
-- A prior local run successfully collected Copilot CLI OTel and imported one usage record.
-- Final hook validation rerun is blocked because the local Copilot CLI currently reports no usable authentication token.
+- The helper initializes `copilot-metrics`, installs repo-local hooks, writes Copilot CLI OTel environment exports, temporarily applies user-level Copilot CLI hook settings, and restores the original settings afterward.
+- Authenticated run with `gpt-5-mini` completed a harmless `pwd` prompt.
+- Telemetry validation: `telemetryExists: true`, Copilot CLI import succeeded with `raw_records: 51` and `usage_records: 11` in the reused example workspace.
+- Hook validation: `hooksExist: true`, hook import succeeded with `raw_records: 16` and `hook_events: 16`.
 
 ## Release Verification
 
@@ -44,4 +45,4 @@ Status:
 
 ## Residual Risk
 
-Real Copilot CLI hook execution still needs one successful local authenticated run after `copilot login` or token environment setup is restored.
+VS Code hook execution remains a documented/manual path for `0.1.0`; the release gate validated Copilot CLI telemetry and hook collection locally.

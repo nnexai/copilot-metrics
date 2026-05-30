@@ -60,7 +60,7 @@ Content capture is disabled by default. Do not enable richer prompt capture unle
 
 ## Configure Hooks
 
-Preview repo-local hook config. The default `--surface both` emits the VS Code-compatible hook format, which Copilot CLI also understands:
+Preview repo-local hook config. The default `--surface both` emits the Copilot CLI lower camel case hook format:
 
 ```bash
 npx copilot-metrics@0.1.0 hooks preview --scope local --surface both
@@ -73,7 +73,7 @@ npx copilot-metrics@0.1.0 hooks install --scope local --surface both
 npx copilot-metrics@0.1.0 hooks install --scope global --surface both
 ```
 
-Use `--surface vscode` for VS Code-only PascalCase events or `--surface copilot-cli` for CLI-native lower camel case events. The hook logger writes redacted JSONL metadata to the central data directory. It extracts Jira-style labels such as `DEMO-12345` from safe metadata and does not store full prompt text by default.
+Local install writes `.github/hooks/copilot-metrics.json`. Global install updates `~/.copilot/settings.json` idempotently, replacing prior `copilot-metrics` hook entries while preserving other settings and hooks. Use `--surface vscode` for VS Code-only PascalCase events or `--surface copilot-cli` for CLI-native lower camel case events. The hook logger writes redacted JSONL metadata to the central data directory. It extracts Jira-style labels such as `DEMO-12345` from safe metadata and does not store full prompt text by default.
 
 ## Import Telemetry
 
@@ -163,7 +163,7 @@ node scripts/manual-copilot-cli-flow.js --setup-only
 node scripts/manual-copilot-cli-flow.js --run-prompt --model gpt-5-mini
 ```
 
-The manual prompt performs one harmless tool call so Copilot CLI hook execution can be validated; answer quality is not part of the check.
+The manual prompt performs one harmless tool call so Copilot CLI hook execution can be validated; answer quality is not part of the check. During the prompt run, the helper temporarily adds generated hooks to `~/.copilot/settings.json` and restores the original settings afterward.
 
 ## Current Limits
 

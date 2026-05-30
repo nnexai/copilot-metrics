@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 const { resolvePaths } = require('../src/paths');
-const { vscodeSettings, copilotCliEnvironment, hookConfig, installHook } = require('../src/setup');
+const { vscodeSettings, copilotCliEnvironment, hookConfig, installHook, mergeGlobalSettingsHooks } = require('../src/setup');
 const { appendHookEvent, redactHookPayload } = require('../src/hook-logger');
 
 test('resolvePaths uses COPILOT_METRICS_HOME override', () => {
@@ -25,7 +25,7 @@ test('resolvePaths respects COPILOT_HOME for global hooks', () => {
     },
     cwd: '/tmp/work',
   });
-  assert.equal(paths.globalHookConfig, path.join('/tmp/custom-copilot', 'hooks', 'copilot-metrics.json'));
+  assert.equal(paths.globalHookConfig, path.join('/tmp/custom-copilot', 'settings.json'));
 });
 
 test('setup snippets disable content capture by default', () => {
@@ -45,13 +45,14 @@ test('default hook config uses CLI-compatible events for both surfaces', () => {
   assert.equal(config.surface, undefined);
   assert.equal(config.contentCapture, undefined);
   for (const event of ['sessionStart', 'userPromptSubmitted', 'preToolUse', 'postToolUse', 'agentStop']) {
-    assert.equal(config.hooks[event][0].type, 'command');
-    assert.match(config.hooks[event][0].command, /node/);
-    assert.match(config.hooks[event][0].bash, /node/);
-    assert.match(config.hooks[event][0].command, /hook-log/);
-    assert.match(config.hooks[event][0].command, /--quiet/);
-    assert.match(config.hooks[event][0].command, new RegExp(event));
-    assert.match(config.hooks[event][0].command, /\/usr\/bin\/copilot-metrics/);
+    const commandHook = config.hooks[event][0];
+    assert.equal(commandHook.type, 'command');
+    assert.match(commandHook.command, /node/);
+    assert.match(commandHook.bash, /node/);
+    assert.match(commandHook.command, /hook-log/);
+    assert.match(commandHook.command, /--quiet/);
+    assert.match(commandHook.command, new RegExp(event));
+    assert.match(commandHook.command, /\/usr\/bin\/copilot-metrics/);
   }
 });
 
@@ -67,6 +68,8 @@ test('copilot-cli hook config can emit CLI-native event names', () => {
   assert.ok(config.hooks.userPromptSubmitted);
   assert.ok(config.hooks.postToolUse);
   assert.equal(config.hooks.SessionStart, undefined);
+  assert.equal(config.hooks.UserPromptSubmit, undefined);
+  assert.equal(config.hooks.PostToolUse, undefined);
 });
 
 test('vscode hook config can emit VS Code event names', () => {
@@ -85,10 +88,39 @@ test('vscode hook config can emit VS Code event names', () => {
 
 test('installHook writes local and global hook files', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-hooks-'));
-  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: path.join(tmp, 'home') }, cwd: tmp });
+  const paths = resolvePaths({
+    env: {
+      COPILOT_METRICS_HOME: path.join(tmp, 'home'),
+      COPILOT_HOME: path.join(tmp, 'copilot-home'),
+    },
+    cwd: tmp,
+  });
   const local = installHook(paths, { cwd: tmp, scope: 'local' });
   assert.equal(local.target, path.join(tmp, '.github', 'hooks', 'copilot-metrics.json'));
   assert.ok(fs.existsSync(local.target));
+  const global = installHook(paths, { cwd: tmp, scope: 'global' });
+  assert.equal(global.target, path.join(tmp, 'copilot-home', 'settings.json'));
+  const settings = JSON.parse(fs.readFileSync(global.target, 'utf8'));
+  assert.ok(settings.hooks.postToolUse);
+});
+
+test('global hook merge replaces prior copilot-metrics hooks only', () => {
+  const existing = {
+    model: 'gpt-5-mini',
+    hooks: {
+      postToolUse: [
+        { type: 'command', bash: 'echo keep' },
+        { type: 'command', bash: 'node bin/copilot-metrics.js hook-log --event postToolUse' },
+      ],
+    },
+  };
+  const next = mergeGlobalSettingsHooks(existing, {
+    postToolUse: [{ type: 'command', bash: 'node /repo/bin/copilot-metrics.js hook-log --event postToolUse' }],
+  });
+  assert.equal(next.model, 'gpt-5-mini');
+  assert.equal(next.hooks.postToolUse.length, 2);
+  assert.equal(next.hooks.postToolUse[0].bash, 'echo keep');
+  assert.match(next.hooks.postToolUse[1].bash, /copilot-metrics/);
 });
 
 test('hook logger redacts raw prompt content and extracts Jira labels', () => {

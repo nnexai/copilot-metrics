@@ -41,7 +41,7 @@ function resolvePaths(options = {}) {
     usageDb: path.join(storeDir, 'copilot-metrics.sqlite'),
     configJson: path.join(home, 'config.json'),
     localHookConfig: path.join(cwd, '.github', 'hooks', 'copilot-metrics.json'),
-    globalHookConfig: path.join(copilotHome, 'hooks', 'copilot-metrics.json'),
+    globalHookConfig: path.join(copilotHome, 'settings.json'),
   };
 }
 

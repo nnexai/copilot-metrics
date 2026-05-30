@@ -40,7 +40,7 @@ Run the full local validation from this checkout:
 node scripts/manual-copilot-cli-flow.js --run-prompt --model gpt-5-mini
 ```
 
-The script creates an example workspace, configures `copilot-metrics`, installs repo-local hook config, runs a simple Copilot prompt when requested, imports collected telemetry/hook JSONL, and prints report output.
+The script creates an example workspace, configures `copilot-metrics`, installs repo-local hook config, temporarily applies user-level Copilot CLI hook settings for the prompt run, imports collected telemetry/hook JSONL, prints report output, and restores the original Copilot settings.
 
 ## GitHub Actions Publish
 
