@@ -101,10 +101,11 @@ Build a local-first Copilot usage tracker in four slices: easy-install CLI/scrip
 
 **Goal:** Make the tracker reliable enough for ongoing local use and prepare the first usable release.
 
-**Covers:** VERIFY-01, VERIFY-02, VERIFY-03, VERIFY-04, VERIFY-05
+**Covers:** VERIFY-01, VERIFY-02, VERIFY-03, VERIFY-04, VERIFY-05, VERIFY-06
 
 **Expected deliverables:**
 - Focused test suite across ingestion, normalization, cost, and reporting.
+- Copilot CLI integration check that may invoke the real CLI or isolated test environments with cheap models.
 - README with setup, privacy warnings, and expected limitations.
 - Release checklist covering local setup, sample data import, and report verification.
 - Known gaps documented for official reconciliation, collector mode, and richer privacy controls.
@@ -112,12 +113,14 @@ Build a local-first Copilot usage tracker in four slices: easy-install CLI/scrip
 **Success Criteria** (what must be TRUE):
   1. Verification scripts pass from a clean checkout.
   2. Fresh setup can import sample telemetry and produce expected report totals.
-  3. Documentation explains setup, privacy defaults, limitations, and official billing caveats.
-  4. First release has documented gaps and next-step candidates.
+  3. Copilot CLI integration verification uses cheap models and validates output/telemetry shape rather than answer quality.
+  4. Documentation explains setup, privacy defaults, limitations, and official billing caveats.
+  5. First release has documented gaps and next-step candidates.
 
 **Verification focus:**
 - `npm test` and any lint/typecheck scripts pass.
 - Fresh-clone setup works from npm scripts.
+- Real or isolated Copilot CLI integration verification uses cheap models.
 - Sample end-to-end import produces expected local report totals.
 
 ## Progress

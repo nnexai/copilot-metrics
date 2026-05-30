@@ -24,3 +24,5 @@ This repo uses GSD planning artifacts under `.planning/`. Read these first:
 ## Verification
 
 When code exists, keep verification runnable through npm scripts. Add fixture-based tests for telemetry parsing, span classification, cost estimation, attribution, and reports.
+
+Copilot CLI integration verification may call the real CLI or isolated test environments. Use cheap models for these checks; the purpose is validating output shape and telemetry behavior, not answer quality.

@@ -65,5 +65,6 @@ $gsd-plan-phase 1
 - User clarified the project focus is easy-install CLI tools, scripts, and hooks.
 - User clarified Jira ticket IDs such as `HDASPF-12345` are the most important labels and should be extracted from prompts, directories, branches, and tool-call context.
 - User clarified dashboard work is not a current priority; queries need human-readable and machine-readable output.
+- User clarified Copilot CLI integration tests may call the real CLI or test environments, but should use cheap models because verification is about output and telemetry shape.
 - User supplied research context for OTel-based local Copilot usage tracking.
 - Official billing/usage details are date-sensitive; pricing and API behavior should be refreshed during implementation.

@@ -64,6 +64,7 @@
 - [ ] **VERIFY-03**: Tests cover sample Copilot CLI hook records.
 - [ ] **VERIFY-04**: Tests prove root agent spans are not double-counted with LLM chat spans.
 - [ ] **VERIFY-05**: Tests prove unknown pricing is surfaced clearly.
+- [ ] **VERIFY-06**: Copilot CLI integration verification can run against the real CLI or an isolated test environment using cheap models only.
 
 ## v2 Requirements
 
@@ -135,10 +136,11 @@
 | VERIFY-03 | Phase 4 | Pending |
 | VERIFY-04 | Phase 4 | Pending |
 | VERIFY-05 | Phase 4 | Pending |
+| VERIFY-06 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 39 total
-- Mapped to phases: 39
+- v1 requirements: 40 total
+- Mapped to phases: 40
 - Unmapped: 0
 
 ---

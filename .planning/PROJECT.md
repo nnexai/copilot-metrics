@@ -59,6 +59,7 @@ The most important attribution convention is Jira ticket IDs such as `HDASPF-123
 - **Portability**: Keep setup inspectable and local-first - prefer JSONL ingestion before introducing an OTLP collector.
 - **Interface**: CLI first - dashboard work is deferred until the command/query model proves useful.
 - **Output**: Every report should support human-readable output and machine-readable output for later dashboard or automation use.
+- **Testing**: Copilot CLI integration tests may call the real CLI or set up isolated test environments, but must use cheap models because they verify output shape and telemetry behavior, not model quality.
 
 ## Key Decisions
 
@@ -70,6 +71,7 @@ The most important attribution convention is Jira ticket IDs such as `HDASPF-123
 | Add CLI hooks for attribution | OTel provides tokens and models; hooks add task, cwd, transcript, and session context. | - Pending |
 | Prioritize Jira labels | User's primary grouping is ticket IDs such as `HDASPF-12345`, extracted from prompt, directory, branch, and tool-call context. | - Pending |
 | Build CLI reports before dashboards | The user wants scripts/hooks/query tools first; dashboard is not a current priority. | - Pending |
+| Use cheap models for Copilot CLI verification | Integration tests can call Copilot CLI, but the goal is validating output/telemetry, not paying for high-quality answers. | - Pending |
 | Avoid full content capture by default | Work prompts, code, tool args, and outputs can be sensitive. | - Pending |
 | Treat official GitHub metrics as reconciliation only | Non-admins may not have access, and official reports are not designed for local task-level attribution. | - Pending |
 
