@@ -28,7 +28,7 @@ Make `copilot-metrics` ready as the first `0.1.0` npm release candidate: harden 
 ### CI and Release Verification
 - GitHub Actions should run install, `npm test`, `npm run check`, and package dry-run/pack verification without real Copilot CLI calls.
 - The manual Copilot CLI validation should set up an example workspace, install and configure `copilot-metrics`, install the hooks and Copilot config for that workspace, run a simple prompt in the workspace, then validate that telemetry and hook data were collected and can be imported/reported.
-- Publishing should remain gated by explicit human action. Configure package readiness and documented `npm publish` steps, but do not automatically publish from CI in this phase.
+- npm publishing should be automated by GitHub Actions. The human gate is creating the GitHub release/tag and providing the required npm token/provenance setup, not running `npm publish` locally.
 - Phase 4 summary/verification should record pack contents, tests/check results, smoke report output, and manual Copilot CLI validation status.
 
 ### the agent's Discretion
@@ -93,7 +93,7 @@ The agent may choose exact script names, README section structure, changelog wor
 <deferred>
 ## Deferred Ideas
 
-- Automated npm publish workflow can be added later if desired, but actual publish remains a human-gated action for this first release.
+- Fully unattended publishing without a GitHub release/tag gate can be considered later; `0.1.0` publishes through the GitHub Actions release workflow.
 - Official GitHub reconciliation, collector mode, richer content capture, and dashboard work remain out of scope for `0.1.0`.
 
 </deferred>
