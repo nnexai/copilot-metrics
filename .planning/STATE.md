@@ -6,11 +6,11 @@ status: executing
 last_updated: "2026-05-30T06:20:00Z"
 last_activity: 2026-05-30 -- Phase 1 completed
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 1
   total_plans: 1
   completed_plans: 1
-  percent: 25
+  percent: 20
 current_phase: 2
 current_phase_name: OTel Ingestion, Normalization, and Cost Model
 current_plan: 0
@@ -69,3 +69,4 @@ $gsd-discuss-phase 2
 - User supplied research context for OTel-based local Copilot usage tracking.
 - Official billing/usage details are date-sensitive; pricing and API behavior should be refreshed during implementation.
 - Phase 1 created the initial npm/npx-friendly CLI, central data directory helper, setup guidance, local/global hook config preview/install, redacted hook logger, README, tests, and `skills/copilot-metrics/SKILL.md`.
+- Phase 5 added for GitHub Actions, GitHub repository readiness, npm package metadata, and npm publishing preparation.

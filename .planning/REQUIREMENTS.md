@@ -66,6 +66,14 @@
 - [ ] **VERIFY-05**: Tests prove unknown pricing is surfaced clearly.
 - [ ] **VERIFY-06**: Copilot CLI integration verification can run against the real CLI or an isolated test environment using cheap models only.
 
+### Publishing Preparation
+
+- [ ] **PUBLISH-01**: Project includes GitHub Actions CI that runs install and npm verification commands.
+- [ ] **PUBLISH-02**: Project includes an npm publish workflow or documented release workflow with explicit human-controlled release gates.
+- [ ] **PUBLISH-03**: Package metadata is ready for npm publication, including repository, license, files allowlist, and bin validation.
+- [ ] **PUBLISH-04**: Release checklist documents GitHub repository setup, npm authentication, dry-run packing, versioning, tagging, and publish verification.
+- [ ] **PUBLISH-05**: Publishing docs warn not to include local telemetry data, generated stores, or sensitive hook logs in the package or repository.
+
 ## v2 Requirements
 
 ### Reconciliation
@@ -137,12 +145,17 @@
 | VERIFY-04 | Phase 4 | Pending |
 | VERIFY-05 | Phase 4 | Pending |
 | VERIFY-06 | Phase 4 | Pending |
+| PUBLISH-01 | Phase 5 | Pending |
+| PUBLISH-02 | Phase 5 | Pending |
+| PUBLISH-03 | Phase 5 | Pending |
+| PUBLISH-04 | Phase 5 | Pending |
+| PUBLISH-05 | Phase 5 | Pending |
 
 **Coverage:**
-- v1 requirements: 40 total
-- Mapped to phases: 40
+- v1 requirements: 45 total
+- Mapped to phases: 45
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-30*
-*Last updated: 2026-05-30 after Phase 1 execution*
+*Last updated: 2026-05-30 after adding Phase 5*

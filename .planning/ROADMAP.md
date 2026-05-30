@@ -6,7 +6,7 @@
 
 ## Overview
 
-Build a local-first Copilot usage tracker in four slices: easy-install CLI/scripts/hooks foundation, telemetry ingestion and cost estimation, Jira-label attribution and CLI querying, then hardening for regular use.
+Build a local-first Copilot usage tracker in five slices: easy-install CLI/scripts/hooks foundation, telemetry ingestion and cost estimation, Jira-label attribution and CLI querying, hardening for regular use, then GitHub/npm publishing preparation.
 
 ## Phases
 
@@ -18,6 +18,7 @@ Build a local-first Copilot usage tracker in four slices: easy-install CLI/scrip
 - [ ] **Phase 2: OTel Ingestion, Normalization, and Cost Model** - Parse local telemetry, normalize LLM calls, and estimate AI Credits.
 - [ ] **Phase 3: Jira Label Attribution and CLI Querying** - Attribute usage to Jira labels/repos and expose local query commands.
 - [ ] **Phase 4: Hardening and Release Readiness** - Add durable verification and first-release docs.
+- [ ] **Phase 5: GitHub and npm Publishing Preparation** - Add repository automation and package publishing readiness for GitHub and npm.
 
 ## Phase Details
 
@@ -123,10 +124,35 @@ Build a local-first Copilot usage tracker in four slices: easy-install CLI/scrip
 - Real or isolated Copilot CLI integration verification uses cheap models.
 - Sample end-to-end import produces expected local report totals.
 
+### Phase 5: GitHub and npm Publishing Preparation
+
+**Goal:** Prepare the project to be pushed to GitHub and published to npm with repeatable CI, release checks, and package metadata.
+
+**Covers:** PUBLISH-01, PUBLISH-02, PUBLISH-03, PUBLISH-04, PUBLISH-05
+
+**Expected deliverables:**
+- GitHub Actions workflow for install, test, and package verification on pull requests and main branch pushes.
+- npm publishing workflow or documented release workflow using provenance and explicit release gates.
+- Package metadata suitable for npm publication, including files allowlist, repository metadata, license, and bin validation.
+- Release checklist covering GitHub repository setup, npm authentication, dry-run packing, versioning, tagging, and publish verification.
+- Documentation for required GitHub/NPM secrets and any manual first-publish steps.
+
+**Success Criteria** (what must be TRUE):
+  1. GitHub Actions can run the project verification commands from a clean checkout.
+  2. npm package contents can be verified with a dry-run/pack command before publishing.
+  3. Release documentation explains how to push to GitHub and publish to npm without leaking local telemetry data.
+  4. Package metadata is ready for public npm consumption.
+  5. Publishing remains gated by explicit human action or GitHub release/tag controls.
+
+**Verification focus:**
+- Workflow YAML syntax and referenced npm scripts are valid.
+- `npm pack --dry-run` or equivalent package check passes.
+- Release checklist is complete enough for first GitHub push and npm publish.
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -134,6 +160,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 2. OTel Ingestion, Normalization, and Cost Model | 0/0 | Not started | - |
 | 3. Jira Label Attribution and CLI Querying | 0/0 | Not started | - |
 | 4. Hardening and Release Readiness | 0/0 | Not started | - |
+| 5. GitHub and npm Publishing Preparation | 0/0 | Not started | - |
 
 ## Deferred
 
