@@ -14,7 +14,7 @@ test('resolvePaths uses COPILOT_METRICS_HOME override', () => {
   const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: home }, cwd: '/tmp/work' });
   assert.equal(paths.home, home);
   assert.equal(paths.vscodeOtelJsonl, path.join(home, 'telemetry', 'vscode-copilot-otel.jsonl'));
-  assert.equal(paths.hookEventsJsonl, path.join(home, 'hooks', 'copilot-cli-hooks.jsonl'));
+  assert.equal(paths.hookEventsJsonl, path.join(home, 'hooks', 'copilot-hooks.jsonl'));
 });
 
 test('resolvePaths respects COPILOT_HOME for global hooks', () => {
@@ -38,17 +38,49 @@ test('setup snippets disable content capture by default', () => {
   assert.equal(cli.COPILOT_OTEL_FILE_EXPORTER_PATH, paths.copilotCliOtelJsonl);
 });
 
-test('hook config covers lifecycle events and points back to hook-log', () => {
+test('default hook config uses CLI-compatible events for both surfaces', () => {
   const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: '/tmp/copilot-metrics' }, cwd: '/tmp/work' });
   const config = hookConfig(paths, { cwd: '/repo', scope: 'local', command: '/usr/bin/copilot-metrics' });
-  for (const event of ['sessionStart', 'userPromptSubmitted', 'postToolUse', 'agentStop', 'errorOccurred']) {
+  assert.equal(config.version, 1);
+  assert.equal(config.surface, undefined);
+  assert.equal(config.contentCapture, undefined);
+  for (const event of ['sessionStart', 'userPromptSubmitted', 'preToolUse', 'postToolUse', 'agentStop']) {
     assert.equal(config.hooks[event][0].type, 'command');
     assert.match(config.hooks[event][0].command, /node/);
+    assert.match(config.hooks[event][0].bash, /node/);
     assert.match(config.hooks[event][0].command, /hook-log/);
+    assert.match(config.hooks[event][0].command, /--quiet/);
     assert.match(config.hooks[event][0].command, new RegExp(event));
     assert.match(config.hooks[event][0].command, /\/usr\/bin\/copilot-metrics/);
   }
-  assert.equal(config.contentCapture, false);
+});
+
+test('copilot-cli hook config can emit CLI-native event names', () => {
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: '/tmp/copilot-metrics' }, cwd: '/tmp/work' });
+  const config = hookConfig(paths, {
+    cwd: '/repo',
+    scope: 'local',
+    surface: 'copilot-cli',
+    command: '/usr/bin/copilot-metrics',
+  });
+  assert.ok(config.hooks.sessionStart);
+  assert.ok(config.hooks.userPromptSubmitted);
+  assert.ok(config.hooks.postToolUse);
+  assert.equal(config.hooks.SessionStart, undefined);
+});
+
+test('vscode hook config can emit VS Code event names', () => {
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: '/tmp/copilot-metrics' }, cwd: '/tmp/work' });
+  const config = hookConfig(paths, {
+    cwd: '/repo',
+    scope: 'local',
+    surface: 'vscode',
+    command: '/usr/bin/copilot-metrics',
+  });
+  assert.ok(config.hooks.SessionStart);
+  assert.ok(config.hooks.UserPromptSubmit);
+  assert.ok(config.hooks.PostToolUse);
+  assert.equal(config.hooks.sessionStart, undefined);
 });
 
 test('installHook writes local and global hook files', () => {
@@ -70,6 +102,19 @@ test('hook logger redacts raw prompt content and extracts Jira labels', () => {
   assert.deepEqual(redacted.labels, ['DEMO-12345']);
   assert.equal(redacted.prompt_preview, undefined);
   assert.equal(redacted.raw_prompt_stored, false);
+});
+
+test('hook logger accepts VS Code hook payload field names', () => {
+  const payload = {
+    hook_event_name: 'PreToolUse',
+    session_id: 's1',
+    cwd: '/work/DEMO-321',
+    tool_name: 'run_in_terminal',
+  };
+  const redacted = redactHookPayload(payload);
+  assert.equal(redacted.event, 'PreToolUse');
+  assert.equal(redacted.tool_name, 'run_in_terminal');
+  assert.deepEqual(redacted.labels, ['DEMO-321']);
 });
 
 test('hook logger tolerates non-object JSON payloads', () => {

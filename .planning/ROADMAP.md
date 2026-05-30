@@ -17,8 +17,9 @@ Build a local-first Copilot usage tracker in five slices: easy-install CLI/scrip
 - [x] **Phase 1: Project Foundation and Local Setup** - Create Node.js/npm CLI/script/hook skeleton and local telemetry setup helpers.
 - [x] **Phase 2: OTel Ingestion, Normalization, and Cost Model** - Parse local telemetry, normalize LLM calls, and estimate AI Credits.
 - [x] **Phase 3: Jira Label Attribution and CLI Querying** - Attribute usage to Jira labels/repos and expose local query commands.
-- [ ] **Phase 4: Hardening and Release Readiness** - Add durable verification and first-release docs.
-- [ ] **Phase 5: GitHub and npm Publishing Preparation** - Add repository automation and package publishing readiness for GitHub and npm.
+- [x] **Phase 4: Hardening and Release Readiness** - Add durable verification and first-release docs.
+- [x] **Phase 4.1: VS Code and Copilot CLI Hook Support Research** - Research, model, and validate hook setup for both VS Code Copilot and Copilot CLI.
+- [x] **Phase 5: GitHub and npm Publishing Preparation** - Add repository automation and package publishing readiness for GitHub and npm.
 
 ## Phase Details
 
@@ -124,6 +125,31 @@ Build a local-first Copilot usage tracker in five slices: easy-install CLI/scrip
 - Real or isolated Copilot CLI integration verification uses cheap models.
 - Sample end-to-end import produces expected local report totals.
 
+### Phase 4.1: VS Code and Copilot CLI Hook Support Research
+
+**Goal:** Correct the hook setup model so VS Code Copilot and Copilot CLI are both first-class sources, with research-backed configuration and import behavior.
+
+**Covers:** SETUP-03, SETUP-04, INGEST-01, NORM-04, NORM-06, VERIFY-03
+
+**Expected deliverables:**
+- Primary-source research on VS Code Copilot hook support and Copilot CLI hook compatibility.
+- Explicit setup/configuration model for VS Code telemetry, Copilot CLI telemetry, and shared hook event ingestion.
+- Hook preview/install support that can target both surfaces or a specific surface.
+- Hook logger normalization for VS Code-compatible and Copilot CLI-native payload field names.
+- Documentation and tests that show the project tracks both sources rather than assuming a single Copilot surface.
+
+**Success Criteria** (what must be TRUE):
+  1. `setup` output and README separate VS Code telemetry, Copilot CLI telemetry, and hook metadata.
+  2. Hook setup can emit a VS Code-compatible config, a Copilot CLI-native config, or a default config suitable for both.
+  3. Hook ingestion preserves source/session/label evidence without requiring prompt content storage.
+  4. Manual Copilot CLI validation uses the configured hook path and validates hook JSONL collection.
+  5. Research artifacts cite primary docs for the hook behavior being implemented.
+
+**Verification focus:**
+- Fixture tests for hook config shape and hook payload normalization.
+- `npm test`, `npm run check`, `npm run smoke`, and package verification.
+- Manual Copilot CLI flow with hooks enabled.
+
 ### Phase 5: GitHub and npm Publishing Preparation
 
 **Goal:** Prepare the project to be pushed to GitHub and published to npm with repeatable CI, release checks, and package metadata.
@@ -149,6 +175,8 @@ Build a local-first Copilot usage tracker in five slices: easy-install CLI/scrip
 - `npm pack --dry-run` or equivalent package check passes.
 - Release checklist is complete enough for first GitHub push and npm publish.
 
+**Completion Note:** Completed as part of Phase 4 after the user clarified that npm publishing is automated through GitHub Actions and should be ready by the end of the release-candidate hardening phase.
+
 ## Progress
 
 **Execution Order:**
@@ -159,8 +187,9 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Project Foundation and Local Setup | 1/1 | Complete | 2026-05-30 |
 | 2. OTel Ingestion, Normalization, and Cost Model | 1/1 | Complete | 2026-05-30 |
 | 3. Jira Label Attribution and CLI Querying | 1/1 | Complete    | 2026-05-30 |
-| 4. Hardening and Release Readiness | 0/0 | Not started | - |
-| 5. GitHub and npm Publishing Preparation | 0/0 | Not started | - |
+| 4. Hardening and Release Readiness | 1/1 | Complete | 2026-05-30 |
+| 4.1. VS Code and Copilot CLI Hook Support Research | 1/1 | Complete | 2026-05-30 |
+| 5. GitHub and npm Publishing Preparation | 0/0 | Complete via Phase 4 | 2026-05-30 |
 
 ## Deferred
 

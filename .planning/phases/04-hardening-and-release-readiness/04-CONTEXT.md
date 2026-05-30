@@ -22,7 +22,7 @@ Make `copilot-metrics` ready as the first `0.1.0` npm release candidate: harden 
 ### Publishing and Package Readiness
 - Keep `0.1.0` as the first release candidate version and make the package publishable to npm by the end of Phase 4.
 - Add or verify MIT `LICENSE`, npm `files` allowlist, `bin`, package metadata, README, changelog, and dry-run pack validation.
-- README should describe the current tool, commands, privacy model, reporting, and publishing/install path. It should not read like a phase history.
+- README should describe the current tool, commands, privacy model, reporting, configurable custom extractors, and publishing/install path. It should not read like a phase history.
 - Add `CHANGELOG.md` with a single aggregated `0.1.0` entry for the first local CLI release.
 
 ### CI and Release Verification
@@ -32,7 +32,7 @@ Make `copilot-metrics` ready as the first `0.1.0` npm release candidate: harden 
 - Phase 4 summary/verification should record pack contents, tests/check results, smoke report output, and manual Copilot CLI validation status.
 
 ### the agent's Discretion
-The agent may choose exact script names, README section structure, changelog wording, npm files allowlist, and manual validation script shape. Keep everything Node.js/npm based and avoid adding services or dashboards.
+The agent may choose exact script names, README section structure, changelog wording, npm files allowlist, and manual validation script shape. Custom label extractors must be configuration-driven, not require source modification. Keep everything Node.js/npm based and avoid adding services or dashboards.
 
 </decisions>
 

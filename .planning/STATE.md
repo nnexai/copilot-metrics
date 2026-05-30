@@ -2,28 +2,28 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Local Copilot Usage Tracker
-status: executing
-last_updated: "2026-05-30T06:43:27.605Z"
-last_activity: 2026-05-30 -- Phase 4 planning complete
+status: ready_for_audit
+last_updated: "2026-05-30T07:15:00.000Z"
+last_activity: 2026-05-30 -- Phase 4/4.1 release readiness complete; manual Copilot CLI hook rerun blocked by local auth
 progress:
-  total_phases: 5
-  completed_phases: 3
-  total_plans: 4
-  completed_plans: 3
-  percent: 60
+  total_phases: 6
+  completed_phases: 6
+  total_plans: 5
+  completed_plans: 5
+  percent: 100
 ---
 
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** Ready to execute
+**Status:** Ready for audit
 
 ## Project Reference
 
 See: `.planning/PROJECT.md` (updated 2026-05-30)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Phase 4 — hardening and release readiness
+**Current focus:** Release-candidate audit
 
 ## Workflow Settings
 
@@ -39,19 +39,19 @@ See: `.planning/PROJECT.md` (updated 2026-05-30)
 
 ## Current Phase
 
-Phase 3: Jira Label Attribution and CLI Querying
+All planned implementation phases complete
 
 ## Current Position
 
-Phase: 4
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-30 -- Phase 4 planning complete
+Phase: All
+Plan: 5 of 5
+Status: Ready for audit
+Last activity: 2026-05-30 -- Phase 4/4.1 release readiness complete; manual Copilot CLI hook rerun blocked by local auth
 
 Next command:
 
 ```bash
-$gsd-discuss-phase 3
+$gsd-audit-milestone
 ```
 
 ## Notes
@@ -67,3 +67,7 @@ $gsd-discuss-phase 3
 - Phase 1 created the initial npm/npx-friendly CLI, central data directory helper, setup guidance, local/global hook config preview/install, redacted hook logger, README, tests, and `skills/copilot-metrics/SKILL.md`.
 - Phase 5 added for GitHub Actions, GitHub repository readiness, npm package metadata, and npm publishing preparation.
 - Phase 2 added SQLite-backed import, OTel normalization, GitHub AI Credit estimate pricing, malformed-row warnings, unknown-model warnings, and fixture coverage for VS Code, Copilot CLI, and hook JSONL.
+- Phase 4.1 was inserted after user correction that VS Code also has hook support and must be researched instead of guessed.
+- Phase 4 added release candidate docs, MIT license, changelog, package metadata/files allowlist, smoke/package verification, GitHub Actions npm publish workflow, and manual Copilot CLI validation helper.
+- Automated verification passed: `npm test`, `npm run check`, `npm run smoke`, and `npm run verify:package`.
+- Manual Copilot CLI telemetry collection succeeded earlier in Phase 4, but the final cheap-model hook validation rerun is blocked because the local Copilot CLI currently cannot retrieve authentication.

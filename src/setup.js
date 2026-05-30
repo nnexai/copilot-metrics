@@ -4,12 +4,30 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { resolvePaths } = require('./paths');
 
-const HOOK_EVENTS = [
+const HOOK_SURFACES = ['both', 'copilot-cli', 'vscode'];
+
+const COPILOT_CLI_HOOK_EVENTS = [
   'sessionStart',
+  'sessionEnd',
   'userPromptSubmitted',
+  'preToolUse',
   'postToolUse',
+  'postToolUseFailure',
   'agentStop',
+  'subagentStart',
+  'subagentStop',
   'errorOccurred',
+];
+
+const VSCODE_HOOK_EVENTS = [
+  'SessionStart',
+  'UserPromptSubmit',
+  'PreToolUse',
+  'PostToolUse',
+  'PreCompact',
+  'SubagentStart',
+  'SubagentStop',
+  'Stop',
 ];
 
 function writePrivateFile(file, data) {
@@ -34,9 +52,17 @@ function ensureDataDirs(paths) {
         vscode: paths.vscodeOtelJsonl,
         copilotCli: paths.copilotCliOtelJsonl,
       },
-      hooks: {
-        events: paths.hookEventsJsonl,
+      sources: {
+        vscode: {
+          telemetry: paths.vscodeOtelJsonl,
+          hooks: paths.hookEventsJsonl,
+        },
+        copilotCli: {
+          telemetry: paths.copilotCliOtelJsonl,
+          hooks: paths.hookEventsJsonl,
+        },
       },
+      labelExtractors: [],
     }, null, 2)}\n`);
   }
 }
@@ -69,21 +95,33 @@ function packageBinCommand(cwd) {
   return path.join(cwd, 'bin', 'copilot-metrics.js');
 }
 
+function hookEventsForSurface(surface) {
+  if (surface === 'copilot-cli' || surface === 'both') return COPILOT_CLI_HOOK_EVENTS;
+  if (surface === 'vscode') return VSCODE_HOOK_EVENTS;
+  throw new Error(`Unknown hook surface "${surface}". Use "both", "copilot-cli", or "vscode".`);
+}
+
+function hookCommand(command, event, metricsHome) {
+  return `COPILOT_METRICS_HOME=${shellQuote(metricsHome)} node ${shellQuote(command)} hook-log --event ${shellQuote(event)} --quiet`;
+}
+
 function hookConfig(paths, options = {}) {
+  const surface = options.surface || 'both';
+  const events = hookEventsForSurface(surface);
   const command = options.command || packageBinCommand(options.cwd || process.cwd());
   return {
     version: 1,
-    tool: 'copilot-metrics',
-    scope: options.scope || 'local',
-    contentCapture: false,
-    hooks: Object.fromEntries(HOOK_EVENTS.map((event) => [
+    hooks: Object.fromEntries(events.map((event) => [
       event,
       [{
         type: 'command',
-        command: `node ${shellQuote(command)} hook-log --event ${shellQuote(event)}`,
+        bash: hookCommand(command, event, paths.home),
+        command: hookCommand(command, event, paths.home),
         env: {
           COPILOT_METRICS_HOME: paths.home,
         },
+        timeout: 10,
+        timeoutSec: 10,
       }],
     ])),
   };
@@ -114,7 +152,9 @@ function setupSnapshot(options = {}) {
 }
 
 module.exports = {
-  HOOK_EVENTS,
+  HOOK_SURFACES,
+  COPILOT_CLI_HOOK_EVENTS,
+  VSCODE_HOOK_EVENTS,
   ensureDataDirs,
   vscodeSettings,
   copilotCliEnvironment,

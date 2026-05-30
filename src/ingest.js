@@ -37,8 +37,9 @@ async function ingestFile(options) {
     usageRecords.push(...normalizePayload(record.value, source, record.line));
   }
 
-  const enrichedUsage = attachUsageLabelEvidence(enrichCosts(usageRecords));
-  const enrichedHooks = attachHookLabelEvidence(hookEvents);
+  const extractorOptions = { extractors: options.extractors || [] };
+  const enrichedUsage = attachUsageLabelEvidence(enrichCosts(usageRecords), extractorOptions);
+  const enrichedHooks = attachHookLabelEvidence(hookEvents, extractorOptions);
   for (const usage of enrichedUsage) {
     for (const warning of usage.warnings) {
       warnings.push({

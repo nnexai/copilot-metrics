@@ -39,7 +39,7 @@ function redactHookPayload(payload, options = {}) {
 
   return {
     captured_at: new Date().toISOString(),
-    event: options.event || payload.event || null,
+    event: options.event || firstString(payload, ['event', 'hookEventName', 'hook_event_name']) || null,
     session_id: firstString(payload, ['session_id', 'sessionId', 'conversationId']),
     cwd: firstString(payload, ['cwd', 'workingDirectory']),
     repo: firstString(payload, ['repo', 'repository']),
@@ -47,6 +47,7 @@ function redactHookPayload(payload, options = {}) {
     transcript_path: firstString(payload, ['transcript_path', 'transcriptPath']),
     task_hint: firstString(payload, ['task_hint', 'taskHint', 'title']),
     tool_name: firstString(payload, ['tool_name', 'toolName', 'name']),
+    surface: firstString(payload, ['surface', 'agentSurface']),
     labels,
     prompt_preview: includePromptPreview && prompt ? prompt.slice(0, 160) : undefined,
     raw_prompt_stored: false,

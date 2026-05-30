@@ -3,14 +3,41 @@
   "version": "0.1.0",
   "description": "Local-first Copilot usage telemetry setup and reporting tools.",
   "type": "commonjs",
+  "homepage": "https://github.com/nnexai/copilot-metrics#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/nnexai/copilot-metrics.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nnexai/copilot-metrics/issues"
+  },
   "bin": {
     "copilot-metrics": "bin/copilot-metrics.js"
   },
+  "files": [
+    "bin/",
+    "src/",
+    "skills/",
+    "scripts/manual-copilot-cli-flow.js",
+    "README.md",
+    "CHANGELOG.md",
+    "RELEASE.md",
+    "LICENSE"
+  ],
   "scripts": {
     "cli": "node bin/copilot-metrics.js",
     "check": "node --check bin/copilot-metrics.js && node --check src/*.js",
+    "smoke": "node scripts/smoke.js",
+    "verify:package": "node scripts/verify-package.js",
     "test": "node --test"
   },
+  "keywords": [
+    "copilot",
+    "telemetry",
+    "opentelemetry",
+    "cli",
+    "ai-credits"
+  ],
   "engines": {
     "node": ">=20"
   },

@@ -11,7 +11,7 @@ const { normalizePayload } = require('../src/otel');
 const { estimateCost, PRICING_VERSION } = require('../src/pricing');
 const { ingestFile } = require('../src/ingest');
 const { queryOne } = require('../src/sqlite-store');
-const { runLabelExtractors } = require('../src/label-extractors');
+const { loadConfiguredExtractors, runLabelExtractors } = require('../src/label-extractors');
 
 const fixtures = path.join(__dirname, 'fixtures');
 
@@ -116,4 +116,30 @@ test('custom extractors can return zero or more labels', () => {
   assert.equal(custom.length, 1);
   assert.equal(custom[0].label, 'CUSTOM-42');
   assert.equal(custom[0].source_field, 'branch');
+});
+
+test('configured custom extractors load from config without source changes', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-extractor-'));
+  const extractorPath = path.join(tmp, 'extractor.cjs');
+  fs.writeFileSync(extractorPath, `
+module.exports = (sourceType, sourceData) => {
+  if (sourceType === 'usage' && sourceData.repo === 'copilot-metrics') {
+    return [{ label: 'TEAM-777', source_field: 'repo', source_value: sourceData.repo, confidence: 0.6 }];
+  }
+  return [];
+};
+`);
+  const configPath = path.join(tmp, 'config.json');
+  fs.writeFileSync(configPath, `${JSON.stringify({ labelExtractors: [extractorPath] })}\n`);
+  const extractors = loadConfiguredExtractors(configPath, process.cwd());
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  await ingestFile({
+    dbPath: paths.usageDb,
+    file: path.join(fixtures, 'vscode-otel.jsonl'),
+    source: 'vscode',
+    extractors,
+  });
+  const evidence = await queryOne(paths.usageDb, "SELECT label, source_field FROM label_evidence WHERE label = 'TEAM-777'");
+  assert.equal(evidence.length, 1);
+  assert.equal(evidence[0].source_field, 'repo');
 });

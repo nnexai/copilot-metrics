@@ -18,7 +18,7 @@
 - [x] **SETUP-01**: User can initialize the central data directory from an npm script or CLI command.
 - [x] **SETUP-02**: User can generate or view VS Code Insiders OTel settings that export to the central data directory.
 - [x] **SETUP-03**: User can generate or view Copilot CLI OTel environment exports that write to the central data directory.
-- [x] **SETUP-04**: User can install or preview Copilot CLI hook configuration for local attribution logging.
+- [x] **SETUP-04**: User can install or preview VS Code-compatible and Copilot CLI hook configuration for local attribution logging.
 - [x] **SETUP-05**: User can complete setup from npm scripts or CLI commands without manually editing generated hook/script files.
 
 ### Ingestion
@@ -59,20 +59,20 @@
 
 ### Verification
 
-- [ ] **VERIFY-01**: Tests cover sample VS Code OTel records.
-- [ ] **VERIFY-02**: Tests cover sample Copilot CLI OTel records.
-- [ ] **VERIFY-03**: Tests cover sample Copilot CLI hook records.
-- [ ] **VERIFY-04**: Tests prove root agent spans are not double-counted with LLM chat spans.
-- [ ] **VERIFY-05**: Tests prove unknown pricing is surfaced clearly.
-- [ ] **VERIFY-06**: Copilot CLI integration verification can run against the real CLI or an isolated test environment using cheap models only.
+- [x] **VERIFY-01**: Tests cover sample VS Code OTel records.
+- [x] **VERIFY-02**: Tests cover sample Copilot CLI OTel records.
+- [x] **VERIFY-03**: Tests cover sample hook records and hook configuration shapes.
+- [x] **VERIFY-04**: Tests prove root agent spans are not double-counted with LLM chat spans.
+- [x] **VERIFY-05**: Tests prove unknown pricing is surfaced clearly.
+- [x] **VERIFY-06**: Copilot CLI integration verification can run against the real CLI or an isolated test environment using cheap models only.
 
 ### Publishing Preparation
 
-- [ ] **PUBLISH-01**: Project includes GitHub Actions CI that runs install and npm verification commands.
-- [ ] **PUBLISH-02**: Project includes an npm publish workflow or documented release workflow with explicit human-controlled release gates.
-- [ ] **PUBLISH-03**: Package metadata is ready for npm publication, including repository, license, files allowlist, and bin validation.
-- [ ] **PUBLISH-04**: Release checklist documents GitHub repository setup, npm authentication, dry-run packing, versioning, tagging, and publish verification.
-- [ ] **PUBLISH-05**: Publishing docs warn not to include local telemetry data, generated stores, or sensitive hook logs in the package or repository.
+- [x] **PUBLISH-01**: Project includes GitHub Actions CI that runs install and npm verification commands.
+- [x] **PUBLISH-02**: Project includes an npm publish workflow or documented release workflow with explicit human-controlled release gates.
+- [x] **PUBLISH-03**: Package metadata is ready for npm publication, including repository, license, files allowlist, and bin validation.
+- [x] **PUBLISH-04**: Release checklist documents GitHub repository setup, npm authentication, dry-run packing, versioning, tagging, and publish verification.
+- [x] **PUBLISH-05**: Publishing docs warn not to include local telemetry data, generated stores, or sensitive hook logs in the package or repository.
 
 ## v2 Requirements
 
@@ -113,7 +113,7 @@
 | SETUP-01 | Phase 1 | Complete |
 | SETUP-02 | Phase 1 | Complete |
 | SETUP-03 | Phase 1 | Complete |
-| SETUP-04 | Phase 1 | Complete |
+| SETUP-04 | Phase 4.1 | Complete |
 | SETUP-05 | Phase 1 | Complete |
 | INGEST-01 | Phase 2 | Complete |
 | INGEST-02 | Phase 2 | Complete |
@@ -139,17 +139,17 @@
 | REPORT-06 | Phase 3 | Complete |
 | REPORT-07 | Phase 3 | Complete |
 | REPORT-08 | Phase 3 | Complete |
-| VERIFY-01 | Phase 4 | Pending |
-| VERIFY-02 | Phase 4 | Pending |
-| VERIFY-03 | Phase 4 | Pending |
-| VERIFY-04 | Phase 4 | Pending |
-| VERIFY-05 | Phase 4 | Pending |
-| VERIFY-06 | Phase 4 | Pending |
-| PUBLISH-01 | Phase 5 | Pending |
-| PUBLISH-02 | Phase 5 | Pending |
-| PUBLISH-03 | Phase 5 | Pending |
-| PUBLISH-04 | Phase 5 | Pending |
-| PUBLISH-05 | Phase 5 | Pending |
+| VERIFY-01 | Phase 4 | Complete |
+| VERIFY-02 | Phase 4 | Complete |
+| VERIFY-03 | Phase 4.1 | Complete |
+| VERIFY-04 | Phase 4 | Complete |
+| VERIFY-05 | Phase 4 | Complete |
+| VERIFY-06 | Phase 4 | Complete with local auth caveat |
+| PUBLISH-01 | Phase 4 | Complete |
+| PUBLISH-02 | Phase 4 | Complete |
+| PUBLISH-03 | Phase 4 | Complete |
+| PUBLISH-04 | Phase 4 | Complete |
+| PUBLISH-05 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 45 total
@@ -158,4 +158,4 @@
 
 ---
 *Requirements defined: 2026-05-30*
-*Last updated: 2026-05-30 after Phase 3 execution*
+*Last updated: 2026-05-30 after Phase 4/4.1 release-readiness work*

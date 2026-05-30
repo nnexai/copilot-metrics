@@ -1,127 +1,135 @@
 # Copilot Metrics
 
-Local-first tools for estimating Copilot usage from local telemetry and hook metadata. The project is CLI-first and keeps official billing separate: reported costs are estimates, not GitHub billing records.
+`copilot-metrics` is a local-first CLI for estimating GitHub Copilot usage from local OpenTelemetry and hook metadata. It helps answer which Jira-style labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
 
-## Install And Run
+Costs are estimates, not official billing records. GitHub billing remains the source of truth.
+
+## Install
+
+From npm:
+
+```bash
+npx copilot-metrics@0.1.0 --help
+npx copilot-metrics@0.1.0 init
+```
 
 From this checkout:
 
 ```bash
+npm ci
 npm test
 npm run cli -- --help
 ```
 
-After publishing or linking the package, the same command surface is intended to work through `npx`:
-
-```bash
-npx copilot-metrics init
-npx copilot-metrics setup vscode
-npx copilot-metrics setup copilot-cli
-npx copilot-metrics hooks preview --scope local
-npx copilot-metrics hooks install --scope global
-```
-
 ## Data Directory
 
-By default, metadata is stored in a user-level folder:
+By default, all metadata is stored in a user-level local folder:
 
 - Linux: `$XDG_DATA_HOME/copilot-metrics` or `~/.local/share/copilot-metrics`
 - macOS: `~/Library/Application Support/copilot-metrics`
 - Windows: `%LOCALAPPDATA%\\copilot-metrics`
 
-Override with:
+Override it with:
 
 ```bash
 export COPILOT_METRICS_HOME=/path/to/copilot-metrics-data
 ```
 
-Run:
+Useful commands:
 
 ```bash
-npx copilot-metrics init
-npx copilot-metrics paths
+npx copilot-metrics@0.1.0 init
+npx copilot-metrics@0.1.0 paths --json
 ```
 
-## Telemetry Setup
+## Configure Telemetry
 
-`setup vscode` prints VS Code Insiders Copilot Chat OpenTelemetry settings that write JSONL to the central data directory:
+Print VS Code Insiders Copilot Chat OpenTelemetry settings:
 
 ```bash
-npx copilot-metrics setup vscode
+npx copilot-metrics@0.1.0 setup vscode
 ```
 
-`setup copilot-cli` prints Copilot CLI OpenTelemetry environment exports:
+Print Copilot CLI OpenTelemetry environment exports:
 
 ```bash
-npx copilot-metrics setup copilot-cli
+npx copilot-metrics@0.1.0 setup copilot-cli
 ```
 
-Content capture is disabled by default in generated setup output. Do not enable richer prompt capture unless you explicitly accept the privacy tradeoff.
+Content capture is disabled by default. Do not enable richer prompt capture unless you explicitly accept the privacy tradeoff.
 
-## Hook Setup
+## Configure Hooks
 
-Preview hook configuration without writing files:
+Preview repo-local hook config. The default `--surface both` emits the VS Code-compatible hook format, which Copilot CLI also understands:
 
 ```bash
-npx copilot-metrics hooks preview --scope local
-npx copilot-metrics hooks preview --scope global
+npx copilot-metrics@0.1.0 hooks preview --scope local --surface both
 ```
 
-Install hook configuration:
+Install repo-local or user-global hook config:
 
 ```bash
-npx copilot-metrics hooks install --scope local
-npx copilot-metrics hooks install --scope global
+npx copilot-metrics@0.1.0 hooks install --scope local --surface both
+npx copilot-metrics@0.1.0 hooks install --scope global --surface both
 ```
 
-Local scope writes `.github/hooks/copilot-metrics.json` in the current repo. Global scope writes `~/.copilot/hooks/copilot-metrics.json`.
-
-The hook logger appends redacted JSONL metadata to the central data directory. It extracts Jira-style labels such as `DEMO-12345` from safe metadata and does not store full prompt text by default.
-
-## LLM Skill
-
-An installable skill template is available at `skills/copilot-metrics/SKILL.md`. It tells LLM agents to query local paths and reports through the CLI, and to avoid reading raw prompt content unless content capture has been explicitly enabled.
+Use `--surface vscode` for VS Code-only PascalCase events or `--surface copilot-cli` for CLI-native lower camel case events. The hook logger writes redacted JSONL metadata to the central data directory. It extracts Jira-style labels such as `DEMO-12345` from safe metadata and does not store full prompt text by default.
 
 ## Import Telemetry
 
-Phase 2 adds a local SQLite store through the portable npm dependency `sql.js`; npm/npx/node are the only runtime prerequisites.
+Initialize the local SQLite store and import JSONL files:
 
 ```bash
-npx copilot-metrics store init
-npx copilot-metrics import --source vscode --file ~/.local/share/copilot-metrics/telemetry/vscode-copilot-otel.jsonl
-npx copilot-metrics import --source copilot-cli --file ~/.local/share/copilot-metrics/telemetry/copilot-cli-otel.jsonl
-npx copilot-metrics import --source hooks --file ~/.local/share/copilot-metrics/hooks/copilot-cli-hooks.jsonl
-npx copilot-metrics pricing list --json
+npx copilot-metrics@0.1.0 store init
+npx copilot-metrics@0.1.0 import --source vscode --file ~/.local/share/copilot-metrics/telemetry/vscode-copilot-otel.jsonl
+npx copilot-metrics@0.1.0 import --source copilot-cli --file ~/.local/share/copilot-metrics/telemetry/copilot-cli-otel.jsonl
+npx copilot-metrics@0.1.0 import --source hooks --file ~/.local/share/copilot-metrics/hooks/copilot-hooks.jsonl
 ```
 
-Imports persist raw records, normalized LLM usage records, hook events, and import warnings. Costs are labeled estimates and use the local pricing table version shown by `pricing list`.
+Imports persist raw records, normalized LLM usage records, hook events, label evidence, and import warnings.
 
 ## Reports
 
-Phase 3 adds local reports over the SQLite store:
+Run local reports from the SQLite store:
 
 ```bash
-npx copilot-metrics report labels
-npx copilot-metrics report label DEMO-12345
-npx copilot-metrics report label DEMO-12345 --detail
-npx copilot-metrics report models
-npx copilot-metrics report repos
-npx copilot-metrics report unattributed
+npx copilot-metrics@0.1.0 report labels
+npx copilot-metrics@0.1.0 report label DEMO-12345
+npx copilot-metrics@0.1.0 report label DEMO-12345 --detail
+npx copilot-metrics@0.1.0 report models
+npx copilot-metrics@0.1.0 report repos
+npx copilot-metrics@0.1.0 report unattributed
 ```
 
-Every report supports `--json` for machine-readable output:
+Every report supports `--json`:
 
 ```bash
-npx copilot-metrics report labels --json
+npx copilot-metrics@0.1.0 report labels --json
 ```
 
-The default extractor finds Jira-style labels such as `DEMO-12345` from safe metadata including hook labels, branch names, cwd/path values, repo metadata, and task hints. Attribution is stored as evidence with source, field, session, repo, branch, cwd, confidence, and related usage or hook record IDs. This keeps the data useful for later analysis, such as deciding whether a label was the main task or a sidetrack.
+## Attribution Model
+
+The default extractor finds Jira-style labels such as `DEMO-12345` from safe metadata including hook labels, branch names, cwd/path values, repo metadata, and task hints.
+
+Attribution is stored as evidence with source, field, session, repo, branch, cwd, confidence, and related usage or hook record IDs. This makes the data useful for later analysis, such as deciding whether a label was the main task or a sidetrack.
 
 Full prompt content is not stored by default. Prompt-like fields are only used to extract labels and the stored source value is reduced to the matched label.
 
 ## Custom Label Extractors
 
-Custom extractors can be plugged into the label extraction pipeline by calling `runLabelExtractors(sourceType, sourceData, customExtractors)` from `src/label-extractors.js`. Each extractor receives:
+Custom extractors are configured in the local `config.json`; you do not modify package source.
+
+After `copilot-metrics init`, add a module path:
+
+```json
+{
+  "labelExtractors": ["/absolute/path/to/my-extractor.cjs"]
+}
+```
+
+Relative paths are resolved from the current working directory when the CLI runs.
+
+The module should export a function, or an object with `extractLabels`. Each extractor receives:
 
 - `sourceType`: for example `usage` or `hook`
 - `sourceData`: safe metadata for that source
@@ -133,8 +141,34 @@ const extractor = (sourceType, sourceData) => {
   if (sourceData.branch === 'main') return [];
   return [{ label: 'TEAM-123', source_field: 'branch', source_type: sourceType, confidence: 0.5 }];
 };
+
+module.exports = extractor;
 ```
+
+## Release Verification
+
+For a release candidate checkout:
+
+```bash
+npm test
+npm run check
+npm run smoke
+npm run verify:package
+```
+
+Manual Copilot CLI validation is local-only and not run in CI:
+
+```bash
+node scripts/manual-copilot-cli-flow.js --setup-only
+node scripts/manual-copilot-cli-flow.js --run-prompt --model gpt-5-mini
+```
+
+The manual prompt performs one harmless tool call so Copilot CLI hook execution can be validated; answer quality is not part of the check.
 
 ## Current Limits
 
-Costs are estimates, not official billing records. Primary-label and sidetrack classification are intentionally left to downstream analysis built on top of the stored label evidence.
+- Costs are estimates, not official billing records.
+- Official GitHub usage report reconciliation is not included in `0.1.0`.
+- Local OTLP collector mode is not included in `0.1.0`.
+- Richer prompt/content capture and redaction controls are not included in `0.1.0`.
+- Dashboard views are deferred until the CLI/query model proves useful.

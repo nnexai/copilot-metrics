@@ -27,6 +27,7 @@ const {
   formatRepos,
   formatUnattributed,
 } = require('./reports');
+const { loadConfiguredExtractors } = require('./label-extractors');
 
 function parseFlags(args) {
   const flags = {};
@@ -67,8 +68,8 @@ Usage:
   copilot-metrics paths [--json]
   copilot-metrics setup vscode [--json]
   copilot-metrics setup copilot-cli [--json]
-  copilot-metrics hooks preview [--scope local|global] [--json]
-  copilot-metrics hooks install [--scope local|global] [--json]
+  copilot-metrics hooks preview [--scope local|global] [--surface both|vscode|copilot-cli] [--json]
+  copilot-metrics hooks install [--scope local|global] [--surface both|vscode|copilot-cli] [--json]
   copilot-metrics hook-log --event <name>
   copilot-metrics store init [--json]
   copilot-metrics import --source vscode|copilot-cli|hooks --file <path> [--json]
@@ -164,15 +165,16 @@ async function main(args, io) {
 
   if (command === 'hooks') {
     const scope = flags.scope || 'local';
+    const surface = flags.surface || 'both';
     if (subcommand === 'preview') {
-      const config = hookConfig(paths, { cwd: io.cwd, scope, command: io.commandPath });
+      const config = hookConfig(paths, { cwd: io.cwd, scope, surface, command: io.commandPath });
       writeOutput(io.stdout, json ? config : JSON.stringify(config, null, 2), json);
       return;
     }
     if (subcommand === 'install') {
       ensureDataDirs(paths);
-      const result = installHook(paths, { cwd: io.cwd, scope, command: io.commandPath });
-      writeOutput(io.stdout, json ? result : `Installed ${scope} hook config: ${result.target}`, json);
+      const result = installHook(paths, { cwd: io.cwd, scope, surface, command: io.commandPath });
+      writeOutput(io.stdout, json ? result : `Installed ${scope} ${surface} hook config: ${result.target}`, json);
       return;
     }
     throw new Error(`Unknown hooks action "${subcommand}". Use preview or install.`);
@@ -187,6 +189,7 @@ async function main(args, io) {
       event: flags.event,
       includePromptPreview: flags.includePromptPreview === true,
     });
+    if (flags.quiet === true) return;
     writeOutput(io.stdout, json ? result : `Logged hook event: ${result.path}`, json);
     return;
   }
@@ -215,7 +218,12 @@ async function main(args, io) {
     }
     if (!file) throw new Error('import requires --file <path>');
     ensureDataDirs(paths);
-    const result = await ingestFile({ dbPath: paths.usageDb, file, source });
+    const result = await ingestFile({
+      dbPath: paths.usageDb,
+      file,
+      source,
+      extractors: loadConfiguredExtractors(paths.configJson, io.cwd),
+    });
     writeOutput(io.stdout, json ? result : [
       `Imported ${result.raw_records} raw ${source} records into ${result.dbPath}`,
       `Normalized usage records: ${result.usage_records}`,

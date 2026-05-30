@@ -1,5 +1,7 @@
 'use strict';
 
+const path = require('node:path');
+
 const JIRA_LABEL_RE = /\b([A-Z][A-Z0-9]+-\d+)\b/gi;
 
 function canonicalLabel(label) {
@@ -89,9 +91,30 @@ function runLabelExtractors(sourceType, sourceData, customExtractors = []) {
   return evidence;
 }
 
+function loadConfiguredExtractors(configPath, cwd = process.cwd()) {
+  let config;
+  try {
+    config = require(configPath);
+  } catch {
+    return [];
+  }
+
+  const configured = Array.isArray(config.labelExtractors) ? config.labelExtractors : [];
+  return configured.map((entry) => {
+    const modulePath = typeof entry === 'string' ? entry : entry && entry.path;
+    if (!modulePath) return null;
+    const resolved = path.isAbsolute(modulePath) ? modulePath : path.resolve(cwd, modulePath);
+    const mod = require(resolved);
+    if (typeof mod === 'function') return mod;
+    if (typeof mod.extractLabels === 'function') return mod.extractLabels;
+    throw new Error(`Configured label extractor does not export a function: ${modulePath}`);
+  }).filter(Boolean);
+}
+
 module.exports = {
   JIRA_LABEL_RE,
   canonicalLabel,
   extractJiraLabels,
+  loadConfiguredExtractors,
   runLabelExtractors,
 };
