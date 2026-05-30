@@ -30,6 +30,9 @@ function firstString(payload, keys) {
 }
 
 function redactHookPayload(payload, options = {}) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    payload = {};
+  }
   const includePromptPreview = options.includePromptPreview === true;
   const labels = Array.from(extractLabelsFromValue(payload)).sort();
   const prompt = firstString(payload, ['prompt', 'userPrompt', 'message', 'input']);
@@ -53,8 +56,8 @@ function redactHookPayload(payload, options = {}) {
 function appendHookEvent(payload, options = {}) {
   const paths = resolvePaths(options);
   const record = redactHookPayload(payload, options);
-  fs.mkdirSync(path.dirname(paths.hookEventsJsonl), { recursive: true });
-  fs.appendFileSync(paths.hookEventsJsonl, `${JSON.stringify(record)}\n`);
+  fs.mkdirSync(path.dirname(paths.hookEventsJsonl), { recursive: true, mode: 0o700 });
+  fs.appendFileSync(paths.hookEventsJsonl, `${JSON.stringify(record)}\n`, { mode: 0o600 });
   return { path: paths.hookEventsJsonl, record };
 }
 

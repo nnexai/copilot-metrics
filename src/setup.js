@@ -12,13 +12,22 @@ const HOOK_EVENTS = [
   'errorOccurred',
 ];
 
+function writePrivateFile(file, data) {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(file, data, { mode: 0o600 });
+}
+
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
 function ensureDataDirs(paths) {
   for (const dir of [paths.home, paths.telemetryDir, paths.hooksDir, paths.storeDir, paths.skillsDir]) {
-    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
 
   if (!fs.existsSync(paths.configJson)) {
-    fs.writeFileSync(paths.configJson, `${JSON.stringify({
+    writePrivateFile(paths.configJson, `${JSON.stringify({
       version: 1,
       contentCapture: false,
       telemetry: {
@@ -35,18 +44,18 @@ function ensureDataDirs(paths) {
 function vscodeSettings(paths) {
   return {
     'github.copilot.chat.otel.enabled': true,
-    'github.copilot.chat.otel.exporter': 'file',
-    'github.copilot.chat.otel.file': paths.vscodeOtelJsonl,
-    'github.copilot.chat.otel.contentCapture': false,
+    'github.copilot.chat.otel.exporterType': 'file',
+    'github.copilot.chat.otel.outfile': paths.vscodeOtelJsonl,
+    'github.copilot.chat.otel.captureContent': false,
   };
 }
 
 function copilotCliEnvironment(paths) {
   return {
-    COPILOT_OTEL: 'true',
-    COPILOT_OTEL_EXPORTER: 'file',
-    COPILOT_OTEL_FILE: paths.copilotCliOtelJsonl,
-    COPILOT_OTEL_CONTENT_CAPTURE: 'false',
+    COPILOT_OTEL_ENABLED: 'true',
+    COPILOT_OTEL_EXPORTER_TYPE: 'file',
+    COPILOT_OTEL_FILE_EXPORTER_PATH: paths.copilotCliOtelJsonl,
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'false',
   };
 }
 
@@ -67,15 +76,15 @@ function hookConfig(paths, options = {}) {
     tool: 'copilot-metrics',
     scope: options.scope || 'local',
     contentCapture: false,
-    events: Object.fromEntries(HOOK_EVENTS.map((event) => [
+    hooks: Object.fromEntries(HOOK_EVENTS.map((event) => [
       event,
-      {
-        command: 'node',
-        args: [command, 'hook-log', '--event', event],
+      [{
+        type: 'command',
+        command: `node ${shellQuote(command)} hook-log --event ${shellQuote(event)}`,
         env: {
           COPILOT_METRICS_HOME: paths.home,
         },
-      },
+      }],
     ])),
   };
 }
@@ -90,8 +99,7 @@ function installHook(paths, options = {}) {
   const scope = options.scope || 'local';
   const target = hookTarget(paths, scope);
   const config = hookConfig(paths, { ...options, scope });
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.writeFileSync(target, `${JSON.stringify(config, null, 2)}\n`);
+  writePrivateFile(target, `${JSON.stringify(config, null, 2)}\n`);
   return { target, config };
 }
 
@@ -111,6 +119,7 @@ module.exports = {
   vscodeSettings,
   copilotCliEnvironment,
   shellExports,
+  shellQuote,
   hookConfig,
   hookTarget,
   installHook,

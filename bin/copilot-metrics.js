@@ -9,6 +9,7 @@ main(process.argv.slice(2), {
   stderr: process.stderr,
   env: process.env,
   cwd: process.cwd(),
+  commandPath: process.argv[1],
 }).catch((error) => {
   process.stderr.write(`copilot-metrics: ${error.message}\n`);
   process.exitCode = 1;

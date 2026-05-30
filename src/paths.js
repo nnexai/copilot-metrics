@@ -27,6 +27,7 @@ function resolvePaths(options = {}) {
   const hooksDir = path.join(home, 'hooks');
   const storeDir = path.join(home, 'store');
   const skillsDir = path.join(home, 'skills');
+  const copilotHome = env.COPILOT_HOME || path.join(os.homedir(), '.copilot');
 
   return {
     home,
@@ -39,7 +40,7 @@ function resolvePaths(options = {}) {
     hookEventsJsonl: path.join(hooksDir, 'copilot-cli-hooks.jsonl'),
     configJson: path.join(home, 'config.json'),
     localHookConfig: path.join(cwd, '.github', 'hooks', 'copilot-metrics.json'),
-    globalHookConfig: path.join(os.homedir(), '.copilot', 'hooks', 'copilot-metrics.json'),
+    globalHookConfig: path.join(copilotHome, 'hooks', 'copilot-metrics.json'),
   };
 }
 

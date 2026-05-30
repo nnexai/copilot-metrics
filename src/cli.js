@@ -124,7 +124,7 @@ async function main(args, io) {
       return;
     }
     if (!subcommand || subcommand === 'all') {
-      const snapshot = setupSnapshot({ env: io.env, cwd: io.cwd, home: flags.home });
+      const snapshot = setupSnapshot({ env: io.env, cwd: io.cwd, home: flags.home, command: io.commandPath });
       writeOutput(io.stdout, json ? snapshot : [
         formatPaths(snapshot.paths),
         '',
@@ -140,13 +140,13 @@ async function main(args, io) {
   if (command === 'hooks') {
     const scope = flags.scope || 'local';
     if (subcommand === 'preview') {
-      const config = hookConfig(paths, { cwd: io.cwd, scope });
+      const config = hookConfig(paths, { cwd: io.cwd, scope, command: io.commandPath });
       writeOutput(io.stdout, json ? config : JSON.stringify(config, null, 2), json);
       return;
     }
     if (subcommand === 'install') {
       ensureDataDirs(paths);
-      const result = installHook(paths, { cwd: io.cwd, scope });
+      const result = installHook(paths, { cwd: io.cwd, scope, command: io.commandPath });
       writeOutput(io.stdout, json ? result : `Installed ${scope} hook config: ${result.target}`, json);
       return;
     }
