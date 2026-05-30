@@ -34,9 +34,9 @@
 - [x] **NORM-01**: Tool identifies billing-like LLM chat/model-call spans separately from root agent and tool spans.
 - [x] **NORM-02**: Tool extracts timestamp, surface, conversation ID or session ID, requested model, resolved model, repo, branch, cwd, and commit when available.
 - [x] **NORM-03**: Tool extracts input, output, cache read, cache creation, and reasoning token fields when present.
-- [ ] **NORM-04**: Tool extracts Jira-style labels such as `DEMO-12345` from prompts, directories, branch names, hook metadata, and tool-call context.
+- [x] **NORM-04**: Tool extracts Jira-style labels such as `DEMO-12345` from prompts, directories, branch names, hook metadata, and tool-call context.
 - [x] **NORM-05**: Tool prevents double-counting when both root agent spans and lower-level LLM spans contain token totals.
-- [ ] **NORM-06**: Tool preserves enough source context to explain where a label came from without storing full prompt content by default.
+- [x] **NORM-06**: Tool preserves enough source context to explain where a label came from without storing full prompt content by default.
 
 ### Cost Estimation
 
@@ -48,14 +48,14 @@
 
 ### Reporting
 
-- [ ] **REPORT-01**: User can view a label overview listing discovered Jira labels, sessions, token totals, estimated credits, first seen, and last seen.
-- [ ] **REPORT-02**: User can view usage grouped by model.
-- [ ] **REPORT-03**: User can view summarized usage for a single Jira label.
-- [ ] **REPORT-04**: User can view usage grouped by repo and directory.
-- [ ] **REPORT-05**: User can view unattributed usage with enough context to fix labeling.
-- [ ] **REPORT-06**: User can view detailed records for a single Jira label.
-- [ ] **REPORT-07**: Reports can run entirely from local files and the local store.
-- [ ] **REPORT-08**: Reports support both human-readable output and machine-readable output.
+- [x] **REPORT-01**: User can view a label overview listing discovered Jira labels, sessions, token totals, estimated credits, first seen, and last seen.
+- [x] **REPORT-02**: User can view usage grouped by model.
+- [x] **REPORT-03**: User can view summarized usage for a single Jira label.
+- [x] **REPORT-04**: User can view usage grouped by repo and directory.
+- [x] **REPORT-05**: User can view unattributed usage with enough context to fix labeling.
+- [x] **REPORT-06**: User can view detailed records for a single Jira label.
+- [x] **REPORT-07**: Reports can run entirely from local files and the local store.
+- [x] **REPORT-08**: Reports support both human-readable output and machine-readable output.
 
 ### Verification
 
@@ -123,22 +123,22 @@
 | NORM-01 | Phase 2 | Complete |
 | NORM-02 | Phase 2 | Complete |
 | NORM-03 | Phase 2 | Complete |
-| NORM-04 | Phase 3 | Pending |
+| NORM-04 | Phase 3 | Complete |
 | NORM-05 | Phase 2 | Complete |
-| NORM-06 | Phase 3 | Pending |
+| NORM-06 | Phase 3 | Complete |
 | COST-01 | Phase 2 | Complete |
 | COST-02 | Phase 2 | Complete |
 | COST-03 | Phase 2 | Complete |
 | COST-04 | Phase 2 | Complete |
 | COST-05 | Phase 2 | Complete |
-| REPORT-01 | Phase 3 | Pending |
-| REPORT-02 | Phase 3 | Pending |
-| REPORT-03 | Phase 3 | Pending |
-| REPORT-04 | Phase 3 | Pending |
-| REPORT-05 | Phase 3 | Pending |
-| REPORT-06 | Phase 3 | Pending |
-| REPORT-07 | Phase 3 | Pending |
-| REPORT-08 | Phase 3 | Pending |
+| REPORT-01 | Phase 3 | Complete |
+| REPORT-02 | Phase 3 | Complete |
+| REPORT-03 | Phase 3 | Complete |
+| REPORT-04 | Phase 3 | Complete |
+| REPORT-05 | Phase 3 | Complete |
+| REPORT-06 | Phase 3 | Complete |
+| REPORT-07 | Phase 3 | Complete |
+| REPORT-08 | Phase 3 | Complete |
 | VERIFY-01 | Phase 4 | Pending |
 | VERIFY-02 | Phase 4 | Pending |
 | VERIFY-03 | Phase 4 | Pending |
@@ -158,4 +158,4 @@
 
 ---
 *Requirements defined: 2026-05-30*
-*Last updated: 2026-05-30 after Phase 2 execution*
+*Last updated: 2026-05-30 after Phase 3 execution*
