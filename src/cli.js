@@ -4,6 +4,7 @@ const { resolvePaths } = require('./paths');
 const {
   ensureDataDirs,
   vscodeSettings,
+  installVscodeSettings,
   copilotCliEnvironment,
   shellExports,
   hookConfig,
@@ -17,12 +18,13 @@ const { MODEL_PRICES, PRICING_VERSION } = require('./pricing');
 const {
   labelOverview,
   labelSummary,
+  labelModelBreakdown,
   labelDetails,
   modelReport,
   repoReport,
   unattributedReport,
   formatLabels,
-  formatLabelSummary,
+  formatLabelReport,
   formatModels,
   formatRepos,
   formatUnattributed,
@@ -70,8 +72,9 @@ function helpText() {
 Usage:
   copilot-metrics init [--json]
   copilot-metrics paths [--json]
-  copilot-metrics setup vscode [--json]
-  copilot-metrics setup copilot-cli [--json]
+  copilot-metrics setup [all] [--scope local|global] [--json]
+  copilot-metrics setup vscode [--settings-file <path>] [--json]
+  copilot-metrics setup copilot-cli [--scope local|global] [--json]
   copilot-metrics hooks preview [--scope local|global] [--surface both|vscode|copilot-cli] [--json]
   copilot-metrics hooks install [--scope local|global] [--surface both|vscode|copilot-cli] [--json]
   copilot-metrics hook-log --event <name>
@@ -111,6 +114,13 @@ function formatVscode(settings) {
   ].join('\n');
 }
 
+function formatVscodeInstall(results) {
+  return [
+    `Installed VS Code Copilot telemetry settings: ${results.map((result) => result.target).join(', ')}`,
+    'Content capture is disabled.',
+  ].join('\n');
+}
+
 function formatCopilotCli(env) {
   return [
     'Export these variables before running Copilot CLI:',
@@ -119,6 +129,13 @@ function formatCopilotCli(env) {
     'This is optional. Copilot CLI session-state usage is imported by reports without these exports.',
     '',
     'Content capture is disabled by default.',
+  ].join('\n');
+}
+
+function formatCopilotCliSetup(result) {
+  return [
+    `Installed ${result.scope} Copilot hook config: ${result.target}`,
+    'Copilot CLI token usage is imported from local session-state; OTel exports are optional.',
   ].join('\n');
 }
 
@@ -189,23 +206,49 @@ async function main(args, io) {
 
   if (command === 'setup') {
     if (subcommand === 'vscode') {
-      const settings = vscodeSettings(paths);
-      writeOutput(io.stdout, json ? settings : formatVscode(settings), json);
+      ensureDataDirs(paths);
+      if (flags.print === true || flags.dryRun === true) {
+        const settings = vscodeSettings(paths);
+        writeOutput(io.stdout, json ? settings : formatVscode(settings), json);
+        return;
+      }
+      const results = installVscodeSettings(paths, { env: io.env, target: flags.settingsFile });
+      writeOutput(io.stdout, json ? { installed: results } : formatVscodeInstall(results), json);
       return;
     }
     if (subcommand === 'copilot-cli') {
-      const env = copilotCliEnvironment(paths);
-      writeOutput(io.stdout, json ? env : formatCopilotCli(env), json);
+      ensureDataDirs(paths);
+      if (flags.print === true || flags.dryRun === true) {
+        const env = copilotCliEnvironment(paths);
+        writeOutput(io.stdout, json ? env : formatCopilotCli(env), json);
+        return;
+      }
+      const result = installHook(paths, {
+        cwd: io.cwd,
+        scope: flags.scope || 'local',
+        surface: 'copilot-cli',
+        command: io.commandPath,
+      });
+      writeOutput(io.stdout, json ? { installed: result } : formatCopilotCliSetup({ ...result, scope: flags.scope || 'local' }), json);
       return;
     }
     if (!subcommand || subcommand === 'all') {
-      const snapshot = setupSnapshot({ env: io.env, cwd: io.cwd, home: flags.home, command: io.commandPath });
+      const snapshot = setupSnapshot({
+        env: io.env,
+        cwd: io.cwd,
+        home: flags.home,
+        command: io.commandPath,
+        install: flags.print !== true && flags.dryRun !== true,
+        scope: flags.scope || 'local',
+        surface: flags.surface || 'both',
+        target: flags.settingsFile,
+      });
       writeOutput(io.stdout, json ? snapshot : [
         formatPaths(snapshot.paths),
         '',
-        formatVscode(snapshot.vscode),
+        snapshot.vscodeInstalled.length ? formatVscodeInstall(snapshot.vscodeInstalled) : formatVscode(snapshot.vscode),
         '',
-        formatCopilotCli(snapshot.copilotCli),
+        snapshot.hooksInstalled ? formatCopilotCliSetup({ ...snapshot.hooksInstalled, scope: flags.scope || 'local' }) : formatCopilotCli(snapshot.copilotCli),
       ].join('\n'), json);
       return;
     }
@@ -301,12 +344,13 @@ async function main(args, io) {
       const label = rest[2];
       if (!label) throw new Error('report label requires <id>');
       const summary = await labelSummary(paths.usageDb, label);
+      const models = await labelModelBreakdown(paths.usageDb, label);
       if (flags.detail === true) {
         const details = await labelDetails(paths.usageDb, label);
-        writeOutput(io.stdout, json ? { label: summary, details, diagnostics } : appendDiagnostics(formatLabelSummary(summary, details), diagnostics), json);
+        writeOutput(io.stdout, json ? { label: summary, models, details, diagnostics } : appendDiagnostics(formatLabelReport(summary, models, details), diagnostics), json);
         return;
       }
-      writeOutput(io.stdout, json ? { label: summary, diagnostics } : appendDiagnostics(formatLabelSummary(summary), diagnostics), json);
+      writeOutput(io.stdout, json ? { label: summary, models, diagnostics } : appendDiagnostics(formatLabelReport(summary, models), diagnostics), json);
       return;
     }
     if (subcommand === 'models') {

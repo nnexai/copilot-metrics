@@ -183,6 +183,16 @@ async function existingRawFingerprints(dbPath, source, sourceFile, fingerprints)
   return existing;
 }
 
+async function importedLineHighWater(dbPath, source, sourceFile) {
+  await initStore(dbPath);
+  const rows = await queryRows(
+    dbPath,
+    'SELECT COALESCE(MAX(line), 0) AS line FROM raw_records WHERE source = ? AND source_file = ?',
+    [source, sourceFile],
+  );
+  return Number(rows[0]?.line || 0);
+}
+
 async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords, hookEvents, warnings) {
   await initStore(dbPath);
   const db = await openDatabase(dbPath);
@@ -320,6 +330,7 @@ async function queryRows(dbPath, sql, params = []) {
 
 module.exports = {
   existingRawFingerprints,
+  importedLineHighWater,
   initStore,
   insertImport,
   queryOne,

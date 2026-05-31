@@ -6,7 +6,7 @@ const path = require('node:path');
 const { readJsonl } = require('./jsonl');
 const { normalizePayload, normalizeHookEvent, normalizeCopilotSessionEvents } = require('./otel');
 const { estimateCost, PRICING_VERSION } = require('./pricing');
-const { existingRawFingerprints, insertImport } = require('./sqlite-store');
+const { existingRawFingerprints, importedLineHighWater, insertImport } = require('./sqlite-store');
 const { attachUsageLabelEvidence, attachHookLabelEvidence } = require('./labels');
 const { loadConfiguredExtractors } = require('./label-extractors');
 
@@ -44,9 +44,26 @@ function isCopilotSessionUsageRecord(record) {
 
 async function ingestFile(options) {
   const { dbPath, file, source } = options;
-  const parsed = readJsonl(file);
-  const warnings = [...parsed.warnings];
   const sourceFile = path.resolve(file);
+  const highWaterLine = await importedLineHighWater(dbPath, source, sourceFile);
+  if (source === 'copilot-session' && highWaterLine > 0) {
+    return {
+      source,
+      file,
+      dbPath,
+      raw_records: 0,
+      new_raw_records: 0,
+      skipped_existing_records: highWaterLine,
+      usage_records: 0,
+      hook_events: 0,
+      label_evidence: 0,
+      warnings: [],
+      estimate_label: `estimate:${PRICING_VERSION}`,
+    };
+  }
+  const needsSessionContext = source === 'copilot-session' && highWaterLine === 0;
+  const parsed = readJsonl(file, { afterLine: needsSessionContext ? 0 : highWaterLine });
+  const warnings = [...parsed.warnings];
   const parsedRecords = parsed.records.map((record) => ({
     ...record,
     raw_fingerprint: rawFingerprint(source, sourceFile, record),
@@ -98,7 +115,7 @@ async function ingestFile(options) {
     dbPath,
     raw_records: importableRecords.length,
     new_raw_records: newRecords.length,
-    skipped_existing_records: importableRecords.length - newRecords.length,
+    skipped_existing_records: highWaterLine,
     usage_records: enrichedUsage.length,
     hook_events: enrichedHooks.length,
     label_evidence: enrichedUsage.reduce((sum, usage) => sum + (usage.label_evidence || []).length, 0)

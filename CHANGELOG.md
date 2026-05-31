@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.4 - 2026-05-31
+
+### Changed
+
+- `setup` now performs setup by default: VS Code settings are merged into user settings and Copilot hooks are installed for the selected scope. `--print` keeps the old print-only behavior.
+- `report label <id>` now includes a per-model breakdown by default while `report labels` remains accumulated by label.
+- Human reports rename `Credits`/`Status` to clearer `AI Credits est.` and `Usage status` wording.
+
+### Fixed
+
+- `hooks --surface both` now installs both Copilot CLI and VS Code hook event names.
+- Report auto-import skips already imported Copilot session-state files and imported JSONL lines instead of reparsing all historical session files on each report.
+- Existing config files are upgraded with the Copilot session-state source instead of being left stale.
+
 ## 0.1.3 - 2026-05-31
 
 ### Fixed

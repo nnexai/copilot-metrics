@@ -6,8 +6,9 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 const { resolvePaths } = require('../src/paths');
-const { vscodeSettings, copilotCliEnvironment, hookConfig, installHook, mergeGlobalSettingsHooks, setupSnapshot } = require('../src/setup');
+const { vscodeSettings, installVscodeSettings, copilotCliEnvironment, hookConfig, installHook, mergeGlobalSettingsHooks, setupSnapshot } = require('../src/setup');
 const { appendHookEvent, redactHookPayload } = require('../src/hook-logger');
+const { version } = require('../package.json');
 
 test('resolvePaths uses COPILOT_METRICS_HOME override', () => {
   const home = path.join(os.tmpdir(), 'copilot-metrics-test-home');
@@ -54,6 +55,34 @@ test('setup snapshot persists central config for setup-once flow', () => {
   assert.equal(config.sources.copilotCli.sessions, snapshot.paths.copilotSessionStateDir);
 });
 
+test('setup snapshot upgrades existing central config with session source', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-setup-upgrade-'));
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: '/tmp/work' });
+  fs.mkdirSync(path.dirname(paths.configJson), { recursive: true });
+  fs.writeFileSync(paths.configJson, `${JSON.stringify({ version: 1, sources: { copilotCli: { hooks: '/custom/hooks.jsonl' } } })}\n`);
+  const snapshot = setupSnapshot({
+    env: { COPILOT_METRICS_HOME: tmp },
+    cwd: '/tmp/work',
+    command: '/usr/bin/copilot-metrics',
+  });
+  const config = JSON.parse(fs.readFileSync(snapshot.paths.configJson, 'utf8'));
+  assert.equal(config.sources.copilotCli.hooks, '/custom/hooks.jsonl');
+  assert.equal(config.sources.copilotCli.sessions, snapshot.paths.copilotSessionStateDir);
+});
+
+test('installVscodeSettings merges telemetry settings into user settings', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-vscode-'));
+  const target = path.join(tmp, 'settings.json');
+  fs.writeFileSync(target, `${JSON.stringify({ 'editor.fontSize': 14 })}\n`);
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: path.join(tmp, 'home') }, cwd: '/tmp/work' });
+  const results = installVscodeSettings(paths, { target });
+  assert.equal(results[0].target, target);
+  const settings = JSON.parse(fs.readFileSync(target, 'utf8'));
+  assert.equal(settings['editor.fontSize'], 14);
+  assert.equal(settings['github.copilot.chat.otel.enabled'], true);
+  assert.equal(settings['github.copilot.chat.otel.outfile'], paths.vscodeOtelJsonl);
+});
+
 test('default hook config uses CLI-compatible events for both surfaces', () => {
   const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: '/tmp/copilot-metrics' }, cwd: '/tmp/work' });
   const config = hookConfig(paths, { cwd: '/repo', scope: 'local', command: '/repo/bin/copilot-metrics.js' });
@@ -70,6 +99,9 @@ test('default hook config uses CLI-compatible events for both surfaces', () => {
     assert.match(commandHook.command, new RegExp(event));
     assert.match(commandHook.command, /\/repo\/bin\/copilot-metrics\.js/);
   }
+  assert.ok(config.hooks.SessionStart);
+  assert.ok(config.hooks.UserPromptSubmit);
+  assert.ok(config.hooks.PostToolUse);
 });
 
 test('installed executable hook commands do not wrap the shim with node', () => {
@@ -90,7 +122,7 @@ test('npx cache hook commands use a stable package invocation', () => {
   });
   const command = config.hooks.sessionStart[0].command;
   assert.match(command, /COPILOT_METRICS_HOME=/);
-  assert.match(command, /npx -y copilot-metrics@0\.1\.3 hook-log/);
+  assert.match(command, new RegExp(`npx -y copilot-metrics@${version.replaceAll('.', '\\.')} hook-log`));
   assert.doesNotMatch(command, /\.npm\/_npx/);
 });
 

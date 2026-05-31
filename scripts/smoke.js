@@ -36,7 +36,7 @@ try {
   assert.ok(detail.details.some((row) => row.source_field === 'branch'));
 
   const unattributed = run(['report', 'unattributed']);
-  assert.match(unattributed, /Costs are estimates/);
+  assert.match(unattributed, /AI Credits are estimates/);
 
   process.stdout.write(`Smoke passed: ${home}\n`);
 } finally {

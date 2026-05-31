@@ -41,6 +41,7 @@ test('report labels returns stable JSON with evidence and estimates', () => {
   assert.equal(label.cache_creation_tokens, 100);
   assert.equal(label.reasoning_tokens, 50);
   assert.equal(label.token_status, 'token-bearing');
+  assert.equal(label.usage_status, 'usage');
   assert.ok(label.estimated_ai_credits > 0);
   assert.match(label.estimate_label, /^estimate:/);
 });
@@ -56,6 +57,7 @@ test('report label detail preserves source and session context', () => {
   const home = seedStore();
   const payload = JSON.parse(run(['report', 'label', 'demo-12345', '--detail', '--home', home, '--json']));
   assert.equal(payload.label.label, 'DEMO-12345');
+  assert.ok(payload.models.some((row) => row.model === 'gpt-5.4'));
   assert.equal(payload.label.cache_read_tokens, 200);
   assert.equal(payload.label.cache_creation_tokens, 100);
   assert.equal(payload.label.reasoning_tokens, 50);
@@ -94,8 +96,9 @@ test('hook-only labels are visible without implying token usage', () => {
   assert.equal(label.input_tokens, 0);
   assert.equal(label.output_tokens, 0);
   assert.equal(label.token_status, 'hook-only');
+  assert.equal(label.usage_status, 'evidence-only');
   const output = run(['report', 'labels', '--home', home]);
-  assert.match(output, /hook-only/);
+  assert.match(output, /evidence-only/);
 });
 
 test('model, repo, and unattributed reports expose local usage only', () => {
@@ -118,5 +121,14 @@ test('human report output is compact and labels costs as estimates', () => {
   assert.match(output, /Cache read/);
   assert.match(output, /Reasoning/);
   assert.match(output, /DEMO-12345/);
-  assert.match(output, /Costs are estimates/);
+  assert.match(output, /AI Credits are estimates/);
+  assert.match(output, /Usage status/);
+});
+
+test('single label human report includes per-model breakdown by default', () => {
+  const home = seedStore();
+  const output = run(['report', 'label', 'DEMO-12345', '--home', home]);
+  assert.match(output, /Model\s+Sessions\s+Usage/);
+  assert.match(output, /gpt-5\.4/);
+  assert.match(output, /AI Credits est\./);
 });

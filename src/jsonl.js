@@ -2,19 +2,21 @@
 
 const fs = require('node:fs');
 
-function readJsonl(file) {
+function readJsonl(file, options = {}) {
   const text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
   const records = [];
   const warnings = [];
+  const afterLine = Number(options.afterLine || 0);
 
   text.split(/\r?\n/).forEach((line, index) => {
-    if (!line.trim()) return;
+    const lineNumber = index + 1;
+    if (lineNumber <= afterLine || !line.trim()) return;
     try {
-      records.push({ line: index + 1, value: JSON.parse(line) });
+      records.push({ line: lineNumber, value: JSON.parse(line) });
     } catch (error) {
       warnings.push({
         code: 'malformed_jsonl',
-        line: index + 1,
+        line: lineNumber,
         message: error.message,
       });
     }

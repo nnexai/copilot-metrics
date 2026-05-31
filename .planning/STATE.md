@@ -74,6 +74,12 @@ Last activity: 2026-05-30 — Milestone v0.1.1 completed and archived
 
 - Phase 6 added: `copilot-metrics@0.1.1` patch release for setup-once behavior, automatic hook/source imports before reports, complete token reporting including cache/reasoning tokens, and clear hook-only attribution semantics.
 
+## Quick Tasks Completed
+
+| Date | Quick ID | Task |
+|------|----------|------|
+| 2026-05-31 | 260531-w8w | Improve report label usability, setup install behavior, hook event coverage, and repeated import caching for `v0.1.4`. |
+
 ## Operator Next Steps
 
 - Start the next milestone with /gsd-new-milestone
