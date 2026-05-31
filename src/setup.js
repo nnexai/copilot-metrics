@@ -59,6 +59,7 @@ function ensureDataDirs(paths) {
         copilotCli: {
           telemetry: paths.copilotCliOtelJsonl,
           hooks: paths.hookEventsJsonl,
+          sessions: paths.copilotSessionStateDir,
         },
       },
       labelExtractors: [],

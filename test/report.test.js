@@ -11,11 +11,13 @@ const { queryOne } = require('../src/sqlite-store');
 const root = path.join(__dirname, '..');
 const cli = path.join(root, 'bin', 'copilot-metrics.js');
 const fixtures = path.join(__dirname, 'fixtures');
+const defaultCopilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-test-copilot-home-'));
 
 function run(args) {
   return execFileSync(process.execPath, [cli, ...args], {
     cwd: root,
     encoding: 'utf8',
+    env: { ...process.env, COPILOT_HOME: defaultCopilotHome },
   });
 }
 
@@ -66,16 +68,20 @@ test('reports auto-import configured JSONL sources idempotently', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-auto-report-'));
   fs.mkdirSync(path.join(home, 'telemetry'), { recursive: true });
   fs.mkdirSync(path.join(home, 'hooks'), { recursive: true });
+  fs.mkdirSync(path.join(home, 'copilot-home', 'session-state', 'session-native'), { recursive: true });
   fs.copyFileSync(path.join(fixtures, 'vscode-otel.jsonl'), path.join(home, 'telemetry', 'vscode-copilot-otel.jsonl'));
   fs.copyFileSync(path.join(fixtures, 'copilot-cli-otel.jsonl'), path.join(home, 'telemetry', 'copilot-cli-otel.jsonl'));
   fs.copyFileSync(path.join(fixtures, 'hook-events.jsonl'), path.join(home, 'hooks', 'copilot-hooks.jsonl'));
+  fs.copyFileSync(path.join(fixtures, 'copilot-session-events.jsonl'), path.join(home, 'copilot-home', 'session-state', 'session-native', 'events.jsonl'));
 
-  const first = JSON.parse(run(['report', 'labels', '--home', home, '--json']));
-  const second = JSON.parse(run(['report', 'labels', '--home', home, '--json']));
+  const env = { ...process.env, COPILOT_HOME: path.join(home, 'copilot-home') };
+  const first = JSON.parse(execFileSync(process.execPath, [cli, 'report', 'labels', '--home', home, '--json'], { cwd: root, encoding: 'utf8', env }));
+  const second = JSON.parse(execFileSync(process.execPath, [cli, 'report', 'labels', '--home', home, '--json'], { cwd: root, encoding: 'utf8', env }));
   assert.deepEqual(second.labels, first.labels);
+  assert.ok(first.labels.some((row) => row.label === 'DEMO-900' && row.usage_records === 1 && row.input_tokens === 1200));
 
   const rows = await queryOne(path.join(home, 'store', 'copilot-metrics.sqlite'), 'SELECT COUNT(*) AS count FROM usage_records');
-  assert.equal(rows[0].count, 3);
+  assert.equal(rows[0].count, 4);
 });
 
 test('hook-only labels are visible without implying token usage', () => {

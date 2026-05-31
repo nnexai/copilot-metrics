@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { readJsonl } = require('./jsonl');
-const { normalizePayload, normalizeHookEvent } = require('./otel');
+const { normalizePayload, normalizeHookEvent, normalizeCopilotSessionEvents } = require('./otel');
 const { estimateCost, PRICING_VERSION } = require('./pricing');
 const { existingRawFingerprints, insertImport } = require('./sqlite-store');
 const { attachUsageLabelEvidence, attachHookLabelEvidence } = require('./labels');
@@ -38,6 +38,10 @@ function rawFingerprint(source, file, record) {
     .digest('hex');
 }
 
+function isCopilotSessionUsageRecord(record) {
+  return record.value && record.value.type === 'session.shutdown';
+}
+
 async function ingestFile(options) {
   const { dbPath, file, source } = options;
   const parsed = readJsonl(file);
@@ -47,23 +51,30 @@ async function ingestFile(options) {
     ...record,
     raw_fingerprint: rawFingerprint(source, sourceFile, record),
   }));
+  const importableRecords = source === 'copilot-session'
+    ? parsedRecords.filter(isCopilotSessionUsageRecord)
+    : parsedRecords;
   const existing = await existingRawFingerprints(
     dbPath,
     source,
     sourceFile,
-    parsedRecords.map((record) => record.raw_fingerprint),
+    importableRecords.map((record) => record.raw_fingerprint),
   );
-  const newRecords = parsedRecords.filter((record) => !existing.has(record.raw_fingerprint));
+  const newRecords = importableRecords.filter((record) => !existing.has(record.raw_fingerprint));
   const usageRecords = [];
   const hookEvents = [];
 
-  for (const record of newRecords) {
-    if (source === 'hooks') {
-      const event = normalizeHookEvent(record.value, source, record.line);
-      if (event) hookEvents.push(event);
-      continue;
+  if (source === 'copilot-session') {
+    usageRecords.push(...normalizeCopilotSessionEvents(newRecords, parsedRecords));
+  } else {
+    for (const record of newRecords) {
+      if (source === 'hooks') {
+        const event = normalizeHookEvent(record.value, source, record.line);
+        if (event) hookEvents.push(event);
+        continue;
+      }
+      usageRecords.push(...normalizePayload(record.value, source, record.line));
     }
-    usageRecords.push(...normalizePayload(record.value, source, record.line));
   }
 
   const extractorOptions = { extractors: options.extractors || [] };
@@ -85,9 +96,9 @@ async function ingestFile(options) {
     source,
     file,
     dbPath,
-    raw_records: parsed.records.length,
+    raw_records: importableRecords.length,
     new_raw_records: newRecords.length,
-    skipped_existing_records: parsed.records.length - newRecords.length,
+    skipped_existing_records: importableRecords.length - newRecords.length,
     usage_records: enrichedUsage.length,
     hook_events: enrichedHooks.length,
     label_evidence: enrichedUsage.reduce((sum, usage) => sum + (usage.label_evidence || []).length, 0)
@@ -105,6 +116,7 @@ function configuredSourceFiles(paths, config = {}) {
     { source: 'hooks', file: sourceConfig.vscode?.hooks || paths.hookEventsJsonl },
     { source: 'copilot-cli', file: sourceConfig.copilotCli?.telemetry || telemetryConfig.copilotCli || paths.copilotCliOtelJsonl },
     { source: 'hooks', file: sourceConfig.copilotCli?.hooks || paths.hookEventsJsonl },
+    ...discoverCopilotSessionFiles(sourceConfig.copilotCli?.sessions || paths.copilotSessionStateDir),
   ];
   const seen = new Set();
   return files
@@ -116,6 +128,15 @@ function configuredSourceFiles(paths, config = {}) {
       seen.add(key);
       return true;
     });
+}
+
+function discoverCopilotSessionFiles(sessionStateDir) {
+  if (!sessionStateDir || !fs.existsSync(sessionStateDir)) return [];
+  return fs.readdirSync(sessionStateDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(sessionStateDir, entry.name, 'events.jsonl'))
+    .filter((file) => fs.existsSync(file))
+    .map((file) => ({ source: 'copilot-session', file }));
 }
 
 function readConfig(configJson) {
@@ -145,5 +166,6 @@ async function autoImportConfiguredSources(paths, options = {}) {
 module.exports = {
   autoImportConfiguredSources,
   configuredSourceFiles,
+  discoverCopilotSessionFiles,
   ingestFile,
 };

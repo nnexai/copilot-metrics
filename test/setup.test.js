@@ -15,6 +15,7 @@ test('resolvePaths uses COPILOT_METRICS_HOME override', () => {
   assert.equal(paths.home, home);
   assert.equal(paths.vscodeOtelJsonl, path.join(home, 'telemetry', 'vscode-copilot-otel.jsonl'));
   assert.equal(paths.hookEventsJsonl, path.join(home, 'hooks', 'copilot-hooks.jsonl'));
+  assert.equal(paths.copilotSessionStateDir, path.join(os.homedir(), '.copilot', 'session-state'));
 });
 
 test('resolvePaths respects COPILOT_HOME for global hooks', () => {
@@ -50,6 +51,7 @@ test('setup snapshot persists central config for setup-once flow', () => {
   assert.equal(config.dataHome, tmp);
   assert.equal(config.telemetry.vscode, snapshot.paths.vscodeOtelJsonl);
   assert.equal(config.sources.copilotCli.telemetry, snapshot.paths.copilotCliOtelJsonl);
+  assert.equal(config.sources.copilotCli.sessions, snapshot.paths.copilotSessionStateDir);
 });
 
 test('default hook config uses CLI-compatible events for both surfaces', () => {

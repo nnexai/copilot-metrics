@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2 - 2026-05-31
+
+### Fixed
+
+- Reports now import Copilot CLI session-state `events.jsonl` files by default, so token statistics are collected after `init` and hooks install without requiring users to export telemetry environment variables.
+- Copilot session-state imports persist only shutdown usage records, while using prompt-bearing session events in memory for label extraction and context.
+- Hook-only report diagnostics now stay quiet when token-bearing Copilot session-state usage is available.
+
 ## 0.1.1 - 2026-05-30
 
 ### Added

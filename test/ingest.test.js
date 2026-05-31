@@ -79,6 +79,28 @@ test('ingestFile stores vscode usage and warnings in SQLite', async () => {
   assert.ok(evidence.some((row) => row.source_field === 'branch'));
 });
 
+test('ingestFile stores Copilot session-state shutdown usage without OTel env', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-session-'));
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  const result = await ingestFile({
+    dbPath: paths.usageDb,
+    file: path.join(fixtures, 'copilot-session-events.jsonl'),
+    source: 'copilot-session',
+  });
+  assert.equal(result.usage_records, 1);
+  assert.ok(result.label_evidence >= 1);
+  const usage = await queryOne(paths.usageDb, 'SELECT session_id, resolved_model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, reasoning_tokens FROM usage_records');
+  assert.equal(usage[0].session_id, 'session-native');
+  assert.equal(usage[0].resolved_model, 'gpt-5-mini');
+  assert.equal(usage[0].input_tokens, 1200);
+  assert.equal(usage[0].output_tokens, 300);
+  assert.equal(usage[0].cache_read_tokens, 100);
+  assert.equal(usage[0].cache_creation_tokens, 50);
+  assert.equal(usage[0].reasoning_tokens, 25);
+  const evidence = await queryOne(paths.usageDb, "SELECT label, source_type FROM label_evidence WHERE label = 'DEMO-900'");
+  assert.equal(evidence[0].source_type, 'usage');
+});
+
 test('ingestFile stores copilot cli records and hook events', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-ingest-'));
   const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });

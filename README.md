@@ -9,8 +9,8 @@ Costs are estimates, not official billing records. GitHub billing remains the so
 From npm:
 
 ```bash
-npx copilot-metrics@0.1.1 --help
-npx copilot-metrics@0.1.1 init
+npx copilot-metrics@0.1.2 --help
+npx copilot-metrics@0.1.2 init
 ```
 
 From this checkout:
@@ -38,23 +38,27 @@ export COPILOT_METRICS_HOME=/path/to/copilot-metrics-data
 Useful commands:
 
 ```bash
-npx copilot-metrics@0.1.1 init
-npx copilot-metrics@0.1.1 paths --json
+npx copilot-metrics@0.1.2 init
+npx copilot-metrics@0.1.2 paths --json
 ```
 
 ## Configure Telemetry
 
+For Copilot CLI, `init` plus hooks are enough for local token reporting. Reports import Copilot's local session-state `events.jsonl` files and extract shutdown usage totals without requiring telemetry environment variables.
+
 Print VS Code Insiders Copilot Chat OpenTelemetry settings:
 
 ```bash
-npx copilot-metrics@0.1.1 setup vscode
+npx copilot-metrics@0.1.2 setup vscode
 ```
 
 Print Copilot CLI OpenTelemetry environment exports:
 
 ```bash
-npx copilot-metrics@0.1.1 setup copilot-cli
+npx copilot-metrics@0.1.2 setup copilot-cli
 ```
+
+This is optional. Use it only when you also want Copilot CLI OTel JSONL output.
 
 Content capture is disabled by default. Do not enable richer prompt capture unless you explicitly accept the privacy tradeoff.
 
@@ -63,51 +67,52 @@ Content capture is disabled by default. Do not enable richer prompt capture unle
 Preview repo-local hook config. The default `--surface both` emits the Copilot CLI lower camel case hook format:
 
 ```bash
-npx copilot-metrics@0.1.1 hooks preview --scope local --surface both
+npx copilot-metrics@0.1.2 hooks preview --scope local --surface both
 ```
 
 Install repo-local or user-global hook config:
 
 ```bash
-npx copilot-metrics@0.1.1 hooks install --scope local --surface both
-npx copilot-metrics@0.1.1 hooks install --scope global --surface both
+npx copilot-metrics@0.1.2 hooks install --scope local --surface both
+npx copilot-metrics@0.1.2 hooks install --scope global --surface both
 ```
 
 Local install writes `.github/hooks/copilot-metrics.json`. Global install updates `~/.copilot/settings.json` idempotently, replacing prior `copilot-metrics` hook entries while preserving other settings and hooks. Use `--surface vscode` for VS Code-only PascalCase events or `--surface copilot-cli` for CLI-native lower camel case events. The hook logger writes redacted JSONL metadata to the central data directory. It extracts Jira-style labels such as `DEMO-12345` from safe metadata and does not store full prompt text by default.
 
 ## Import Telemetry
 
-Initialize the local SQLite store and import JSONL files:
+Initialize the local SQLite store and import JSONL files manually:
 
 ```bash
-npx copilot-metrics@0.1.1 store init
-npx copilot-metrics@0.1.1 import --source vscode --file ~/.local/share/copilot-metrics/telemetry/vscode-copilot-otel.jsonl
-npx copilot-metrics@0.1.1 import --source copilot-cli --file ~/.local/share/copilot-metrics/telemetry/copilot-cli-otel.jsonl
-npx copilot-metrics@0.1.1 import --source hooks --file ~/.local/share/copilot-metrics/hooks/copilot-hooks.jsonl
+npx copilot-metrics@0.1.2 store init
+npx copilot-metrics@0.1.2 import --source vscode --file ~/.local/share/copilot-metrics/telemetry/vscode-copilot-otel.jsonl
+npx copilot-metrics@0.1.2 import --source copilot-cli --file ~/.local/share/copilot-metrics/telemetry/copilot-cli-otel.jsonl
+npx copilot-metrics@0.1.2 import --source copilot-session --file ~/.copilot/session-state/<session-id>/events.jsonl
+npx copilot-metrics@0.1.2 import --source hooks --file ~/.local/share/copilot-metrics/hooks/copilot-hooks.jsonl
 ```
 
-Imports persist raw records, normalized LLM usage records, hook events, label evidence, and import warnings. Re-importing the same JSONL rows is idempotent.
+Imports persist raw records, normalized LLM usage records, hook events, label evidence, and import warnings. Re-importing the same JSONL rows is idempotent. For Copilot session-state files, only shutdown usage rows are persisted; prompt-bearing session events are used in memory for label extraction and context and are not stored as raw records.
 
 ## Reports
 
 Run local reports from the SQLite store:
 
 ```bash
-npx copilot-metrics@0.1.1 report labels
-npx copilot-metrics@0.1.1 report label DEMO-12345
-npx copilot-metrics@0.1.1 report label DEMO-12345 --detail
-npx copilot-metrics@0.1.1 report models
-npx copilot-metrics@0.1.1 report repos
-npx copilot-metrics@0.1.1 report unattributed
+npx copilot-metrics@0.1.2 report labels
+npx copilot-metrics@0.1.2 report label DEMO-12345
+npx copilot-metrics@0.1.2 report label DEMO-12345 --detail
+npx copilot-metrics@0.1.2 report models
+npx copilot-metrics@0.1.2 report repos
+npx copilot-metrics@0.1.2 report unattributed
 ```
 
 Every report supports `--json`:
 
 ```bash
-npx copilot-metrics@0.1.1 report labels --json
+npx copilot-metrics@0.1.2 report labels --json
 ```
 
-Report commands automatically import newly appended configured VS Code, Copilot CLI, and hook JSONL files before querying. Label reports include input, output, cache read, cache creation, and reasoning token totals. Labels seen only in hooks remain visible as hook-only evidence with zero usage records, so attribution hints do not imply token-bearing usage.
+Report commands automatically import newly appended configured VS Code OTel, optional Copilot CLI OTel, Copilot CLI session-state, and hook JSONL files before querying. Label reports include input, output, cache read, cache creation, and reasoning token totals. Labels seen only in hooks remain visible as hook-only evidence with zero usage records, so attribution hints do not imply token-bearing usage.
 
 ## Attribution Model
 
@@ -170,7 +175,7 @@ The manual prompt performs one harmless tool call so Copilot CLI hook execution 
 ## Current Limits
 
 - Costs are estimates, not official billing records.
-- Official GitHub usage report reconciliation is not included in `0.1.1`.
-- Local OTLP collector mode is not included in `0.1.1`.
-- Richer prompt/content capture and redaction controls are not included in `0.1.1`.
+- Official GitHub usage report reconciliation is not included in `0.1.2`.
+- Local OTLP collector mode is not included in `0.1.2`.
+- Richer prompt/content capture and redaction controls are not included in `0.1.2`.
 - Dashboard views are deferred until the CLI/query model proves useful.

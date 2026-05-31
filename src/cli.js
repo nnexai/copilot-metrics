@@ -34,6 +34,10 @@ function parseFlags(args) {
   const rest = [];
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
+    if (arg === '--') {
+      rest.push(...args.slice(i + 1));
+      break;
+    }
     if (!arg.startsWith('--')) {
       rest.push(arg);
       continue;
@@ -72,7 +76,7 @@ Usage:
   copilot-metrics hooks install [--scope local|global] [--surface both|vscode|copilot-cli] [--json]
   copilot-metrics hook-log --event <name>
   copilot-metrics store init [--json]
-  copilot-metrics import --source vscode|copilot-cli|hooks --file <path> [--json]
+  copilot-metrics import --source vscode|copilot-cli|copilot-session|hooks --file <path> [--json]
   copilot-metrics report labels [--json]
   copilot-metrics report label <id> [--detail] [--json]
   copilot-metrics report models [--json]
@@ -112,7 +116,52 @@ function formatCopilotCli(env) {
     'Export these variables before running Copilot CLI:',
     shellExports(env),
     '',
+    'This is optional. Copilot CLI session-state usage is imported by reports without these exports.',
+    '',
     'Content capture is disabled by default.',
+  ].join('\n');
+}
+
+function telemetryDiagnostics(importResults) {
+  const hookResult = importResults.find((result) => result.source === 'hooks' && result.raw_records > 0);
+  if (!hookResult) return [];
+  const sessionUsage = importResults.find((result) => result.source === 'copilot-session' && result.raw_records > 0);
+  if (sessionUsage) return [];
+
+  const cliTelemetry = importResults.find((result) => result.source === 'copilot-cli');
+  if (!cliTelemetry) return [];
+
+  if (cliTelemetry.skipped && cliTelemetry.reason === 'missing_file') {
+    return [{
+      code: 'missing_copilot_cli_otel',
+      message: `Hook evidence was found, but no token-bearing Copilot session-state or OTel usage was imported. Check that ${cliTelemetry.file} exists for optional OTel data, or that Copilot session-state files are available under the configured COPILOT_HOME.`,
+    }];
+  }
+
+  if (cliTelemetry.raw_records === 0) {
+    return [{
+      code: 'empty_copilot_cli_otel',
+      message: `Hook evidence was found, but Copilot CLI token telemetry is empty at ${cliTelemetry.file}. Run another Copilot session with OTel enabled.`,
+    }];
+  }
+
+  if (cliTelemetry.usage_records === 0) {
+    return [{
+      code: 'no_copilot_cli_usage_records',
+      message: `Copilot CLI telemetry was found at ${cliTelemetry.file}, but no token-bearing LLM spans were normalized from it.`,
+    }];
+  }
+
+  return [];
+}
+
+function appendDiagnostics(output, diagnostics) {
+  if (diagnostics.length === 0) return output;
+  return [
+    output,
+    '',
+    'Diagnostics:',
+    ...diagnostics.map((diagnostic) => `- ${diagnostic.message}`),
   ].join('\n');
 }
 
@@ -213,8 +262,8 @@ async function main(args, io) {
         : source === 'hooks'
           ? paths.hookEventsJsonl
           : null);
-    if (!['vscode', 'copilot-cli', 'hooks'].includes(source)) {
-      throw new Error('import requires --source vscode|copilot-cli|hooks');
+    if (!['vscode', 'copilot-cli', 'copilot-session', 'hooks'].includes(source)) {
+      throw new Error('import requires --source vscode|copilot-cli|copilot-session|hooks');
     }
     if (!file) throw new Error('import requires --file <path>');
     ensureDataDirs(paths);
@@ -237,14 +286,15 @@ async function main(args, io) {
 
   if (command === 'report') {
     ensureDataDirs(paths);
-    await autoImportConfiguredSources(paths, {
+    const imports = await autoImportConfiguredSources(paths, {
       cwd: io.cwd,
       extractors: loadConfiguredExtractors(paths.configJson, io.cwd),
     });
+    const diagnostics = telemetryDiagnostics(imports);
 
     if (subcommand === 'labels') {
       const rows = await labelOverview(paths.usageDb);
-      writeOutput(io.stdout, json ? { labels: rows } : formatLabels(rows), json);
+      writeOutput(io.stdout, json ? { labels: rows, diagnostics } : appendDiagnostics(formatLabels(rows), diagnostics), json);
       return;
     }
     if (subcommand === 'label') {
@@ -253,10 +303,10 @@ async function main(args, io) {
       const summary = await labelSummary(paths.usageDb, label);
       if (flags.detail === true) {
         const details = await labelDetails(paths.usageDb, label);
-        writeOutput(io.stdout, json ? { label: summary, details } : formatLabelSummary(summary, details), json);
+        writeOutput(io.stdout, json ? { label: summary, details, diagnostics } : appendDiagnostics(formatLabelSummary(summary, details), diagnostics), json);
         return;
       }
-      writeOutput(io.stdout, json ? { label: summary } : formatLabelSummary(summary), json);
+      writeOutput(io.stdout, json ? { label: summary, diagnostics } : appendDiagnostics(formatLabelSummary(summary), diagnostics), json);
       return;
     }
     if (subcommand === 'models') {
@@ -291,4 +341,5 @@ module.exports = {
   main,
   parseFlags,
   helpText,
+  telemetryDiagnostics,
 };

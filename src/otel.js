@@ -29,6 +29,23 @@ function number(attrs, keys) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+const LABEL_RE = /\b[A-Z][A-Z0-9]+-\d+\b/g;
+
+function collectLabels(value, labels = new Set()) {
+  if (typeof value === 'string') {
+    for (const match of value.matchAll(LABEL_RE)) labels.add(match[0]);
+    return labels;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectLabels(item, labels);
+    return labels;
+  }
+  if (value && typeof value === 'object') {
+    for (const item of Object.values(value)) collectLabels(item, labels);
+  }
+  return labels;
+}
+
 function flattenSpans(payload) {
   if (!payload || typeof payload !== 'object') return [];
   if (payload.name || payload.attributes || payload.spanId) return [payload];
@@ -102,6 +119,76 @@ function normalizePayload(payload, source, rawLine) {
     .filter(Boolean);
 }
 
+function normalizeCopilotSessionEvents(newRecords, allRecords) {
+  const session = {
+    labels: new Set(),
+    id: null,
+    cwd: null,
+    repo: null,
+    branch: null,
+    commit: null,
+    conversationId: null,
+  };
+
+  for (const record of allRecords) {
+    const event = record.value;
+    if (!event || typeof event !== 'object') continue;
+    if (event.type === 'session.start') {
+      const data = event.data || {};
+      const context = data.context || {};
+      session.id = data.sessionId || session.id;
+      session.cwd = context.cwd || session.cwd;
+      session.repo = context.gitRoot || context.repository || session.repo;
+      session.branch = context.branch || session.branch;
+      session.commit = context.headCommit || session.commit;
+      collectLabels(context, session.labels);
+    }
+    if (event.type === 'hook.start') {
+      collectLabels(event.data && event.data.input, session.labels);
+    }
+    if (event.type === 'assistant.message') {
+      const data = event.data || {};
+      session.conversationId = data.interactionId || session.conversationId;
+      collectLabels(data.content, session.labels);
+    }
+  }
+
+  const records = [];
+  for (const record of newRecords) {
+    const event = record.value;
+    if (!event || event.type !== 'session.shutdown') continue;
+    const data = event.data || {};
+    const modelMetrics = data.modelMetrics || {};
+    for (const [model, metrics] of Object.entries(modelMetrics)) {
+      const usage = metrics.usage || {};
+      records.push({
+        raw_line: record.line,
+        span_id: event.id || null,
+        trace_id: session.id || null,
+        parent_span_id: event.parentId || null,
+        timestamp: event.timestamp || null,
+        surface: 'copilot-cli-session',
+        conversation_id: session.conversationId,
+        session_id: session.id,
+        requested_model: model,
+        resolved_model: model,
+        repo: session.repo,
+        branch: session.branch,
+        cwd: session.cwd,
+        commit_sha: session.commit,
+        labels: Array.from(session.labels).sort(),
+        input_tokens: Number(usage.inputTokens || 0),
+        output_tokens: Number(usage.outputTokens || 0),
+        cache_read_tokens: Number(usage.cacheReadTokens || 0),
+        cache_creation_tokens: Number(usage.cacheWriteTokens || 0),
+        reasoning_tokens: Number(usage.reasoningTokens || 0),
+        warnings: [],
+      });
+    }
+  }
+  return records;
+}
+
 function normalizeHookEvent(payload, source, rawLine) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
   return {
@@ -122,5 +209,6 @@ module.exports = {
   flattenSpans,
   classifySpan,
   normalizePayload,
+  normalizeCopilotSessionEvents,
   normalizeHookEvent,
 };
