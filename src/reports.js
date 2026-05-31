@@ -15,8 +15,24 @@ function formatNumber(value) {
   return n(value).toLocaleString('en-US');
 }
 
+function formatTokens(value) {
+  const number = n(value);
+  if (Math.abs(number) >= 1_000_000) return `${(number / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(number) >= 10_000) return `${(number / 1_000).toFixed(1)}K`;
+  return formatNumber(number);
+}
+
 function formatCredits(value) {
-  return n(value).toFixed(6);
+  return n(value).toFixed(2);
+}
+
+function formatDollars(value, fallbackCredits = 0) {
+  const dollars = value === undefined || value === null ? n(fallbackCredits) * 0.01 : n(value);
+  return `$${dollars.toFixed(2)}`;
+}
+
+function formatDate(value) {
+  return typeof value === 'string' ? value.slice(0, 10) : '';
 }
 
 function usageStatus(row) {
@@ -48,6 +64,7 @@ SELECT
   COALESCE((SELECT SUM(cache_creation_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS cache_creation_tokens,
   COALESCE((SELECT SUM(reasoning_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS reasoning_tokens,
   COALESCE((SELECT SUM(COALESCE(estimated_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS estimated_ai_credits,
+  COALESCE((SELECT SUM(COALESCE(estimated_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS estimated_usd,
   CASE
     WHEN (SELECT COUNT(DISTINCT usage_record_id) FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL) = 0 THEN 'hook-only'
     ELSE 'token-bearing'
@@ -77,6 +94,7 @@ SELECT
   COALESCE((SELECT SUM(cache_creation_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS cache_creation_tokens,
   COALESCE((SELECT SUM(reasoning_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS reasoning_tokens,
   COALESCE((SELECT SUM(COALESCE(estimated_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS estimated_ai_credits,
+  COALESCE((SELECT SUM(COALESCE(estimated_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS estimated_usd,
   CASE
     WHEN (SELECT COUNT(DISTINCT usage_record_id) FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL) = 0 THEN 'hook-only'
     ELSE 'token-bearing'
@@ -105,6 +123,7 @@ SELECT
   SUM(ur.cache_creation_tokens) AS cache_creation_tokens,
   SUM(ur.reasoning_tokens) AS reasoning_tokens,
   SUM(COALESCE(ur.estimated_ai_credits, 0)) AS estimated_ai_credits,
+  SUM(COALESCE(ur.estimated_usd, 0)) AS estimated_usd,
   MAX(ur.estimate_label) AS estimate_label
 FROM usage_records ur
 WHERE ur.id IN (
@@ -138,6 +157,7 @@ SELECT
   ur.cache_creation_tokens,
   ur.reasoning_tokens,
   ur.estimated_ai_credits,
+  ur.estimated_usd,
   ur.estimate_label,
   COALESCE(ur.timestamp, le.timestamp, le.imported_at) AS timestamp
 FROM label_evidence le
@@ -158,6 +178,7 @@ SELECT
   SUM(cache_creation_tokens) AS cache_creation_tokens,
   SUM(reasoning_tokens) AS reasoning_tokens,
   SUM(COALESCE(estimated_ai_credits, 0)) AS estimated_ai_credits,
+  SUM(COALESCE(estimated_usd, 0)) AS estimated_usd,
   MAX(estimate_label) AS estimate_label
 FROM usage_records
 GROUP BY COALESCE(resolved_model, requested_model, 'unknown')
@@ -175,6 +196,7 @@ SELECT
   SUM(input_tokens) AS input_tokens,
   SUM(output_tokens) AS output_tokens,
   SUM(COALESCE(estimated_ai_credits, 0)) AS estimated_ai_credits,
+  SUM(COALESCE(estimated_usd, 0)) AS estimated_usd,
   MAX(estimate_label) AS estimate_label
 FROM usage_records
 GROUP BY COALESCE(repo, 'unknown'), COALESCE(cwd, '')
@@ -197,6 +219,7 @@ SELECT
   ur.input_tokens,
   ur.output_tokens,
   ur.estimated_ai_credits,
+  ur.estimated_usd,
   ur.estimate_label,
   ur.timestamp
 FROM usage_records ur
@@ -209,20 +232,21 @@ ORDER BY ur.timestamp, ur.id`);
 function formatLabels(rows) {
   return [
     table(
-      ['Label', 'Sessions', 'Usage', 'Input', 'Output', 'Cache read', 'Cache create', 'Reasoning', 'AI Credits est.', 'Usage status', 'Evidence', 'Last seen'],
+      ['Label', 'Sess', 'Use', 'Input', 'Output', 'C read', 'C write', 'Think', 'Cr est.', '$ est.', 'Status', 'Ev', 'Last'],
       rows.map((row) => [
         row.label,
         row.sessions,
         row.usage_records,
-        formatNumber(row.input_tokens),
-        formatNumber(row.output_tokens),
-        formatNumber(row.cache_read_tokens),
-        formatNumber(row.cache_creation_tokens),
-        formatNumber(row.reasoning_tokens),
+        formatTokens(row.input_tokens),
+        formatTokens(row.output_tokens),
+        formatTokens(row.cache_read_tokens),
+        formatTokens(row.cache_creation_tokens),
+        formatTokens(row.reasoning_tokens),
         formatCredits(row.estimated_ai_credits),
+        formatDollars(row.estimated_usd, row.estimated_ai_credits),
         usageStatus(row),
         row.evidence_count,
-        row.last_seen || '',
+        formatDate(row.last_seen),
       ]),
     ),
     '',
@@ -233,17 +257,18 @@ function formatLabels(rows) {
 function formatLabelSummary(summary) {
   if (!summary) return 'No usage found for label.';
   return table(
-    ['Label', 'Sessions', 'Usage', 'Input', 'Output', 'Cache read', 'Cache create', 'Reasoning', 'AI Credits est.', 'Usage status', 'Evidence'],
+    ['Label', 'Sess', 'Use', 'Input', 'Output', 'C read', 'C write', 'Think', 'Cr est.', '$ est.', 'Status', 'Ev'],
     [[
       summary.label,
       summary.sessions,
       summary.usage_records,
-      formatNumber(summary.input_tokens),
-      formatNumber(summary.output_tokens),
-      formatNumber(summary.cache_read_tokens),
-      formatNumber(summary.cache_creation_tokens),
-      formatNumber(summary.reasoning_tokens),
+      formatTokens(summary.input_tokens),
+      formatTokens(summary.output_tokens),
+      formatTokens(summary.cache_read_tokens),
+      formatTokens(summary.cache_creation_tokens),
+      formatTokens(summary.reasoning_tokens),
       formatCredits(summary.estimated_ai_credits),
+      formatDollars(summary.estimated_usd, summary.estimated_ai_credits),
       usageStatus(summary),
       summary.evidence_count,
     ]],
@@ -254,34 +279,36 @@ function formatLabelReport(summary, models, details = null) {
   const output = [formatLabelSummary(summary)];
   if (models && models.length > 0) {
     output.push('', table(
-      ['Model', 'Sessions', 'Usage', 'Input', 'Output', 'Cache read', 'Cache create', 'Reasoning', 'AI Credits est.'],
+      ['Model', 'Sess', 'Use', 'Input', 'Output', 'C read', 'C write', 'Think', 'Cr est.', '$ est.'],
       models.map((row) => [
         row.model,
         row.sessions,
         row.usage_records,
-        formatNumber(row.input_tokens),
-        formatNumber(row.output_tokens),
-        formatNumber(row.cache_read_tokens),
-        formatNumber(row.cache_creation_tokens),
-        formatNumber(row.reasoning_tokens),
+        formatTokens(row.input_tokens),
+        formatTokens(row.output_tokens),
+        formatTokens(row.cache_read_tokens),
+        formatTokens(row.cache_creation_tokens),
+        formatTokens(row.reasoning_tokens),
         formatCredits(row.estimated_ai_credits),
+        formatDollars(row.estimated_usd, row.estimated_ai_credits),
       ]),
     ));
   }
   if (details) {
     output.push('', table(
-      ['Source', 'Field', 'Session', 'Model', 'Input', 'Output', 'Cache read', 'Cache create', 'Reasoning', 'AI Credits est.', 'Value'],
+      ['Src', 'Field', 'Session', 'Model', 'Input', 'Output', 'C read', 'C write', 'Think', 'Cr est.', '$ est.', 'Value'],
       details.map((row) => [
         row.source_type,
         row.source_field,
         row.session_id || '',
         row.resolved_model || '',
-        formatNumber(row.input_tokens),
-        formatNumber(row.output_tokens),
-        formatNumber(row.cache_read_tokens),
-        formatNumber(row.cache_creation_tokens),
-        formatNumber(row.reasoning_tokens),
+        formatTokens(row.input_tokens),
+        formatTokens(row.output_tokens),
+        formatTokens(row.cache_read_tokens),
+        formatTokens(row.cache_creation_tokens),
+        formatTokens(row.reasoning_tokens),
         formatCredits(row.estimated_ai_credits),
+        formatDollars(row.estimated_usd, row.estimated_ai_credits),
         row.source_value || '',
       ]),
     ));
@@ -293,8 +320,15 @@ function formatLabelReport(summary, models, details = null) {
 function formatModels(rows) {
   return [
     table(
-      ['Model', 'Records', 'Input', 'Output', 'AI Credits est.'],
-      rows.map((row) => [row.model, row.usage_records, formatNumber(row.input_tokens), formatNumber(row.output_tokens), formatCredits(row.estimated_ai_credits)]),
+      ['Model', 'Records', 'Input', 'Output', 'Cr est.', '$ est.'],
+      rows.map((row) => [
+        row.model,
+        row.usage_records,
+        formatTokens(row.input_tokens),
+        formatTokens(row.output_tokens),
+        formatCredits(row.estimated_ai_credits),
+        formatDollars(row.estimated_usd, row.estimated_ai_credits),
+      ]),
     ),
     '',
     `AI Credits are estimates (${estimateLabel(rows)}). 1 AI Credit is treated as $0.01 for local estimates.`,
@@ -304,8 +338,16 @@ function formatModels(rows) {
 function formatRepos(rows) {
   return [
     table(
-      ['Repo', 'CWD', 'Sessions', 'Input', 'Output', 'AI Credits est.'],
-      rows.map((row) => [row.repo, row.cwd, row.sessions, formatNumber(row.input_tokens), formatNumber(row.output_tokens), formatCredits(row.estimated_ai_credits)]),
+      ['Repo', 'CWD', 'Sess', 'Input', 'Output', 'Cr est.', '$ est.'],
+      rows.map((row) => [
+        row.repo,
+        row.cwd,
+        row.sessions,
+        formatTokens(row.input_tokens),
+        formatTokens(row.output_tokens),
+        formatCredits(row.estimated_ai_credits),
+        formatDollars(row.estimated_usd, row.estimated_ai_credits),
+      ]),
     ),
     '',
     `AI Credits are estimates (${estimateLabel(rows)}). 1 AI Credit is treated as $0.01 for local estimates.`,
@@ -315,8 +357,18 @@ function formatRepos(rows) {
 function formatUnattributed(rows) {
   return [
     table(
-      ['ID', 'Source', 'Session', 'Repo', 'Branch', 'CWD', 'Model', 'AI Credits est.'],
-      rows.map((row) => [row.id, row.source, row.session_id || '', row.repo || '', row.branch || '', row.cwd || '', row.resolved_model || '', formatCredits(row.estimated_ai_credits)]),
+      ['ID', 'Src', 'Session', 'Repo', 'Branch', 'CWD', 'Model', 'Cr est.', '$ est.'],
+      rows.map((row) => [
+        row.id,
+        row.source,
+        row.session_id || '',
+        row.repo || '',
+        row.branch || '',
+        row.cwd || '',
+        row.resolved_model || '',
+        formatCredits(row.estimated_ai_credits),
+        formatDollars(row.estimated_usd, row.estimated_ai_credits),
+      ]),
     ),
     '',
     `AI Credits are estimates (${estimateLabel(rows)}). 1 AI Credit is treated as $0.01 for local estimates.`,

@@ -43,6 +43,7 @@ test('report labels returns stable JSON with evidence and estimates', () => {
   assert.equal(label.token_status, 'token-bearing');
   assert.equal(label.usage_status, 'usage');
   assert.ok(label.estimated_ai_credits > 0);
+  assert.ok(label.estimated_usd > 0);
   assert.match(label.estimate_label, /^estimate:/);
 });
 
@@ -117,18 +118,20 @@ test('model, repo, and unattributed reports expose local usage only', () => {
 test('human report output is compact and labels costs as estimates', () => {
   const home = seedStore();
   const output = run(['report', 'labels', '--home', home]);
-  assert.match(output, /Label\s+Sessions/);
-  assert.match(output, /Cache read/);
-  assert.match(output, /Reasoning/);
+  assert.match(output, /Label\s+Sess/);
+  assert.match(output, /C read/);
+  assert.match(output, /Think/);
   assert.match(output, /DEMO-12345/);
   assert.match(output, /AI Credits are estimates/);
-  assert.match(output, /Usage status/);
+  assert.match(output, /Status/);
+  assert.match(output, /\$ est\./);
 });
 
 test('single label human report includes per-model breakdown by default', () => {
   const home = seedStore();
   const output = run(['report', 'label', 'DEMO-12345', '--home', home]);
-  assert.match(output, /Model\s+Sessions\s+Usage/);
+  assert.match(output, /Model\s+Sess\s+Use/);
   assert.match(output, /gpt-5\.4/);
-  assert.match(output, /AI Credits est\./);
+  assert.match(output, /Cr est\./);
+  assert.match(output, /\$ est\./);
 });

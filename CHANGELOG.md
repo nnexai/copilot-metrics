@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.6 - 2026-06-01
+
+### Changed
+
+- Human reports now use shorter table headers, compact token counts, 2-decimal AI Credit estimates, and a `$ est.` column for the corresponding estimated dollar amount.
+- JSON reports keep exact token and estimate values for downstream processing.
+
 ## 0.1.5 - 2026-05-31
 
 ### Fixed
