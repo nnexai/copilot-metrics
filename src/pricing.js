@@ -2,7 +2,7 @@
 
 const PRICING_VERSION = 'github-copilot-2026-06-01';
 
-// USD per 1M tokens. Source: GitHub Copilot models and pricing docs, checked 2026-05-30.
+// USD per 1M tokens. Source: GitHub Copilot models and pricing docs, checked 2026-05-31.
 const MODEL_PRICES = {
   'gpt-4.1': { input: 2.00, cacheRead: 0.50, cacheWrite: 0, output: 8.00 },
   'gpt-5 mini': { input: 0.25, cacheRead: 0.025, cacheWrite: 0, output: 2.00 },
@@ -32,11 +32,19 @@ const MODEL_PRICES = {
 };
 
 function normalizeModelName(model) {
-  return String(model || '').trim().toLowerCase();
+  return String(model || '').trim().toLowerCase().replace(/^copilot\//, '');
+}
+
+function modelPriceKey(model) {
+  const normalized = normalizeModelName(model);
+  if (MODEL_PRICES[normalized]) return normalized;
+  const withoutDate = normalized.replace(/-\d{4}-\d{2}-\d{2}$/, '');
+  if (MODEL_PRICES[withoutDate]) return withoutDate;
+  return normalized;
 }
 
 function estimateCost(record) {
-  const model = normalizeModelName(record.resolved_model || record.requested_model);
+  const model = modelPriceKey(record.resolved_model || record.requested_model);
   const price = MODEL_PRICES[model];
   if (!model) {
     return { estimated_usd: null, estimated_ai_credits: null, warning: 'missing_model' };
@@ -63,4 +71,5 @@ module.exports = {
   PRICING_VERSION,
   MODEL_PRICES,
   estimateCost,
+  modelPriceKey,
 };

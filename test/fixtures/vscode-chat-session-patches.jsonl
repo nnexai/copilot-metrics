@@ -1,0 +1,3 @@
+{"kind":0,"v":{"sessionId":"chat-session","requests":[]}}
+{"kind":2,"k":["requests"],"v":[{"message":{"text":"can you write a poem about HDASPF-321"},"responseId":"response-placeholder"}]}
+{"kind":1,"k":["requests",0,"result"],"v":{"metadata":{"responseId":"vscode-response","sessionId":"chat-session","renderedUserMessage":[{"text":"can you write a poem about HDASPF-321"}]}}}

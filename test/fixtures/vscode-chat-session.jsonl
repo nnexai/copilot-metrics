@@ -1,0 +1,2 @@
+{"kind":0,"v":{"sessionId":"chat-session","requests":[{"message":{"text":"Please continue HDASPF-321 from this workspace."}}]}}
+{"kind":1,"k":["requests",0,"result"],"v":{"responseId":"vscode-response","sessionId":"chat-session","resolvedModel":"gpt-5-mini-2025-08-07"}}

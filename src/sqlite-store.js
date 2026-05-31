@@ -141,6 +141,7 @@ function lastInsertId(db) {
 }
 
 function insertLabelEvidence(db, importedAt, evidenceRows) {
+  if (!evidenceRows.length) return;
   runPrepared(
     db,
     `INSERT INTO label_evidence (
@@ -283,6 +284,7 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
             repo: event.repo,
             branch: event.branch,
             cwd: event.cwd,
+            timestamp: event.timestamp,
           });
         }
       }
@@ -307,6 +309,188 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
   persistDatabase(dbPath, db);
 }
 
+async function attachVscodeChatLabelEvidence(dbPath, mappings) {
+  await initStore(dbPath);
+  if (!mappings.length) {
+    return { matched_usage_records: 0, label_evidence: 0 };
+  }
+
+  const db = await openDatabase(dbPath);
+  const importedAt = new Date().toISOString();
+  let matchedUsageRecords = 0;
+  let labelEvidence = 0;
+
+  const usageStatement = db.prepare(`
+    SELECT id, session_id, repo, branch, cwd, timestamp
+    FROM usage_records
+    WHERE source = 'vscode' AND span_id = ?
+  `);
+  const existingStatement = db.prepare(`
+    SELECT 1
+    FROM label_evidence
+    WHERE label = ?
+      AND source_type = 'usage'
+      AND source_field = 'vscode_chat_response'
+      AND source_value = ?
+      AND usage_record_id = ?
+    LIMIT 1
+  `);
+  const insertStatement = db.prepare(`
+    INSERT INTO label_evidence (
+      imported_at, label, source_type, source_field, source_value, confidence,
+      usage_record_id, hook_event_id, session_id, repo, branch, cwd, timestamp
+    ) VALUES (?, ?, 'usage', 'vscode_chat_response', ?, ?, ?, NULL, ?, ?, ?, ?, ?)
+  `);
+
+  db.run('BEGIN');
+  try {
+    for (const mapping of mappings) {
+      usageStatement.bind([mapping.responseId]);
+      const usageRows = [];
+      while (usageStatement.step()) usageRows.push(usageStatement.getAsObject());
+      usageStatement.reset();
+      matchedUsageRecords += usageRows.length;
+
+      for (const usage of usageRows) {
+        for (const evidence of mapping.label_evidence || []) {
+          existingStatement.bind([evidence.label, mapping.responseId, usage.id]);
+          const exists = existingStatement.step();
+          existingStatement.reset();
+          if (exists) continue;
+
+          insertStatement.run([
+            importedAt,
+            evidence.label,
+            mapping.responseId,
+            evidence.confidence || 0.95,
+            usage.id,
+            mapping.sessionId || usage.session_id || null,
+            usage.repo || null,
+            usage.branch || null,
+            usage.cwd || null,
+            usage.timestamp || null,
+          ]);
+          labelEvidence += 1;
+        }
+      }
+    }
+    db.run('COMMIT');
+  } catch (error) {
+    db.run('ROLLBACK');
+    throw error;
+  } finally {
+    usageStatement.free();
+    existingStatement.free();
+    insertStatement.free();
+  }
+
+  persistDatabase(dbPath, db);
+  return { matched_usage_records: matchedUsageRecords, label_evidence: labelEvidence };
+}
+
+async function vscodeRawRecordsNeedingResponseBackfill(dbPath, sourceFile) {
+  await initStore(dbPath);
+  return queryRows(dbPath, `
+    SELECT rr.line, rr.payload_json
+    FROM raw_records rr
+    WHERE rr.source = 'vscode'
+      AND rr.source_file = ?
+      AND EXISTS (
+        SELECT 1
+        FROM usage_records ur
+        WHERE ur.source = 'vscode'
+          AND ur.raw_line = rr.line
+          AND ur.span_id IS NULL
+      )
+  `, [sourceFile]);
+}
+
+async function updateVscodeUsageResponseIds(dbPath, updates) {
+  await initStore(dbPath);
+  if (!updates.length) return 0;
+
+  const db = await openDatabase(dbPath);
+  const statement = db.prepare(`
+    UPDATE usage_records
+    SET span_id = ?,
+        session_id = COALESCE(session_id, ?),
+        timestamp = COALESCE(timestamp, ?)
+    WHERE source = 'vscode'
+      AND raw_line = ?
+      AND span_id IS NULL
+      AND input_tokens = ?
+      AND output_tokens = ?
+      AND cache_read_tokens = ?
+      AND cache_creation_tokens = ?
+      AND reasoning_tokens = ?
+      AND COALESCE(resolved_model, requested_model, '') = COALESCE(?, '')
+  `);
+  let updated = 0;
+  db.run('BEGIN');
+  try {
+    for (const update of updates) {
+      statement.run([
+        update.span_id,
+        update.session_id || null,
+        update.timestamp || null,
+        update.raw_line,
+        update.input_tokens,
+        update.output_tokens,
+        update.cache_read_tokens,
+        update.cache_creation_tokens,
+        update.reasoning_tokens,
+        update.resolved_model || update.requested_model || '',
+      ]);
+      updated += typeof db.getRowsModified === 'function' ? db.getRowsModified() : 0;
+    }
+    db.run('COMMIT');
+  } catch (error) {
+    db.run('ROLLBACK');
+    throw error;
+  } finally {
+    statement.free();
+  }
+
+  persistDatabase(dbPath, db);
+  return updated;
+}
+
+async function updateUsageCostEstimates(dbPath, updates) {
+  await initStore(dbPath);
+  if (!updates.length) return 0;
+
+  const db = await openDatabase(dbPath);
+  const statement = db.prepare(`
+    UPDATE usage_records
+    SET estimated_usd = ?,
+        estimated_ai_credits = ?,
+        warnings_json = ?
+    WHERE id = ?
+  `);
+  let updated = 0;
+  db.run('BEGIN');
+  try {
+    for (const update of updates) {
+      statement.run([
+        update.estimated_usd,
+        update.estimated_ai_credits,
+        JSON.stringify(update.warnings || []),
+        update.id,
+      ]);
+      updated += typeof db.getRowsModified === 'function' ? db.getRowsModified() : 0;
+    }
+    db.run('COMMIT');
+  } catch (error) {
+    db.run('ROLLBACK');
+    throw error;
+  } finally {
+    statement.free();
+  }
+
+  persistDatabase(dbPath, db);
+  return updated;
+}
+
 async function queryOne(dbPath, sql) {
   const db = await openDatabase(dbPath);
   const result = db.exec(sql);
@@ -329,10 +513,14 @@ async function queryRows(dbPath, sql, params = []) {
 }
 
 module.exports = {
+  attachVscodeChatLabelEvidence,
   existingRawFingerprints,
   importedLineHighWater,
   initStore,
   insertImport,
   queryOne,
   queryRows,
+  updateUsageCostEstimates,
+  updateVscodeUsageResponseIds,
+  vscodeRawRecordsNeedingResponseBackfill,
 };

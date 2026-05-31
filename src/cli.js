@@ -79,7 +79,7 @@ Usage:
   copilot-metrics hooks install [--scope local|global] [--surface both|vscode|copilot-cli] [--json]
   copilot-metrics hook-log --event <name>
   copilot-metrics store init [--json]
-  copilot-metrics import --source vscode|copilot-cli|copilot-session|hooks --file <path> [--json]
+  copilot-metrics import --source vscode|vscode-chat|copilot-cli|copilot-session|hooks --file <path> [--json]
   copilot-metrics report labels [--json]
   copilot-metrics report label <id> [--detail] [--json]
   copilot-metrics report models [--json]
@@ -305,8 +305,8 @@ async function main(args, io) {
         : source === 'hooks'
           ? paths.hookEventsJsonl
           : null);
-    if (!['vscode', 'copilot-cli', 'copilot-session', 'hooks'].includes(source)) {
-      throw new Error('import requires --source vscode|copilot-cli|copilot-session|hooks');
+    if (!['vscode', 'vscode-chat', 'copilot-cli', 'copilot-session', 'hooks'].includes(source)) {
+      throw new Error('import requires --source vscode|vscode-chat|copilot-cli|copilot-session|hooks');
     }
     if (!file) throw new Error('import requires --file <path>');
     ensureDataDirs(paths);

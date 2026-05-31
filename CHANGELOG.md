@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.5 - 2026-05-31
+
+### Fixed
+
+- VS Code Copilot token usage is now attributed to Jira labels by matching OTel `gen_ai.response.id` values to VS Code chat session `responseId` values.
+- Existing local stores with older VS Code usage rows are repaired by backfilling missing response IDs from already imported raw OTel records.
+- VS Code chat session files are parsed only in memory for label extraction; full chat content is not persisted in the metrics store.
+- Versioned model IDs such as dated Copilot telemetry model names now use the canonical per-token pricing row when one is available, so estimates show what the token usage would cost even during included or `0x` periods.
+
 ## 0.1.4 - 2026-05-31
 
 ### Changed

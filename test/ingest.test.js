@@ -5,11 +5,17 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
+const initSqlJs = require('sql.js');
 const { resolvePaths } = require('../src/paths');
 const { readJsonl } = require('../src/jsonl');
 const { normalizePayload } = require('../src/otel');
 const { estimateCost, PRICING_VERSION } = require('../src/pricing');
-const { ingestFile } = require('../src/ingest');
+const {
+  backfillVscodeUsageResponseIds,
+  ingestFile,
+  normalizeVscodeChatSession,
+  repairUsageCostEstimates,
+} = require('../src/ingest');
 const { queryOne } = require('../src/sqlite-store');
 const { loadConfiguredExtractors, runLabelExtractors } = require('../src/label-extractors');
 
@@ -59,6 +65,28 @@ test('estimateCost flags unknown models', () => {
   assert.match(estimate.warning, /unknown_model/);
 });
 
+test('estimateCost maps dated Copilot model ids to matching known pricing rows', () => {
+  const mini = estimateCost({
+    resolved_model: 'gpt-5-mini-2025-08-07',
+    input_tokens: 1_000_000,
+    output_tokens: 1_000_000,
+    cache_read_tokens: 1_000_000,
+    cache_creation_tokens: 0,
+  });
+  assert.equal(mini.warning, null);
+  assert.equal(mini.estimated_usd, 2.275);
+
+  const sonnet = estimateCost({
+    resolved_model: 'claude sonnet 4.5-2026-01-02',
+    input_tokens: 1_000_000,
+    output_tokens: 1_000_000,
+    cache_read_tokens: 0,
+    cache_creation_tokens: 1_000_000,
+  });
+  assert.equal(sonnet.warning, null);
+  assert.equal(sonnet.estimated_usd, 21.75);
+});
+
 test('ingestFile stores vscode usage and warnings in SQLite', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-ingest-'));
   const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
@@ -77,6 +105,123 @@ test('ingestFile stores vscode usage and warnings in SQLite', async () => {
   assert.equal(rows[0].input, 1010);
   const evidence = await queryOne(paths.usageDb, "SELECT label, source_field FROM label_evidence WHERE label = 'DEMO-12345'");
   assert.ok(evidence.some((row) => row.source_field === 'branch'));
+});
+
+test('ingestFile preserves VS Code log-record timestamps, session, and response id', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-vscode-log-'));
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  const result = await ingestFile({
+    dbPath: paths.usageDb,
+    file: path.join(fixtures, 'vscode-log-records.jsonl'),
+    source: 'vscode',
+  });
+
+  assert.equal(result.usage_records, 1);
+  const usage = await queryOne(paths.usageDb, 'SELECT source, span_id, session_id, resolved_model, input_tokens, output_tokens, timestamp FROM usage_records');
+  assert.equal(usage[0].source, 'vscode');
+  assert.equal(usage[0].span_id, 'vscode-response');
+  assert.equal(usage[0].session_id, 'otel-session');
+  assert.equal(usage[0].resolved_model, 'gpt-5-mini-2025-08-07');
+  assert.equal(usage[0].input_tokens, 30000);
+  assert.equal(usage[0].output_tokens, 1200);
+  assert.equal(usage[0].timestamp, '2026-05-31T21:28:50.000Z');
+});
+
+test('backfillVscodeUsageResponseIds repairs existing VS Code rows imported before response ids were captured', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-vscode-backfill-'));
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  const file = path.join(fixtures, 'vscode-log-records.jsonl');
+  await ingestFile({ dbPath: paths.usageDb, file, source: 'vscode' });
+
+  const SQL = await initSqlJs();
+  const db = new SQL.Database(fs.readFileSync(paths.usageDb));
+  db.run("UPDATE usage_records SET span_id = NULL, session_id = NULL, timestamp = NULL WHERE source = 'vscode'");
+  fs.writeFileSync(paths.usageDb, Buffer.from(db.export()));
+
+  const updated = await backfillVscodeUsageResponseIds(paths.usageDb, path.resolve(file));
+  assert.equal(updated, 1);
+
+  const usage = await queryOne(paths.usageDb, 'SELECT span_id, session_id, timestamp FROM usage_records WHERE source = "vscode"');
+  assert.equal(usage[0].span_id, 'vscode-response');
+  assert.equal(usage[0].session_id, 'otel-session');
+  assert.equal(usage[0].timestamp, '2026-05-31T21:28:50.000Z');
+});
+
+test('repairUsageCostEstimates updates existing zero-cost dated model rows', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-cost-repair-'));
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  await ingestFile({
+    dbPath: paths.usageDb,
+    file: path.join(fixtures, 'vscode-log-records.jsonl'),
+    source: 'vscode',
+  });
+
+  const SQL = await initSqlJs();
+  const db = new SQL.Database(fs.readFileSync(paths.usageDb));
+  db.run("UPDATE usage_records SET estimated_usd = 0, estimated_ai_credits = 0, warnings_json = '[\"unknown_model:gpt-5-mini-2025-08-07\"]'");
+  fs.writeFileSync(paths.usageDb, Buffer.from(db.export()));
+
+  const updated = await repairUsageCostEstimates(paths.usageDb);
+  assert.equal(updated, 1);
+
+  const usage = await queryOne(paths.usageDb, 'SELECT estimated_usd, estimated_ai_credits, warnings_json FROM usage_records');
+  assert.equal(usage[0].estimated_usd, 0.0099);
+  assert.equal(usage[0].estimated_ai_credits, 0.99);
+  assert.equal(usage[0].warnings_json, '[]');
+});
+
+test('ingestFile links VS Code chat labels to OTel usage by response id without storing chat raw records', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-vscode-chat-'));
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+
+  await ingestFile({
+    dbPath: paths.usageDb,
+    file: path.join(fixtures, 'vscode-log-records.jsonl'),
+    source: 'vscode',
+  });
+  const result = await ingestFile({
+    dbPath: paths.usageDb,
+    file: path.join(fixtures, 'vscode-chat-session.jsonl'),
+    source: 'vscode-chat',
+  });
+
+  assert.equal(result.raw_records, 0);
+  assert.equal(result.usage_records, 1);
+  assert.equal(result.label_evidence, 1);
+
+  const evidence = await queryOne(paths.usageDb, "SELECT label, source_field, source_value, session_id, usage_record_id FROM label_evidence WHERE label = 'HDASPF-321'");
+  assert.equal(evidence.length, 1);
+  assert.equal(evidence[0].source_field, 'vscode_chat_response');
+  assert.equal(evidence[0].source_value, 'vscode-response');
+  assert.equal(evidence[0].session_id, 'chat-session');
+  assert.ok(evidence[0].usage_record_id > 0);
+
+  const rawRows = await queryOne(paths.usageDb, "SELECT COUNT(*) AS count FROM raw_records WHERE source = 'vscode-chat'");
+  assert.equal(rawRows[0].count, 0);
+
+  const second = await ingestFile({
+    dbPath: paths.usageDb,
+    file: path.join(fixtures, 'vscode-chat-session.jsonl'),
+    source: 'vscode-chat',
+  });
+  assert.equal(second.label_evidence, 0);
+});
+
+test('normalizeVscodeChatSession ignores chat labels without response ids', () => {
+  const mappings = normalizeVscodeChatSession([
+    { value: { kind: 0, v: { sessionId: 'chat-session', requests: [{ message: { text: 'HDASPF-404 missing response' } }] } } },
+  ]);
+  assert.deepEqual(mappings, []);
+});
+
+test('normalizeVscodeChatSession handles VS Code request insert and result patch records', () => {
+  const parsed = readJsonl(path.join(fixtures, 'vscode-chat-session-patches.jsonl'));
+  const mappings = normalizeVscodeChatSession(parsed.records);
+
+  assert.equal(mappings.length, 1);
+  assert.equal(mappings[0].responseId, 'vscode-response');
+  assert.equal(mappings[0].sessionId, 'chat-session');
+  assert.equal(mappings[0].label_evidence[0].label, 'HDASPF-321');
 });
 
 test('ingestFile stores Copilot session-state shutdown usage without OTel env', async () => {

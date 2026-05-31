@@ -2,13 +2,23 @@
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { readJsonl } = require('./jsonl');
 const { normalizePayload, normalizeHookEvent, normalizeCopilotSessionEvents } = require('./otel');
 const { estimateCost, PRICING_VERSION } = require('./pricing');
-const { existingRawFingerprints, importedLineHighWater, insertImport } = require('./sqlite-store');
+const {
+  attachVscodeChatLabelEvidence,
+  existingRawFingerprints,
+  importedLineHighWater,
+  insertImport,
+  queryRows,
+  updateUsageCostEstimates,
+  updateVscodeUsageResponseIds,
+  vscodeRawRecordsNeedingResponseBackfill,
+} = require('./sqlite-store');
 const { attachUsageLabelEvidence, attachHookLabelEvidence } = require('./labels');
-const { loadConfiguredExtractors } = require('./label-extractors');
+const { loadConfiguredExtractors, runLabelExtractors } = require('./label-extractors');
 
 function enrichCosts(records) {
   return records.map((record) => {
@@ -42,9 +52,221 @@ function isCopilotSessionUsageRecord(record) {
   return record.value && record.value.type === 'session.shutdown';
 }
 
+function pushText(values, value) {
+  if (typeof value === 'string' && value.trim()) values.push(value);
+}
+
+function pushPromptCandidates(values, value) {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    for (const item of value) pushPromptCandidates(values, item);
+    return;
+  }
+  pushText(values, value.text);
+  pushText(values, value.value);
+  pushText(values, value.message);
+  pushText(values, value.prompt);
+  pushText(values, value.promptText);
+  pushText(values, value.renderedUserMessage);
+  pushText(values, value.userMessage);
+  if (value.renderedUserMessage && typeof value.renderedUserMessage === 'object') {
+    pushPromptCandidates(values, value.renderedUserMessage);
+  }
+  if (value.message && typeof value.message === 'object') pushPromptCandidates(values, value.message);
+  if (value.result && typeof value.result === 'object') pushPromptCandidates(values, value.result);
+  if (value.metadata && typeof value.metadata === 'object') pushPromptCandidates(values, value.metadata);
+}
+
+function responseId(value) {
+  if (!value || typeof value !== 'object') return null;
+  return value.responseId
+    || value.metadata?.responseId
+    || value.result?.responseId
+    || value.result?.metadata?.responseId
+    || value.modelMessageId
+    || value.metadata?.modelMessageId
+    || null;
+}
+
+function chatSessionId(value) {
+  if (!value || typeof value !== 'object') return null;
+  return value.sessionId
+    || value.sessionID
+    || value.metadata?.sessionId
+    || value.result?.sessionId
+    || value.result?.metadata?.sessionId
+    || null;
+}
+
+function chatRequestIndex(record) {
+  const key = Array.isArray(record.k) ? record.k : Array.isArray(record.key) ? record.key : [];
+  if (key[0] !== 'requests') return null;
+  const index = Number(key[1]);
+  return Number.isInteger(index) ? index : null;
+}
+
+function normalizeVscodeChatSession(records, extractors = []) {
+  const requests = new Map();
+  let defaultSessionId = null;
+
+  function entry(index) {
+    const key = String(index);
+    if (!requests.has(key)) requests.set(key, { texts: [] });
+    return requests.get(key);
+  }
+
+  function mergeRequest(index, request, sessionId) {
+    if (!request || typeof request !== 'object') return;
+    const current = entry(index);
+    current.sessionId = chatSessionId(request) || sessionId || current.sessionId;
+    current.responseId = responseId(request) || current.responseId;
+    pushPromptCandidates(current.texts, request);
+  }
+
+  for (const record of records) {
+    const value = record.value;
+    if (!value || typeof value !== 'object') continue;
+    const root = value.v && typeof value.v === 'object' ? value.v : value;
+    defaultSessionId = root.sessionId || root.sessionID || defaultSessionId;
+
+    if (Array.isArray(root.requests)) {
+      root.requests.forEach((request, index) => mergeRequest(index, request, defaultSessionId));
+    }
+
+    const key = Array.isArray(value.k) ? value.k : Array.isArray(value.key) ? value.key : [];
+    if (key.length === 1 && key[0] === 'requests' && Array.isArray(value.v)) {
+      const startIndex = requests.size;
+      value.v.forEach((request, offset) => mergeRequest(startIndex + offset, request, defaultSessionId));
+    }
+
+    const index = chatRequestIndex(value);
+    if (index !== null) {
+      const current = entry(index);
+      const patch = value.v;
+      if (patch && typeof patch === 'object') {
+        current.sessionId = chatSessionId(patch) || defaultSessionId || current.sessionId;
+        current.responseId = responseId(patch) || current.responseId;
+        pushPromptCandidates(current.texts, patch);
+      } else {
+        pushText(current.texts, patch);
+      }
+    }
+  }
+
+  return Array.from(requests.values())
+    .filter((request) => request.responseId)
+    .map((request) => {
+      const labelEvidence = runLabelExtractors('usage', { prompt: request.texts }, extractors)
+        .map((evidence) => ({
+          ...evidence,
+          source_type: 'usage',
+          source_field: 'vscode_chat_response',
+          source_value: request.responseId,
+          confidence: Math.max(Number(evidence.confidence || 0), 0.95),
+        }));
+      return {
+        responseId: request.responseId,
+        sessionId: request.sessionId || defaultSessionId || null,
+        label_evidence: labelEvidence,
+      };
+    })
+    .filter((request) => request.label_evidence.length > 0);
+}
+
+async function ingestVscodeChatSessionFile(options) {
+  const { dbPath, file } = options;
+  const sourceFile = path.resolve(file);
+  const parsed = readJsonl(sourceFile);
+  const mappings = normalizeVscodeChatSession(parsed.records, options.extractors || []);
+  const attached = await attachVscodeChatLabelEvidence(dbPath, mappings);
+  return {
+    source: 'vscode-chat',
+    file,
+    dbPath,
+    raw_records: 0,
+    new_raw_records: 0,
+    skipped_existing_records: 0,
+    usage_records: attached.matched_usage_records,
+    hook_events: 0,
+    label_evidence: attached.label_evidence,
+    warnings: parsed.warnings,
+    estimate_label: `estimate:${PRICING_VERSION}`,
+  };
+}
+
+async function backfillVscodeUsageResponseIds(dbPath, sourceFile) {
+  const rows = await vscodeRawRecordsNeedingResponseBackfill(dbPath, sourceFile);
+  const updates = [];
+  for (const row of rows) {
+    let payload;
+    try {
+      payload = JSON.parse(row.payload_json);
+    } catch {
+      continue;
+    }
+    for (const usage of normalizePayload(payload, 'vscode', row.line)) {
+      if (!usage.span_id) continue;
+      updates.push({
+        raw_line: usage.raw_line,
+        span_id: usage.span_id,
+        session_id: usage.session_id,
+        timestamp: usage.timestamp,
+        requested_model: usage.requested_model,
+        resolved_model: usage.resolved_model,
+        input_tokens: usage.input_tokens,
+        output_tokens: usage.output_tokens,
+        cache_read_tokens: usage.cache_read_tokens,
+        cache_creation_tokens: usage.cache_creation_tokens,
+        reasoning_tokens: usage.reasoning_tokens,
+      });
+    }
+  }
+  return updateVscodeUsageResponseIds(dbPath, updates);
+}
+
+function parseWarningsJson(value) {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function repairUsageCostEstimates(dbPath) {
+  const rows = await queryRows(dbPath, `
+    SELECT id, requested_model, resolved_model, input_tokens, output_tokens,
+      cache_read_tokens, cache_creation_tokens, reasoning_tokens, warnings_json
+    FROM usage_records
+    WHERE estimated_ai_credits IS NULL
+      OR estimated_ai_credits = 0
+      OR warnings_json LIKE '%unknown_model:%'
+      OR warnings_json LIKE '%missing_model%'
+  `);
+  const updates = [];
+  for (const row of rows) {
+    const estimate = estimateCost(row);
+    if (estimate.warning) continue;
+    const warnings = parseWarningsJson(row.warnings_json)
+      .filter((warning) => !String(warning).startsWith('unknown_model:') && warning !== 'missing_model');
+    updates.push({
+      id: row.id,
+      estimated_usd: estimate.estimated_usd,
+      estimated_ai_credits: estimate.estimated_ai_credits,
+      warnings,
+    });
+  }
+  return updateUsageCostEstimates(dbPath, updates);
+}
+
 async function ingestFile(options) {
   const { dbPath, file, source } = options;
+  if (source === 'vscode-chat') return ingestVscodeChatSessionFile(options);
+
   const sourceFile = path.resolve(file);
+  const backfilledUsageRecords = source === 'vscode'
+    ? await backfillVscodeUsageResponseIds(dbPath, sourceFile)
+    : 0;
   const highWaterLine = await importedLineHighWater(dbPath, source, sourceFile);
   if (source === 'copilot-session' && highWaterLine > 0) {
     return {
@@ -57,6 +279,7 @@ async function ingestFile(options) {
       usage_records: 0,
       hook_events: 0,
       label_evidence: 0,
+      backfilled_usage_records: backfilledUsageRecords,
       warnings: [],
       estimate_label: `estimate:${PRICING_VERSION}`,
     };
@@ -108,6 +331,7 @@ async function ingestFile(options) {
   }
 
   await insertImport(dbPath, source, sourceFile, newRecords, enrichedUsage, enrichedHooks, warnings);
+  const repairedCostRecords = await repairUsageCostEstimates(dbPath);
 
   return {
     source,
@@ -118,6 +342,8 @@ async function ingestFile(options) {
     skipped_existing_records: highWaterLine,
     usage_records: enrichedUsage.length,
     hook_events: enrichedHooks.length,
+    backfilled_usage_records: backfilledUsageRecords,
+    repaired_cost_records: repairedCostRecords,
     label_evidence: enrichedUsage.reduce((sum, usage) => sum + (usage.label_evidence || []).length, 0)
       + enrichedHooks.reduce((sum, event) => sum + (event.label_evidence || []).length, 0),
     warnings,
@@ -130,6 +356,7 @@ function configuredSourceFiles(paths, config = {}) {
   const telemetryConfig = config.telemetry || {};
   const files = [
     { source: 'vscode', file: sourceConfig.vscode?.telemetry || telemetryConfig.vscode || paths.vscodeOtelJsonl },
+    ...discoverVscodeChatSessionFiles(sourceConfig.vscode?.chatSessions),
     { source: 'hooks', file: sourceConfig.vscode?.hooks || paths.hookEventsJsonl },
     { source: 'copilot-cli', file: sourceConfig.copilotCli?.telemetry || telemetryConfig.copilotCli || paths.copilotCliOtelJsonl },
     { source: 'hooks', file: sourceConfig.copilotCli?.hooks || paths.hookEventsJsonl },
@@ -145,6 +372,40 @@ function configuredSourceFiles(paths, config = {}) {
       seen.add(key);
       return true;
     });
+}
+
+function listJsonlFiles(dir) {
+  if (!dir || !fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl'))
+    .map((entry) => path.join(dir, entry.name));
+}
+
+function discoverWorkspaceChatSessions(workspaceStorageDir) {
+  if (!workspaceStorageDir || !fs.existsSync(workspaceStorageDir)) return [];
+  return fs.readdirSync(workspaceStorageDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => listJsonlFiles(path.join(workspaceStorageDir, entry.name, 'chatSessions')));
+}
+
+function discoverVscodeChatSessionFiles(configured) {
+  const configuredEntries = Array.isArray(configured) ? configured : configured ? [configured] : [];
+  const files = configuredEntries.length > 0
+    ? configuredEntries.flatMap((entry) => {
+      const resolved = path.resolve(entry);
+      if (!fs.existsSync(resolved)) return [];
+      const stat = fs.statSync(resolved);
+      if (stat.isFile()) return [resolved];
+      return listJsonlFiles(resolved).concat(discoverWorkspaceChatSessions(resolved));
+    })
+    : [
+      path.join(os.homedir(), '.config', 'Code', 'User', 'workspaceStorage'),
+      path.join(os.homedir(), '.config', 'Code - Insiders', 'User', 'workspaceStorage'),
+    ].flatMap(discoverWorkspaceChatSessions);
+
+  return files
+    .sort()
+    .map((file) => ({ source: 'vscode-chat', file }));
 }
 
 function discoverCopilotSessionFiles(sessionStateDir) {
@@ -184,5 +445,9 @@ module.exports = {
   autoImportConfiguredSources,
   configuredSourceFiles,
   discoverCopilotSessionFiles,
+  discoverVscodeChatSessionFiles,
+  backfillVscodeUsageResponseIds,
   ingestFile,
+  normalizeVscodeChatSession,
+  repairUsageCostEstimates,
 };

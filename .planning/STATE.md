@@ -79,6 +79,7 @@ Last activity: 2026-05-30 — Milestone v0.1.1 completed and archived
 | Date | Quick ID | Task |
 |------|----------|------|
 | 2026-05-31 | 260531-w8w | Improve report label usability, setup install behavior, hook event coverage, and repeated import caching for `v0.1.4`. |
+| 2026-05-31 | 260531-vscode-response-attribution | Fix VS Code response ID label attribution, existing-store repair, and release `v0.1.5`. |
 
 ## Operator Next Steps
 

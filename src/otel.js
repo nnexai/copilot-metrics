@@ -2,9 +2,16 @@
 
 function attrsToObject(attrs) {
   if (!attrs) return {};
+  if (attrs && typeof attrs === 'object' && Array.isArray(attrs._rawAttributes)) {
+    return Object.fromEntries(attrs._rawAttributes);
+  }
   if (!Array.isArray(attrs)) return attrs;
   const out = {};
   for (const attr of attrs) {
+    if (Array.isArray(attr) && attr.length >= 2) {
+      out[attr[0]] = attr[1];
+      continue;
+    }
     const value = attr.value;
     if (value && typeof value === 'object') {
       out[attr.key] = value.stringValue ?? value.intValue ?? value.doubleValue ?? value.boolValue ?? value.arrayValue;
@@ -61,8 +68,28 @@ function flattenSpans(payload) {
   return spans;
 }
 
+function timestampValue(value) {
+  if (!value) return null;
+  if (Array.isArray(value) && value.length >= 2) {
+    const millis = (Number(value[0]) * 1000) + (Number(value[1]) / 1e6);
+    return Number.isFinite(millis) ? new Date(millis).toISOString() : null;
+  }
+  if (typeof value === 'string' && /^\d+$/.test(value)) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return null;
+    const millis = numeric > 1e15 ? numeric / 1e6 : numeric;
+    return new Date(millis).toISOString();
+  }
+  if (typeof value === 'number') {
+    const millis = value > 1e15 ? value / 1e6 : value;
+    return new Date(millis).toISOString();
+  }
+  return value;
+}
+
 function classifySpan(span) {
   const attrs = attrsToObject(span.attributes);
+  const eventName = String(pick(attrs, ['event.name']) || '').toLowerCase();
   const operation = String(pick(attrs, ['gen_ai.operation.name', 'llm.operation']) || '').toLowerCase();
   const name = String(span.name || '').toLowerCase();
   const hasTokens = number(attrs, [
@@ -72,7 +99,14 @@ function classifySpan(span) {
     'llm.usage.completion_tokens',
   ]) > 0;
 
-  if (operation.includes('agent') || operation.includes('tool') || name.includes('agent') || name.includes('tool')) {
+  if (
+    eventName.includes('agent')
+    || eventName.includes('tool')
+    || operation.includes('agent')
+    || operation.includes('tool')
+    || name.includes('agent')
+    || name.includes('tool')
+  ) {
     return 'non_billable';
   }
   if (hasTokens || operation.includes('chat') || operation.includes('completion') || operation.includes('generate')) {
@@ -83,19 +117,19 @@ function classifySpan(span) {
 
 function normalizeSpan(span, source, rawLine) {
   const attrs = attrsToObject(span.attributes);
-  const resourceAttrs = attrsToObject(span.resourceAttributes);
+  const resourceAttrs = attrsToObject(span.resourceAttributes || span.resource);
   const type = classifySpan(span);
   if (type !== 'llm') return null;
 
   return {
     raw_line: rawLine,
-    span_id: span.spanId || span.span_id || null,
+    span_id: span.spanId || span.span_id || pick(attrs, ['gen_ai.response.id']) || null,
     trace_id: span.traceId || span.trace_id || null,
     parent_span_id: span.parentSpanId || span.parent_span_id || null,
-    timestamp: span.startTimeUnixNano || span.start_time || attrs['timestamp'] || null,
+    timestamp: timestampValue(span.startTimeUnixNano || span.start_time || span.hrTime || attrs.timestamp),
     surface: source,
     conversation_id: pick(attrs, ['gen_ai.conversation.id', 'conversation.id', 'copilot.conversation.id']),
-    session_id: pick(attrs, ['session.id', 'copilot.session.id']),
+    session_id: pick(attrs, ['session.id', 'copilot.session.id']) || pick(resourceAttrs, ['session.id', 'copilot.session.id']),
     requested_model: pick(attrs, ['gen_ai.request.model', 'llm.request.model', 'llm.model_name']),
     resolved_model: pick(attrs, ['gen_ai.response.model', 'llm.response.model', 'model']),
     repo: pick(attrs, ['vcs.repository.name', 'git.repository', 'repo']) || pick(resourceAttrs, ['vcs.repository.name', 'service.name']),
@@ -194,6 +228,7 @@ function normalizeHookEvent(payload, source, rawLine) {
   return {
     raw_line: rawLine,
     event: payload.event || null,
+    timestamp: payload.captured_at || payload.timestamp || null,
     session_id: payload.session_id || payload.sessionId || null,
     cwd: payload.cwd || null,
     repo: payload.repo || payload.repository || null,
