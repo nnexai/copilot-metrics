@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { resolvePaths } = require('./paths');
+const { version: PACKAGE_VERSION } = require('../package.json');
 
 const HOOK_SURFACES = ['both', 'copilot-cli', 'vscode'];
 
@@ -96,8 +97,16 @@ function packageBinCommand(cwd) {
 }
 
 function commandInvocation(command) {
+  if (isEphemeralPackageShim(command)) {
+    return `npx -y copilot-metrics@${PACKAGE_VERSION}`;
+  }
   const quoted = shellQuote(command);
   return command.endsWith('.js') ? `node ${quoted}` : quoted;
+}
+
+function isEphemeralPackageShim(command) {
+  const normalized = String(command || '').replace(/\\/g, '/');
+  return normalized.includes('/.npm/_npx/') || normalized.endsWith('/node_modules/.bin/copilot-metrics');
 }
 
 function hookEventsForSurface(surface) {

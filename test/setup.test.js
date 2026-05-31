@@ -81,6 +81,19 @@ test('installed executable hook commands do not wrap the shim with node', () => 
   assert.doesNotMatch(command, /node '\/usr\/bin\/copilot-metrics'/);
 });
 
+test('npx cache hook commands use a stable package invocation', () => {
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: '/tmp/copilot-metrics' }, cwd: '/tmp/work' });
+  const config = hookConfig(paths, {
+    cwd: '/repo',
+    scope: 'local',
+    command: '/home/user/.npm/_npx/abc123/node_modules/.bin/copilot-metrics',
+  });
+  const command = config.hooks.sessionStart[0].command;
+  assert.match(command, /COPILOT_METRICS_HOME=/);
+  assert.match(command, /npx -y copilot-metrics@0\.1\.3 hook-log/);
+  assert.doesNotMatch(command, /\.npm\/_npx/);
+});
+
 test('copilot-cli hook config can emit CLI-native event names', () => {
   const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: '/tmp/copilot-metrics' }, cwd: '/tmp/work' });
   const config = hookConfig(paths, {

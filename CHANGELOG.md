@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 - 2026-05-31
+
+### Fixed
+
+- Hook install now avoids embedding transient `npx` cache shims, which can break when their shebang points at a removed Node install. Generated hooks use a stable `npx -y copilot-metrics@<version>` package invocation for those cache paths.
+
 ## 0.1.2 - 2026-05-31
 
 ### Fixed
