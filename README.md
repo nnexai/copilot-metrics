@@ -140,6 +140,7 @@ Full prompt content is not stored by default. Prompt-like fields are only used t
 ## Custom Label Extractors
 
 Custom extractors are configured in the local `config.json`; you do not modify package source.
+When one or more custom extractors are configured, they replace the built-in Jira extractor for that run.
 
 After `copilot-metrics init`, add a module path:
 

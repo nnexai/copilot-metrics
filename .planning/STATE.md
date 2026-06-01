@@ -80,6 +80,7 @@ Last activity: 2026-05-30 — Milestone v0.1.1 completed and archived
 |------|----------|------|
 | 2026-05-31 | 260531-w8w | Improve report label usability, setup install behavior, hook event coverage, and repeated import caching for `v0.1.4`. |
 | 2026-05-31 | 260531-vscode-response-attribution | Fix VS Code response ID label attribution, existing-store repair, and release `v0.1.5`. |
+| 2026-06-01 | 260601-b7v | Fix `v0.1.7` cost token splitting for USD/AI Credit estimates and make custom extractors override the built-in Jira extractor. |
 
 ## Operator Next Steps
 

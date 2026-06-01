@@ -74,7 +74,7 @@ function normalizeExtractorResult(result, sourceType) {
 }
 
 function runLabelExtractors(sourceType, sourceData, customExtractors = []) {
-  const extractors = [extractJiraLabels, ...customExtractors];
+  const extractors = customExtractors.length > 0 ? customExtractors : [extractJiraLabels];
   const seen = new Set();
   const evidence = [];
 

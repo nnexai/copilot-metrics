@@ -2,7 +2,7 @@
 
 const PRICING_VERSION = 'github-copilot-2026-06-01';
 
-// USD per 1M tokens. Source: GitHub Copilot models and pricing docs, checked 2026-05-31.
+// USD per 1M tokens. Source: GitHub Copilot models and pricing docs, checked 2026-06-01.
 const MODEL_PRICES = {
   'gpt-4.1': { input: 2.00, cacheRead: 0.50, cacheWrite: 0, output: 8.00 },
   'gpt-5 mini': { input: 0.25, cacheRead: 0.025, cacheWrite: 0, output: 2.00 },
@@ -53,11 +53,16 @@ function estimateCost(record) {
     return { estimated_usd: null, estimated_ai_credits: null, warning: `unknown_model:${model}` };
   }
 
+  const cacheReadTokens = Number(record.cache_read_tokens || 0);
+  const cacheWriteTokens = Number(record.cache_creation_tokens || 0);
+  const uncachedInputTokens = Math.max(Number(record.input_tokens || 0) - cacheReadTokens, 0);
+  const normalOutputTokens = Math.max(Number(record.output_tokens || 0) - cacheWriteTokens, 0);
+
   const usd = (
-    (record.input_tokens / 1_000_000) * price.input
-    + (record.output_tokens / 1_000_000) * price.output
-    + (record.cache_read_tokens / 1_000_000) * price.cacheRead
-    + (record.cache_creation_tokens / 1_000_000) * price.cacheWrite
+    (uncachedInputTokens / 1_000_000) * price.input
+    + (normalOutputTokens / 1_000_000) * price.output
+    + (cacheReadTokens / 1_000_000) * price.cacheRead
+    + (cacheWriteTokens / 1_000_000) * price.cacheWrite
   );
 
   return {

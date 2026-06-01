@@ -1,6 +1,6 @@
 {
   "name": "copilot-metrics",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Local-first Copilot usage telemetry setup and reporting tools.",
   "type": "commonjs",
   "homepage": "https://github.com/nnexai/copilot-metrics#readme",

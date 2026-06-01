@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.7 - 2026-06-01
+
+### Fixed
+
+- USD and AI Credit estimates now split cached read tokens out of input totals and cache write tokens out of output totals before applying separate token prices, avoiding double-counted cache charges.
+- Reasoning/thinking tokens remain reported as token metadata but are not priced as a separate category.
+- Configured custom label extractors now replace the built-in Jira extractor instead of extending it.
+
 ## 0.1.6 - 2026-06-01
 
 ### Changed

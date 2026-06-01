@@ -53,6 +53,42 @@ test('estimateCost produces USD and AI credits for known models', () => {
   assert.equal(estimate.estimated_ai_credits, Number((estimate.estimated_usd / 0.01).toFixed(6)));
 });
 
+test('estimateCost splits cached tokens out of included input and output totals', () => {
+  const estimate = estimateCost({
+    resolved_model: 'claude sonnet 4.6',
+    input_tokens: 1_000_000,
+    output_tokens: 1_000_000,
+    cache_read_tokens: 250_000,
+    cache_creation_tokens: 100_000,
+    reasoning_tokens: 123_456,
+  });
+
+  assert.equal(estimate.warning, null);
+  assert.equal(estimate.estimated_usd, 16.2);
+  assert.equal(estimate.estimated_ai_credits, 1620);
+});
+
+test('estimateCost does not add a separate charge for reasoning tokens', () => {
+  const withoutReasoning = estimateCost({
+    resolved_model: 'gpt-5-mini',
+    input_tokens: 1_000_000,
+    output_tokens: 1_000_000,
+    cache_read_tokens: 0,
+    cache_creation_tokens: 0,
+    reasoning_tokens: 0,
+  });
+  const withReasoning = estimateCost({
+    resolved_model: 'gpt-5-mini',
+    input_tokens: 1_000_000,
+    output_tokens: 1_000_000,
+    cache_read_tokens: 0,
+    cache_creation_tokens: 0,
+    reasoning_tokens: 500_000,
+  });
+
+  assert.equal(withReasoning.estimated_usd, withoutReasoning.estimated_usd);
+});
+
 test('estimateCost flags unknown models', () => {
   const estimate = estimateCost({
     resolved_model: 'mystery-model',
@@ -74,7 +110,7 @@ test('estimateCost maps dated Copilot model ids to matching known pricing rows',
     cache_creation_tokens: 0,
   });
   assert.equal(mini.warning, null);
-  assert.equal(mini.estimated_usd, 2.275);
+  assert.equal(mini.estimated_usd, 2.025);
 
   const sonnet = estimateCost({
     resolved_model: 'claude sonnet 4.5-2026-01-02',
@@ -84,7 +120,7 @@ test('estimateCost maps dated Copilot model ids to matching known pricing rows',
     cache_creation_tokens: 1_000_000,
   });
   assert.equal(sonnet.warning, null);
-  assert.equal(sonnet.estimated_usd, 21.75);
+  assert.equal(sonnet.estimated_usd, 6.75);
 });
 
 test('ingestFile stores vscode usage and warnings in SQLite', async () => {
@@ -283,6 +319,14 @@ test('custom extractors can return zero or more labels', () => {
   assert.equal(custom.length, 1);
   assert.equal(custom[0].label, 'CUSTOM-42');
   assert.equal(custom[0].source_field, 'branch');
+});
+
+test('custom extractors override the built-in Jira extractor', () => {
+  const evidence = runLabelExtractors('usage', { branch: 'feature/DEMO-12345' }, [
+    () => [{ label: 'TEAM-42', source_field: 'branch' }],
+  ]);
+
+  assert.deepEqual(evidence.map((item) => item.label), ['TEAM-42']);
 });
 
 test('configured custom extractors load from config without source changes', async () => {
