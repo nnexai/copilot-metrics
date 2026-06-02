@@ -6,7 +6,7 @@
 
 ## Overview
 
-Build a local-first Copilot usage tracker in incremental CLI-first slices. The initial milestone delivered setup, ingestion, attribution, reports, hardening, publishing, and setup-once behavior. The current v0.1.8 milestone adds default session-log fallback ingestion so reports still work when hooks and OpenTelemetry are unavailable.
+Build a local-first Copilot usage tracker in incremental CLI-first slices. The initial milestone delivered setup, ingestion, attribution, reports, hardening, publishing, and setup-once behavior. The current v0.1.9 milestone improves pricing by separating actual local charge evidence, high-confidence estimates, and upper-bound fallback estimates.
 
 ## Phases
 
@@ -22,6 +22,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 - [x] **Phase 5: GitHub and npm Publishing Preparation** - Add repository automation and package publishing readiness for GitHub and npm.
 - [x] **Phase 6: 0.1.1 Zero-friction setup, automatic hook ingestion, and complete token reporting** - Add setup-once reports, idempotent auto-import, complete token categories, and hook-only label semantics.
 - [x] **Phase 7: 0.1.8 Session log fallback ingestion** - Make local VS Code, VS Code Insiders, and Copilot CLI session logs the default fallback path when hooks and OTel are unavailable.
+- [ ] **Phase 8: 0.1.9 Better pricing estimates** - Use the strongest available local pricing evidence and report actual, estimated, and upper-bound values distinctly.
 
 ## Phase Details
 
@@ -249,10 +250,47 @@ Plans:
 - Report auto-import tests proving fallback idempotence and diagnostics.
 - `npm test`, `npm run check`, `npm run smoke`, `npm run verify:package`, and isolated `npx -y copilot-metrics@0.1.8` validation after publish.
 
+### Phase 8: 0.1.9 Better pricing estimates
+
+**Goal:** Ship `copilot-metrics@0.1.9` with pricing reports that use observed charge fields when present, compute high-confidence estimates when cache buckets are known, and explicitly label upper-bound estimates when cache-read counts are missing.
+
+**Requirements**: PRICE-01, PRICE-02, PRICE-03, PRICE-04, PRICE-05, PRICE-06, PRICE-07, PRICE-08, PRICE-09, PRICE-10, PRICE-11, PRICE-12
+**Depends on:** Phase 7
+**Plans:** 1 plan
+
+Plans:
+- [ ] Pricing evidence, estimate confidence, and report semantics
+
+**Expected deliverables:**
+- Store/import support for actual local charge evidence such as Copilot CLI `totalNanoAiu`, per-model request cost, total premium requests, and any future observed AI Credit/cents fields.
+- Store/import support for session-local model pricing metadata from VS Code/Insiders and Copilot logs, while keeping the existing static pricing table as a fallback.
+- A pricing basis model that distinguishes `actual`, `estimated`, `upper_bound`, `included_or_zero`, `unknown_price`, and `conflict` cases in structured output.
+- Cache-read availability tracking so missing cache-read token counts do not silently become zero-cost or full-price exact estimates.
+- Separate diagnostics for VS Code cache keys/cache types, context utilization, quota SKU, and `multiplierNumeric: 0` evidence when no measured session charge exists.
+- Human reports that stay compact while showing whether costs are actual, estimated, or upper bounds.
+- JSON reports with enough pricing evidence fields for downstream tooling to audit how every label/model/repo total was calculated.
+- Tests and fixtures based on observed Copilot CLI and VS Code Insiders session-log shapes, without storing full prompt content or auth tokens.
+
+**Success Criteria** (what must be TRUE):
+  1. Copilot CLI session shutdown records with cache-read tokens and `totalNanoAiu` produce actual local charge fields plus a comparable estimate.
+  2. VS Code/Insiders records with model price metadata but no numeric cache-read counts produce upper-bound estimates and visible cache-unknown diagnostics.
+  3. Records with complete token buckets produce high-confidence estimates using either session-local pricing or the static table.
+  4. Reports aggregate mixed pricing evidence without collapsing upper bounds into exact costs.
+  5. Re-importing the same exchange from multiple sources keeps one usage row and preserves the strongest pricing evidence.
+  6. VS Code cache keys/cache types and context-utilization lines are surfaced as diagnostics only, not priced token buckets.
+
+**Verification focus:**
+- Fixture tests for Copilot CLI `session.shutdown` with `totalNanoAiu`, `modelMetrics`, cache-read tokens, and zero/included request cost.
+- Fixture tests for VS Code/Insiders chat sessions with prompt/output tokens, `cacheKey`/`cacheType`, model `inputCost`/`outputCost`/`cacheCost`, `multiplierNumeric: 0`, and missing numeric cache-read counts.
+- Fixture tests for VS Code extension/AHP/agenthost logs that redact auth-like values and classify context utilization separately from billing usage.
+- Unit tests for estimate classification, cache-known/cache-unknown behavior, and actual-versus-estimate precedence.
+- Report tests for human and JSON pricing basis fields on label, model, repo, and detail reports.
+- `npm test`, `npm run check`, `npm run smoke`, `npm run verify:package`, and isolated `npx -y copilot-metrics@0.1.9` validation after publish.
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -264,6 +302,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 5. GitHub and npm Publishing Preparation | 0/0 | Complete via Phase 4 | 2026-05-30 |
 | 6. 0.1.1 Zero-friction setup, automatic hook ingestion, and complete token reporting | 1/1 | Complete | 2026-05-30 |
 | 7. 0.1.8 Session log fallback ingestion | 1/1 | Complete | 2026-06-02 |
+| 8. 0.1.9 Better pricing estimates | 0/1 | Planned | — |
 
 ## Deferred
 

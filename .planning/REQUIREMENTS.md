@@ -1,62 +1,61 @@
-# Requirements: v0.1.8 Session log fallback ingestion
+# Requirements: v0.1.9 Better pricing estimates
 
 **Created:** 2026-06-02
-**Milestone:** v0.1.8 Session log fallback ingestion
+**Milestone:** v0.1.9 Better pricing estimates
 
 ## Overview
 
-This milestone assumes Copilot hooks and OpenTelemetry do not work reliably enough to be the only default path. `copilot-metrics` should fall back to local session-log parsing for VS Code, VS Code Insiders, and Copilot CLI, then feed the extracted records through the same local store, cost estimator, reports, and configured label extractor callback used by OTel and hooks.
+This milestone turns pricing from a single implied estimate into an evidence-ranked reporting model. Local logs show different levels of billing evidence: Copilot CLI shutdown events can include cache-read tokens and `totalNanoAiu`, while VS Code Insiders chat sessions can include prompt/output tokens and local model price metadata but may omit cache-read token counts. Reports must use the strongest available signal and say when a value is actual, estimated, or only an upper bound.
 
 ## Active Requirements
 
-### Fallback Discovery
+### Price Evidence Import
 
-- [x] **FALLBACK-01**: User can run setup once and have default source discovery include VS Code stable, VS Code Insiders, and Copilot CLI session-log fallback locations without manual environment exports.
-- [x] **FALLBACK-02**: User can configure additional fallback session directories or files for VS Code, VS Code Insiders, and Copilot CLI while retaining the built-in default discovery paths.
-- [x] **FALLBACK-03**: User can see fallback source diagnostics that distinguish missing paths, unreadable files, unsupported formats, content-only sessions, and sessions without token metrics.
+- [ ] **PRICE-01**: User can import known local charge or AI Credit fields from Copilot CLI session-state logs, including `totalNanoAiu`, per-model request cost, and total premium request counters when present.
+- [ ] **PRICE-02**: User can import session-local model pricing metadata from VS Code and VS Code Insiders logs, including `inputCost`, `outputCost`, `cacheCost`, model picker pricing text, and `billing.token_prices` records.
+- [ ] **PRICE-03**: User can preserve charge fields, pricing table fields, and derived estimates as distinct store/report concepts so actual observed values are not overwritten by estimates.
 
-### Fallback Import
+### Estimate Classification
 
-- [x] **FALLBACK-04**: User can run any report command with missing hooks and missing OpenTelemetry files and still auto-import token-bearing records from discovered fallback session logs.
-- [x] **FALLBACK-05**: User can re-run report commands after fallback imports without double-counting previously imported session-log records.
-- [x] **FALLBACK-06**: User can import VS Code and VS Code Insiders chat session logs from both `.jsonl` and `.json` session files when the file shape is supported.
-- [x] **FALLBACK-07**: User can import Copilot CLI `session-state/*/events.jsonl` logs from `~/.copilot` or `COPILOT_HOME` and map shutdown model metrics into usage records.
+- [ ] **PRICE-04**: User can see whether each usage record has cache-read counts known, explicitly zero, or unknown.
+- [ ] **PRICE-05**: User can get a high-confidence estimate when input, output, cache-read, cache-write, model, and price data are all known.
+- [ ] **PRICE-06**: User can get an upper-bound estimate when prompt/output tokens are known but cache-read token counts are missing, with the uncached-input assumption recorded.
+- [ ] **PRICE-07**: User can see warnings for unknown pricing, stale/static pricing fallback, included/free `0x` sessions, and conflicting charge versus estimate evidence.
+- [ ] **PRICE-11**: User can see cache metadata and context-utilization diagnostics separately from billable token buckets, so cache keys, cache types, and compaction utilization are never mistaken for numeric cache-read usage.
 
-### Label Attribution
+### Reports
 
-- [x] **FALLBACK-08**: User can rely on the same configured label extractor callback for fallback-derived labels from prompt text, directories, branches, repos, task hints, explicit labels, and session metadata.
-- [x] **FALLBACK-09**: User can inspect fallback-derived label evidence in reports with source type, source field, source value, confidence, session ID, and usage record linkage preserved.
-
-### Privacy and Reporting
-
-- [x] **FALLBACK-10**: User can keep content capture disabled by default; fallback parsing stores only normalized usage fields and redacted label evidence values unless explicit content capture is enabled.
-- [x] **FALLBACK-11**: User can see human-readable and JSON report diagnostics explaining that fallback estimates are advisory and may be incomplete when session logs omit token fields.
+- [ ] **PRICE-08**: User can inspect label, model, repo, and detail reports with pricing basis fields in JSON output, including actual charge, estimated charge, upper-bound charge, AI Credits, and estimate confidence.
+- [ ] **PRICE-09**: User can read human report output that clearly distinguishes actual, estimated, and upper-bound values without making the table noisy.
+- [ ] **PRICE-10**: User can trace pricing evidence back to source type, session ID, request/exchange ID, and model so duplicate session exchange imports still collapse to one billed/estimated usage record.
+- [ ] **PRICE-12**: User can import diagnostics from VS Code logs without persisting or printing auth tokens or full prompt/assistant content found in agenthost, AHP, hook, or extension logs.
 
 ## Future Requirements
 
-- Official GitHub usage report reconciliation against fallback estimates.
-- Rich opt-in content archive and redaction tooling for full prompt/session review.
-- Dashboard views over fallback session coverage.
+- Official GitHub billing/usage API reconciliation when accessible.
+- Per-account plan awareness beyond fields exposed in local logs.
+- Historical price-table sync or refresh automation.
 
 ## Out of Scope
 
 - Making local estimates official billing authority; GitHub billing remains the source of truth.
 - Network proxying, TLS interception, or private API scraping.
+- Treating VS Code cache metadata (`cacheKey`, `cacheType`) as cache-read token counts when no numeric cache-read count is present.
 - Storing full prompts or assistant responses by default.
-- Requiring hooks or OTel to be installed before reports can show fallback-derived usage.
 
 ## Traceability
 
 | Requirement | Phase |
 |-------------|-------|
-| FALLBACK-01 | Phase 7 |
-| FALLBACK-02 | Phase 7 |
-| FALLBACK-03 | Phase 7 |
-| FALLBACK-04 | Phase 7 |
-| FALLBACK-05 | Phase 7 |
-| FALLBACK-06 | Phase 7 |
-| FALLBACK-07 | Phase 7 |
-| FALLBACK-08 | Phase 7 |
-| FALLBACK-09 | Phase 7 |
-| FALLBACK-10 | Phase 7 |
-| FALLBACK-11 | Phase 7 |
+| PRICE-01 | Phase 8 |
+| PRICE-02 | Phase 8 |
+| PRICE-03 | Phase 8 |
+| PRICE-04 | Phase 8 |
+| PRICE-05 | Phase 8 |
+| PRICE-06 | Phase 8 |
+| PRICE-07 | Phase 8 |
+| PRICE-08 | Phase 8 |
+| PRICE-09 | Phase 8 |
+| PRICE-10 | Phase 8 |
+| PRICE-11 | Phase 8 |
+| PRICE-12 | Phase 8 |

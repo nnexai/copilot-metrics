@@ -8,15 +8,15 @@ Copilot Metrics is a local Node.js/npm-based toolkit for estimating GitHub Copil
 
 Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
 
-## Current Milestone: v0.1.8 Session log fallback ingestion
+## Current Milestone: v0.1.9 Better pricing estimates
 
-**Goal:** Make `copilot-metrics@0.1.8` useful when Copilot hooks and OpenTelemetry are unavailable by defaulting to local session-log parsing for VS Code, VS Code Insiders, and Copilot CLI while preserving the existing label extraction callback.
+**Goal:** Make `copilot-metrics@0.1.9` distinguish actual local charge signals, high-confidence token estimates, and upper-bound fallback estimates so reports stop implying false precision when cache-read token counts are unavailable.
 
 **Target features:**
-- Discover VS Code and VS Code Insiders Copilot chat session logs from platform default user data paths and configured overrides.
-- Discover Copilot CLI session logs from `~/.copilot/session-state` or `COPILOT_HOME` and import them by default before reports.
-- Normalize fallback session-log records into the existing usage, token estimate, source/session, and label evidence pipeline.
-- Reuse the same configured label extractor callback contract for labels found in fallback prompts, directories, branches, repos, task hints, and session metadata.
+- Import known local charge fields such as Copilot CLI `totalNanoAiu` / per-model request cost when present, preserving them separately from estimated pricing.
+- Use session-local model price metadata when available, including VS Code Insiders model picker token prices and Copilot CLI shutdown model metrics.
+- Mark cache-read availability explicitly so records with prompt/output tokens but missing cache-read counts are reported as upper-bound estimates rather than exact costs.
+- Surface pricing basis, estimate confidence, and cache/charge diagnostics in human-readable and JSON reports without losing label, repo, source, and session attribution.
 
 ## Requirements
 
@@ -46,7 +46,14 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 
 ### Active
 
-No active requirements; v0.1.8 milestone requirements are validated.
+- Active: Import observed local charge evidence such as `totalNanoAiu`, per-model request cost, and premium request counters - v0.1.9
+- Active: Import session-local model pricing metadata from VS Code/Insiders and Copilot logs - v0.1.9
+- Active: Preserve actual charge fields, pricing metadata, and derived estimates as distinct report/store concepts - v0.1.9
+- Active: Track cache-read availability as known, explicitly zero, or unknown - v0.1.9
+- Active: Report complete-token estimates as high confidence and cache-unknown prompt-token estimates as upper bounds - v0.1.9
+- Active: Surface pricing basis, estimate confidence, and source/session evidence in human and JSON reports - v0.1.9
+- Active: Treat VS Code cache keys/cache types and context-utilization logs as diagnostics, not numeric billing inputs - v0.1.9
+- Active: Redact auth-like values from VS Code extension, AHP, agenthost, and hook log diagnostics - v0.1.9
 
 ### Out of Scope
 
@@ -115,4 +122,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-02 after v0.1.8 milestone verification*
+*Last updated: 2026-06-02 starting v0.1.9 better pricing estimates*
