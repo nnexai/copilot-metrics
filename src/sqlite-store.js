@@ -117,9 +117,21 @@ CREATE TABLE IF NOT EXISTS usage_records (
   cache_read_tokens INTEGER NOT NULL DEFAULT 0,
   cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
   reasoning_tokens INTEGER NOT NULL DEFAULT 0,
+  actual_charge_nano_aiu REAL,
+  actual_ai_credits REAL,
+  actual_usd REAL,
+  actual_basis TEXT,
   estimated_usd REAL,
   estimated_ai_credits REAL,
+  upper_bound_usd REAL,
+  upper_bound_ai_credits REAL,
+  pricing_basis TEXT NOT NULL DEFAULT 'estimated',
+  estimate_confidence TEXT NOT NULL DEFAULT 'high',
+  cache_read_status TEXT NOT NULL DEFAULT 'explicit_zero',
+  pricing_source TEXT,
   estimate_label TEXT NOT NULL,
+  pricing_metadata_json TEXT NOT NULL DEFAULT '{}',
+  pricing_diagnostics_json TEXT NOT NULL DEFAULT '[]',
   warnings_json TEXT NOT NULL,
   usage_identity TEXT
 );
@@ -172,6 +184,18 @@ CREATE TABLE IF NOT EXISTS import_checkpoints (
     changed = addColumnIfMissing(db, 'raw_records', 'source_file', 'TEXT') || changed;
     changed = addColumnIfMissing(db, 'raw_records', 'raw_fingerprint', 'TEXT') || changed;
     changed = addColumnIfMissing(db, 'usage_records', 'usage_identity', 'TEXT') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'actual_charge_nano_aiu', 'REAL') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'actual_ai_credits', 'REAL') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'actual_usd', 'REAL') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'actual_basis', 'TEXT') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'upper_bound_usd', 'REAL') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'upper_bound_ai_credits', 'REAL') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'pricing_basis', "TEXT NOT NULL DEFAULT 'estimated'") || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'estimate_confidence', "TEXT NOT NULL DEFAULT 'high'") || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'cache_read_status', "TEXT NOT NULL DEFAULT 'explicit_zero'") || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'pricing_source', 'TEXT') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'pricing_metadata_json', "TEXT NOT NULL DEFAULT '{}'") || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'pricing_diagnostics_json', "TEXT NOT NULL DEFAULT '[]'") || changed;
     changed = createIndexIfMissing(
       db,
       'idx_raw_records_fingerprint',
@@ -226,6 +250,71 @@ function insertLabelEvidence(db, importedAt, evidenceRows) {
       evidence.timestamp || null,
     ]),
   );
+}
+
+function parseJsonArray(value) {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseJsonObject(value) {
+  try {
+    const parsed = JSON.parse(value || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function basisRank(basis) {
+  return {
+    unknown_price: 0,
+    included_or_zero: 1,
+    upper_bound: 2,
+    estimated: 3,
+    actual: 4,
+    conflict: 5,
+  }[basis] ?? 0;
+}
+
+function mergeUsageEvidence(existing, usage) {
+  const existingBasis = existing.pricing_basis || 'estimated';
+  const incomingBasis = usage.pricing_basis || 'estimated';
+  const strongestBasis = basisRank(incomingBasis) > basisRank(existingBasis) ? incomingBasis : existingBasis;
+  const diagnostics = new Set([
+    ...parseJsonArray(existing.pricing_diagnostics_json),
+    ...(usage.pricing_diagnostics || []),
+  ]);
+  const warnings = new Set([
+    ...parseJsonArray(existing.warnings_json),
+    ...(usage.warnings || []),
+  ]);
+  return {
+    estimated_usd: usage.estimated_usd ?? null,
+    estimated_ai_credits: usage.estimated_ai_credits ?? null,
+    actual_charge_nano_aiu: existing.actual_charge_nano_aiu ?? usage.actual_charge_nano_aiu ?? null,
+    actual_ai_credits: existing.actual_ai_credits ?? usage.actual_ai_credits ?? null,
+    actual_usd: existing.actual_usd ?? usage.actual_usd ?? null,
+    actual_basis: existing.actual_basis ?? usage.actual_basis ?? null,
+    upper_bound_usd: basisRank(incomingBasis) > basisRank(existingBasis) ? usage.upper_bound_usd ?? null : existing.upper_bound_usd ?? usage.upper_bound_usd ?? null,
+    upper_bound_ai_credits: basisRank(incomingBasis) > basisRank(existingBasis) ? usage.upper_bound_ai_credits ?? null : existing.upper_bound_ai_credits ?? usage.upper_bound_ai_credits ?? null,
+    pricing_basis: strongestBasis,
+    estimate_confidence: basisRank(incomingBasis) > basisRank(existingBasis)
+      ? usage.estimate_confidence || existing.estimate_confidence || 'high'
+      : existing.estimate_confidence || usage.estimate_confidence || 'high',
+    cache_read_status: existing.cache_read_status === 'unknown' ? (usage.cache_read_status || 'unknown') : existing.cache_read_status,
+    pricing_source: existing.pricing_source || usage.pricing_source || null,
+    pricing_metadata: {
+      ...parseJsonObject(existing.pricing_metadata_json),
+      ...(usage.pricing_metadata || {}),
+    },
+    pricing_diagnostics: Array.from(diagnostics),
+    warnings: Array.from(warnings),
+  };
 }
 
 async function existingRawFingerprints(dbPath, source, sourceFile, fingerprints) {
@@ -384,9 +473,40 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
         imported_at, source, raw_line, span_id, trace_id, parent_span_id, timestamp, surface,
         conversation_id, session_id, requested_model, resolved_model, repo, branch, cwd, commit_sha,
         input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, reasoning_tokens,
-        estimated_usd, estimated_ai_credits, estimate_label, warnings_json, usage_identity
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-    const existingUsageStatement = db.prepare('SELECT id, session_id, repo, branch, cwd, timestamp FROM usage_records WHERE usage_identity = ? LIMIT 1');
+        actual_charge_nano_aiu, actual_ai_credits, actual_usd, actual_basis,
+        estimated_usd, estimated_ai_credits, upper_bound_usd, upper_bound_ai_credits,
+        pricing_basis, estimate_confidence, cache_read_status, pricing_source,
+        estimate_label, pricing_metadata_json, pricing_diagnostics_json, warnings_json, usage_identity
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const existingUsageStatement = db.prepare(`
+      SELECT id, session_id, repo, branch, cwd, timestamp, actual_charge_nano_aiu, actual_ai_credits,
+        actual_usd, actual_basis, upper_bound_usd, upper_bound_ai_credits, pricing_basis,
+        estimate_confidence, cache_read_status, pricing_source, pricing_metadata_json,
+        pricing_diagnostics_json, warnings_json
+      FROM usage_records
+      WHERE usage_identity = ?
+      LIMIT 1
+    `);
+    const mergeUsageStatement = db.prepare(`
+      UPDATE usage_records
+      SET cache_read_tokens = CASE WHEN cache_read_status = 'unknown' AND ? != 'unknown' THEN ? ELSE cache_read_tokens END,
+          estimated_usd = ?,
+          estimated_ai_credits = ?,
+          actual_charge_nano_aiu = COALESCE(actual_charge_nano_aiu, ?),
+          actual_ai_credits = COALESCE(actual_ai_credits, ?),
+          actual_usd = COALESCE(actual_usd, ?),
+          actual_basis = COALESCE(actual_basis, ?),
+          upper_bound_usd = ?,
+          upper_bound_ai_credits = ?,
+          pricing_basis = ?,
+          estimate_confidence = ?,
+          cache_read_status = ?,
+          pricing_source = COALESCE(pricing_source, ?),
+          pricing_metadata_json = ?,
+          pricing_diagnostics_json = ?,
+          warnings_json = ?
+      WHERE id = ?
+    `);
     try {
       for (const usage of usageRecords) {
         let usageRecordId = null;
@@ -399,6 +519,27 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
         if (existingUsage) {
           usageRecordId = existingUsage.id;
           duplicateUsageRecords += 1;
+          const merged = mergeUsageEvidence(existingUsage, usage);
+          mergeUsageStatement.run([
+            usage.cache_read_status || 'explicit_zero',
+            usage.cache_read_tokens || 0,
+            merged.estimated_usd,
+            merged.estimated_ai_credits,
+            merged.actual_charge_nano_aiu,
+            merged.actual_ai_credits,
+            merged.actual_usd,
+            merged.actual_basis,
+            merged.upper_bound_usd,
+            merged.upper_bound_ai_credits,
+            merged.pricing_basis,
+            merged.estimate_confidence,
+            merged.cache_read_status,
+            merged.pricing_source,
+            JSON.stringify(merged.pricing_metadata || {}),
+            JSON.stringify(merged.pricing_diagnostics || []),
+            JSON.stringify(merged.warnings || []),
+            usageRecordId,
+          ]);
         } else {
           usageStatement.run([
             importedAt,
@@ -422,9 +563,21 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
             usage.cache_read_tokens,
             usage.cache_creation_tokens,
             usage.reasoning_tokens,
+            usage.actual_charge_nano_aiu,
+            usage.actual_ai_credits,
+            usage.actual_usd,
+            usage.actual_basis,
             usage.estimated_usd,
             usage.estimated_ai_credits,
+            usage.upper_bound_usd,
+            usage.upper_bound_ai_credits,
+            usage.pricing_basis || 'estimated',
+            usage.estimate_confidence || 'high',
+            usage.cache_read_status || 'explicit_zero',
+            usage.pricing_source || null,
             usage.estimate_label,
+            JSON.stringify(usage.pricing_metadata || {}),
+            JSON.stringify(usage.pricing_diagnostics || []),
             JSON.stringify(usage.warnings || []),
             usage.usage_identity || null,
           ]);
@@ -446,6 +599,7 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
     } finally {
       usageStatement.free();
       existingUsageStatement.free();
+      mergeUsageStatement.free();
     }
 
     const hookStatement = db.prepare('INSERT INTO hook_events (imported_at, source, raw_line, event, session_id, cwd, repo, branch, labels_json, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -660,6 +814,14 @@ async function updateUsageCostEstimates(dbPath, updates) {
     UPDATE usage_records
     SET estimated_usd = ?,
         estimated_ai_credits = ?,
+        upper_bound_usd = ?,
+        upper_bound_ai_credits = ?,
+        pricing_basis = ?,
+        estimate_confidence = ?,
+        cache_read_status = ?,
+        pricing_source = ?,
+        pricing_metadata_json = ?,
+        pricing_diagnostics_json = ?,
         warnings_json = ?
     WHERE id = ?
   `);
@@ -670,6 +832,14 @@ async function updateUsageCostEstimates(dbPath, updates) {
       statement.run([
         update.estimated_usd,
         update.estimated_ai_credits,
+        update.upper_bound_usd ?? null,
+        update.upper_bound_ai_credits ?? null,
+        update.pricing_basis || 'estimated',
+        update.estimate_confidence || 'high',
+        update.cache_read_status || 'explicit_zero',
+        update.pricing_source || null,
+        JSON.stringify(update.pricing_metadata || {}),
+        JSON.stringify(update.pricing_diagnostics || []),
         JSON.stringify(update.warnings || []),
         update.id,
       ]);

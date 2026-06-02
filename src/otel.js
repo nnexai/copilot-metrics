@@ -36,6 +36,12 @@ function number(attrs, keys) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function numberOrNull(attrs, keys) {
+  const value = pick(attrs, keys);
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 const LABEL_RE = /\b[A-Z][A-Z0-9]+-\d+\b/g;
 
 function collectLabels(value, labels = new Set()) {
@@ -121,6 +127,8 @@ function normalizeSpan(span, source, rawLine) {
   const type = classifySpan(span);
   if (type !== 'llm') return null;
 
+  const cacheReadTokens = numberOrNull(attrs, ['gen_ai.usage.cache_read_input_tokens', 'gen_ai.usage.cached_input_tokens', 'cache_read_tokens']);
+  const pricingMetadata = pricingMetadataFromAttributes(attrs);
   return {
     raw_line: rawLine,
     span_id: span.spanId || span.span_id || pick(attrs, ['gen_ai.response.id']) || null,
@@ -140,11 +148,51 @@ function normalizeSpan(span, source, rawLine) {
     prompt_preview: pick(attrs, ['prompt_preview', 'prompt.preview']),
     input_tokens: number(attrs, ['gen_ai.usage.input_tokens', 'llm.usage.prompt_tokens', 'input_tokens', 'prompt_tokens']),
     output_tokens: number(attrs, ['gen_ai.usage.output_tokens', 'llm.usage.completion_tokens', 'output_tokens', 'completion_tokens']),
-    cache_read_tokens: number(attrs, ['gen_ai.usage.cache_read_input_tokens', 'gen_ai.usage.cached_input_tokens', 'cache_read_tokens']),
+    cache_read_tokens: cacheReadTokens || 0,
     cache_creation_tokens: number(attrs, ['gen_ai.usage.cache_creation_input_tokens', 'gen_ai.usage.cache_write_input_tokens', 'cache_creation_tokens']),
     reasoning_tokens: number(attrs, ['gen_ai.usage.reasoning_tokens', 'reasoning_tokens']),
+    cache_read_status: cacheReadTokens === null ? 'unknown' : cacheReadTokens > 0 ? 'known' : 'explicit_zero',
+    pricing_metadata: pricingMetadata,
+    included_or_zero: includedOrZeroFromAttributes(attrs),
+    pricing_diagnostics: diagnosticsFromAttributes(attrs),
     warnings: [],
   };
+}
+
+function aiCreditsToUsdPerMillion(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number * 0.01 : null;
+}
+
+function pricingMetadataFromAttributes(attrs) {
+  const input = aiCreditsToUsdPerMillion(pick(attrs, ['inputCost', 'billing.token_prices.default.input_price']));
+  const output = aiCreditsToUsdPerMillion(pick(attrs, ['outputCost', 'billing.token_prices.default.output_price']));
+  const cache = aiCreditsToUsdPerMillion(pick(attrs, ['cacheCost', 'billing.token_prices.default.cache_price']));
+  if (input === null || output === null) return null;
+  return {
+    source: 'session',
+    token_prices: {
+      input_usd_per_million: input,
+      output_usd_per_million: output,
+      cache_read_usd_per_million: cache,
+    },
+  };
+}
+
+function includedOrZeroFromAttributes(attrs) {
+  const multiplier = pick(attrs, ['multiplierNumeric']);
+  return String(pick(attrs, ['pricing']) || '').includes('0x')
+    || (multiplier !== null && multiplier !== undefined && multiplier !== '' && Number(multiplier) === 0)
+    || String(pick(attrs, ['copilot.token.sku', 'sku']) || '').includes('quota');
+}
+
+function diagnosticsFromAttributes(attrs) {
+  const diagnostics = [];
+  if (pick(attrs, ['cacheKey'])) diagnostics.push('cache_key_present');
+  if (pick(attrs, ['cacheType'])) diagnostics.push('cache_type_present');
+  if (includedOrZeroFromAttributes(attrs)) diagnostics.push('included_or_zero');
+  return diagnostics;
 }
 
 function normalizePayload(payload, source, rawLine) {
@@ -195,6 +243,12 @@ function normalizeCopilotSessionEvents(newRecords, allRecords) {
     const modelMetrics = data.modelMetrics || {};
     for (const [model, metrics] of Object.entries(modelMetrics)) {
       const usage = metrics.usage || {};
+      const cacheReadTokens = Number(usage.cacheReadTokens || 0);
+      const diagnostics = [];
+      const requestsCost = metrics.requests && Number(metrics.requests.cost);
+      const totalPremiumRequests = Number(data.totalPremiumRequests);
+      if (Number.isFinite(requestsCost) && requestsCost === 0) diagnostics.push('requests_cost_zero');
+      if (Number.isFinite(totalPremiumRequests) && totalPremiumRequests === 0) diagnostics.push('total_premium_requests_zero');
       records.push({
         raw_line: record.line,
         span_id: event.id || null,
@@ -213,9 +267,19 @@ function normalizeCopilotSessionEvents(newRecords, allRecords) {
         labels: Array.from(session.labels).sort(),
         input_tokens: Number(usage.inputTokens || 0),
         output_tokens: Number(usage.outputTokens || 0),
-        cache_read_tokens: Number(usage.cacheReadTokens || 0),
+        cache_read_tokens: cacheReadTokens,
         cache_creation_tokens: Number(usage.cacheWriteTokens || 0),
         reasoning_tokens: Number(usage.reasoningTokens || 0),
+        cache_read_status: cacheReadTokens > 0 ? 'known' : 'explicit_zero',
+        actual_charge_nano_aiu: Number.isFinite(Number(metrics.totalNanoAiu)) ? Number(metrics.totalNanoAiu) : null,
+        included_or_zero: (Number.isFinite(requestsCost) && requestsCost === 0)
+          || (Number.isFinite(totalPremiumRequests) && totalPremiumRequests === 0),
+        pricing_metadata: {
+          source: 'copilot-session',
+          requests: metrics.requests || null,
+          totalPremiumRequests: Number.isFinite(totalPremiumRequests) ? totalPremiumRequests : null,
+        },
+        pricing_diagnostics: diagnostics,
         warnings: [],
       });
     }

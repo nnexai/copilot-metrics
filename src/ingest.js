@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { readJsonl } = require('./jsonl');
 const { normalizePayload, normalizeHookEvent, normalizeCopilotSessionEvents } = require('./otel');
-const { estimateCost, PRICING_VERSION } = require('./pricing');
+const { classifyPricing, PRICING_VERSION } = require('./pricing');
 const {
   attachVscodeChatLabelEvidence,
   existingRawFingerprints,
@@ -26,15 +26,26 @@ const { loadConfiguredExtractors, runLabelExtractors } = require('./label-extrac
 
 function enrichCosts(records) {
   return records.map((record) => {
-    const estimate = estimateCost(record);
-    const warnings = [...record.warnings];
-    if (estimate.warning) warnings.push(estimate.warning);
+    const pricing = classifyPricing(record);
+    const warnings = [...record.warnings, ...pricing.warnings];
     return {
       ...record,
       usage_identity: usageIdentity(record),
-      estimated_usd: estimate.estimated_usd,
-      estimated_ai_credits: estimate.estimated_ai_credits,
+      actual_charge_nano_aiu: pricing.actual_charge_nano_aiu,
+      actual_ai_credits: pricing.actual_ai_credits,
+      actual_usd: pricing.actual_usd,
+      actual_basis: pricing.actual_basis,
+      estimated_usd: pricing.estimated_usd,
+      estimated_ai_credits: pricing.estimated_ai_credits,
+      upper_bound_usd: pricing.upper_bound_usd,
+      upper_bound_ai_credits: pricing.upper_bound_ai_credits,
+      pricing_basis: pricing.pricing_basis,
+      estimate_confidence: pricing.estimate_confidence,
+      cache_read_status: pricing.cache_read_status,
+      pricing_source: pricing.pricing_source,
       estimate_label: `estimate:${PRICING_VERSION}`,
+      pricing_metadata: record.pricing_metadata || null,
+      pricing_diagnostics: pricing.pricing_diagnostics,
       warnings,
     };
   });
@@ -49,7 +60,7 @@ function usageIdentity(record) {
     record.cache_creation_tokens || 0,
     record.reasoning_tokens || 0,
   ].join(':');
-  if (record.span_id) return `span:${record.span_id}|model:${model}|tokens:${tokens}`;
+  if (record.span_id) return `span:${record.span_id}|model:${model}`;
   const session = record.session_id || record.trace_id || '';
   const conversation = record.conversation_id || '';
   const timestamp = record.timestamp || '';
@@ -201,6 +212,11 @@ function tokenNumber(object, keys) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function hasAnyKey(object, keys) {
+  if (!object || typeof object !== 'object') return false;
+  return keys.some((key) => object[key] !== undefined && object[key] !== null && object[key] !== '');
+}
+
 function usageCandidate(value) {
   if (!value || typeof value !== 'object') return {};
   return value.usage || value.tokenUsage || value.metrics || value.modelMetrics || value;
@@ -220,13 +236,72 @@ function requestUsage(request) {
       if (merged[key] === undefined) merged[key] = value;
     }
   }
+  const hasCacheRead = candidates.some((candidate) => hasAnyKey(candidate, ['cacheReadTokens', 'cache_read_tokens', 'cachedInputTokens']));
   return {
     input_tokens: tokenNumber(merged, ['inputTokens', 'input_tokens', 'promptTokens', 'prompt_tokens']),
     output_tokens: tokenNumber(merged, ['outputTokens', 'output_tokens', 'completionTokens', 'completion_tokens']),
     cache_read_tokens: tokenNumber(merged, ['cacheReadTokens', 'cache_read_tokens', 'cachedInputTokens']),
     cache_creation_tokens: tokenNumber(merged, ['cacheWriteTokens', 'cacheCreationTokens', 'cache_creation_tokens']),
     reasoning_tokens: tokenNumber(merged, ['reasoningTokens', 'reasoning_tokens']),
+    cache_read_status: hasCacheRead
+      ? tokenNumber(merged, ['cacheReadTokens', 'cache_read_tokens', 'cachedInputTokens']) > 0 ? 'known' : 'explicit_zero'
+      : 'unknown',
   };
+}
+
+function aiCreditsToUsdPerMillion(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number * 0.01 : null;
+}
+
+function pricingMetadataFromModelMetadata(metadata) {
+  if (!metadata || typeof metadata !== 'object') return null;
+  const tokenPrices = metadata.billing?.token_prices?.default || metadata.token_prices?.default || metadata.token_prices || {};
+  const input = aiCreditsToUsdPerMillion(metadata.inputCost ?? tokenPrices.input_price ?? tokenPrices.inputCost);
+  const output = aiCreditsToUsdPerMillion(metadata.outputCost ?? tokenPrices.output_price ?? tokenPrices.outputCost);
+  const cache = aiCreditsToUsdPerMillion(metadata.cacheCost ?? tokenPrices.cache_price ?? tokenPrices.cacheCost);
+  if (input === null || output === null) return null;
+  return {
+    source: 'session',
+    token_prices: {
+      input_usd_per_million: input,
+      output_usd_per_million: output,
+      cache_read_usd_per_million: cache,
+    },
+    priceCategory: metadata.priceCategory || null,
+    pricing: metadata.pricing || null,
+  };
+}
+
+function modelMetadataFromRequest(request) {
+  return request?.inputState?.selectedModel?.metadata
+    || request?.selectedModel?.metadata
+    || request?.metadata?.selectedModel?.metadata
+    || request?.metadata?.modelMetadata
+    || request?.result?.metadata?.selectedModel?.metadata
+    || null;
+}
+
+function diagnosticsFromRequest(request) {
+  const diagnostics = [];
+  const metadata = request?.metadata || request?.result?.metadata || {};
+  if (metadata.cacheKey || request?.cacheKey) diagnostics.push('cache_key_present');
+  if (metadata.cacheType || request?.cacheType) diagnostics.push('cache_type_present');
+  if (Array.isArray(metadata.renderedUserMessage)) {
+    for (const item of metadata.renderedUserMessage) {
+      if (item && typeof item === 'object' && item.cacheType) diagnostics.push(`cache_type:${item.cacheType}`);
+    }
+  }
+  const modelMetadata = modelMetadataFromRequest(request) || metadata;
+  if (String(modelMetadata.pricing || '').includes('0x')) diagnostics.push('included_or_zero');
+  const multiplier = modelMetadata.multiplierNumeric ?? metadata.multiplierNumeric;
+  if (multiplier !== null && multiplier !== undefined && multiplier !== '' && Number(multiplier) === 0) diagnostics.push('included_or_zero');
+  return Array.from(new Set(diagnostics));
+}
+
+function includedOrZeroFromRequest(request) {
+  return diagnosticsFromRequest(request).includes('included_or_zero');
 }
 
 function requestModel(request) {
@@ -236,7 +311,7 @@ function requestModel(request) {
     || pickValue(request.result && request.result.metadata, ['resolvedModel', 'model', 'modelId', 'modelName']);
 }
 
-function mergeFallbackRequest(current, request, sessionId, rawLine) {
+function mergeFallbackRequest(current, request, sessionId, rawLine, defaultPricingMetadata = null, defaultDiagnostics = [], defaultIncludedOrZero = false) {
   current.sessionId = chatSessionId(request) || sessionId || current.sessionId;
   current.responseId = responseId(request) || current.responseId;
   current.model = requestModel(request) || current.model;
@@ -250,14 +325,24 @@ function mergeFallbackRequest(current, request, sessionId, rawLine) {
   current.rawLine = rawLine || current.rawLine;
   const usage = requestUsage(request);
   for (const [key, value] of Object.entries(usage)) {
-    if (value > 0) current[key] = value;
+    if (key === 'cache_read_status') {
+      current.cache_read_status = value;
+    } else if (value > 0) {
+      current[key] = value;
+    }
   }
+  current.pricing_metadata = pricingMetadataFromModelMetadata(modelMetadataFromRequest(request)) || defaultPricingMetadata || current.pricing_metadata;
+  current.included_or_zero = includedOrZeroFromRequest(request) || defaultIncludedOrZero || current.included_or_zero || false;
+  current.pricing_diagnostics = Array.from(new Set([...(current.pricing_diagnostics || []), ...defaultDiagnostics, ...diagnosticsFromRequest(request)]));
   pushPromptCandidates(current.texts, request);
 }
 
 function normalizeVscodeFallbackUsage(records) {
   const requests = new Map();
   let defaultSessionId = null;
+  let defaultPricingMetadata = null;
+  let defaultDiagnostics = [];
+  let defaultIncludedOrZero = false;
 
   function entry(index) {
     const key = String(index);
@@ -270,22 +355,30 @@ function normalizeVscodeFallbackUsage(records) {
     if (!value || typeof value !== 'object') continue;
     const root = value.v && typeof value.v === 'object' ? value.v : value;
     defaultSessionId = root.sessionId || root.sessionID || defaultSessionId;
+    defaultPricingMetadata = pricingMetadataFromModelMetadata(root.inputState?.selectedModel?.metadata)
+      || pricingMetadataFromModelMetadata(root.selectedModel?.metadata)
+      || defaultPricingMetadata;
+    defaultDiagnostics = Array.from(new Set([
+      ...defaultDiagnostics,
+      ...diagnosticsFromRequest({ metadata: root.inputState?.selectedModel?.metadata || root.selectedModel?.metadata || {} }),
+    ]));
+    defaultIncludedOrZero = defaultDiagnostics.includes('included_or_zero') || defaultIncludedOrZero;
 
     if (Array.isArray(root.requests)) {
-      root.requests.forEach((request, index) => mergeFallbackRequest(entry(index), request, defaultSessionId, record.line));
+      root.requests.forEach((request, index) => mergeFallbackRequest(entry(index), request, defaultSessionId, record.line, defaultPricingMetadata, defaultDiagnostics, defaultIncludedOrZero));
     }
 
     const key = Array.isArray(value.k) ? value.k : Array.isArray(value.key) ? value.key : [];
     if (key.length === 1 && key[0] === 'requests' && Array.isArray(value.v)) {
       const startIndex = requests.size;
-      value.v.forEach((request, offset) => mergeFallbackRequest(entry(startIndex + offset), request, defaultSessionId, record.line));
+      value.v.forEach((request, offset) => mergeFallbackRequest(entry(startIndex + offset), request, defaultSessionId, record.line, defaultPricingMetadata, defaultDiagnostics, defaultIncludedOrZero));
     }
 
     const index = chatRequestIndex(value);
     if (index !== null) {
       const patch = value.v;
       if (patch && typeof patch === 'object') {
-        mergeFallbackRequest(entry(index), patch, defaultSessionId, record.line);
+        mergeFallbackRequest(entry(index), patch, defaultSessionId, record.line, defaultPricingMetadata, defaultDiagnostics, defaultIncludedOrZero);
       } else {
         pushText(entry(index).texts, patch);
       }
@@ -316,8 +409,55 @@ function normalizeVscodeFallbackUsage(records) {
       cache_read_tokens: request.cache_read_tokens || 0,
       cache_creation_tokens: request.cache_creation_tokens || 0,
       reasoning_tokens: request.reasoning_tokens || 0,
+      cache_read_status: request.cache_read_status || 'unknown',
+      pricing_metadata: request.pricing_metadata || null,
+      included_or_zero: request.included_or_zero || false,
+      pricing_diagnostics: request.pricing_diagnostics || [],
       warnings: request.model ? [] : ['missing_model'],
     }));
+}
+
+function readVscodeDebugCachedTokens(sessionFile, sessionId) {
+  if (!sessionId) return null;
+  const sessionDir = path.dirname(sessionFile);
+  if (path.basename(sessionDir) !== 'chatSessions') return null;
+  const workspaceDir = path.dirname(sessionDir);
+  const candidates = [
+    path.join(workspaceDir, 'GitHub.copilot-chat', 'debug-logs', sessionId, 'main.jsonl'),
+    path.join(workspaceDir, 'debug-logs', sessionId, 'main.jsonl'),
+  ];
+  const debugFile = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!debugFile) return null;
+  const parsed = readJsonl(debugFile);
+  let cachedTokens = 0;
+  let seen = false;
+  for (const record of parsed.records) {
+    const value = record.value;
+    if (!value || typeof value !== 'object') continue;
+    const eventName = value.type || value.event || value.name;
+    const attrs = value.attrs || value.attributes || value.data?.attrs || value.data?.attributes || {};
+    if (eventName !== 'llm_request' && !attrs.cachedTokens) continue;
+    const number = Number(attrs.cachedTokens ?? attrs.cacheReadTokens ?? attrs.cache_read_tokens);
+    if (Number.isFinite(number)) {
+      cachedTokens += number;
+      seen = true;
+    }
+  }
+  return seen ? { file: debugFile, cachedTokens } : null;
+}
+
+function applyVscodeDebugCachedTokens(usageRecords, sourceFile) {
+  return usageRecords.map((usage) => {
+    if (usage.cache_read_status !== 'unknown') return usage;
+    const debug = readVscodeDebugCachedTokens(sourceFile, usage.session_id);
+    if (!debug) return usage;
+    return {
+      ...usage,
+      cache_read_tokens: debug.cachedTokens,
+      cache_read_status: debug.cachedTokens > 0 ? 'known' : 'explicit_zero',
+      pricing_diagnostics: Array.from(new Set([...(usage.pricing_diagnostics || []), 'vscode_debug_cached_tokens'])),
+    };
+  });
 }
 
 function redactedSessionRecord(record) {
@@ -491,7 +631,9 @@ async function ingestVscodeChatSessionFile(options) {
   const { dbPath, file } = options;
   const sourceFile = path.resolve(file);
   const checkpoint = await sourceCheckpoint(options, 'vscode-chat', sourceFile);
-  const highWaterLine = Math.max(Number(checkpoint.checkpoint_line || 0), await sourceHighWater(options, 'vscode-chat', sourceFile));
+  const highWaterLine = options.forceRefresh
+    ? 0
+    : Math.max(Number(checkpoint.checkpoint_line || 0), await sourceHighWater(options, 'vscode-chat', sourceFile));
   const parsed = readSessionRecords(sourceFile, { afterLine: highWaterLine });
   if (parsed.records.length === 0 && parsed.warnings.length === 0) {
     return {
@@ -519,9 +661,11 @@ async function ingestVscodeChatSessionFile(options) {
     sourceFile,
     allRecords.map((record) => record.raw_fingerprint),
   );
-  const newRecords = allRecords.filter((record) => !existing.has(record.raw_fingerprint));
+  const newRecords = options.forceRefresh
+    ? allRecords
+    : allRecords.filter((record) => !existing.has(record.raw_fingerprint));
   const fallbackUsage = attachUsageLabelEvidence(
-    enrichCosts(normalizeVscodeFallbackUsage(newRecords)),
+    enrichCosts(applyVscodeDebugCachedTokens(normalizeVscodeFallbackUsage(newRecords), sourceFile)),
     { extractors: options.extractors || [] },
   );
   const mappings = normalizeVscodeChatSession(parsed.records, options.extractors || []);
@@ -612,7 +756,8 @@ async function repairUsageCostEstimates(dbPath) {
   await initStore(dbPath);
   const rows = await queryRows(dbPath, `
     SELECT id, requested_model, resolved_model, input_tokens, output_tokens,
-      cache_read_tokens, cache_creation_tokens, reasoning_tokens, warnings_json
+      cache_read_tokens, cache_creation_tokens, reasoning_tokens, cache_read_status,
+      pricing_metadata_json, pricing_diagnostics_json, warnings_json
     FROM usage_records
     WHERE estimated_ai_credits IS NULL
       OR estimated_ai_credits = 0
@@ -621,14 +766,39 @@ async function repairUsageCostEstimates(dbPath) {
   `);
   const updates = [];
   for (const row of rows) {
-    const estimate = estimateCost(row);
-    if (estimate.warning) continue;
+    let pricingMetadata = {};
+    let pricingDiagnostics = [];
+    try {
+      pricingMetadata = JSON.parse(row.pricing_metadata_json || '{}');
+    } catch {
+      pricingMetadata = {};
+    }
+    try {
+      const parsed = JSON.parse(row.pricing_diagnostics_json || '[]');
+      pricingDiagnostics = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      pricingDiagnostics = [];
+    }
+    const estimate = classifyPricing({
+      ...row,
+      pricing_metadata: pricingMetadata,
+      pricing_diagnostics: pricingDiagnostics,
+    });
+    if (estimate.warnings.some((warning) => String(warning).startsWith('unknown_model:') || warning === 'missing_model')) continue;
     const warnings = parseWarningsJson(row.warnings_json)
       .filter((warning) => !String(warning).startsWith('unknown_model:') && warning !== 'missing_model');
     updates.push({
       id: row.id,
       estimated_usd: estimate.estimated_usd,
       estimated_ai_credits: estimate.estimated_ai_credits,
+      upper_bound_usd: estimate.upper_bound_usd,
+      upper_bound_ai_credits: estimate.upper_bound_ai_credits,
+      pricing_basis: estimate.pricing_basis,
+      estimate_confidence: estimate.estimate_confidence,
+      cache_read_status: estimate.cache_read_status,
+      pricing_source: estimate.pricing_source,
+      pricing_metadata: pricingMetadata,
+      pricing_diagnostics: estimate.pricing_diagnostics,
       warnings,
     });
   }
@@ -643,9 +813,9 @@ async function ingestFile(options) {
   const backfilledUsageRecords = source === 'vscode'
     ? await backfillVscodeUsageResponseIds(dbPath, sourceFile)
     : 0;
-  const highWaterLine = await sourceHighWater(options, source, sourceFile);
+  const highWaterLine = options.forceRefresh ? 0 : await sourceHighWater(options, source, sourceFile);
   const checkpoint = source === 'copilot-session' ? await sourceCheckpoint(options, source, sourceFile) : null;
-  const checkpointLine = checkpoint ? Math.max(Number(checkpoint.checkpoint_line || 0), highWaterLine) : highWaterLine;
+  const checkpointLine = options.forceRefresh ? 0 : checkpoint ? Math.max(Number(checkpoint.checkpoint_line || 0), highWaterLine) : highWaterLine;
   const parsed = readJsonl(file, { afterLine: checkpointLine });
   const warnings = [...parsed.warnings];
   if (parsed.records.length === 0 && warnings.length === 0) {
@@ -677,7 +847,9 @@ async function ingestFile(options) {
     sourceFile,
     importableRecords.map((record) => record.raw_fingerprint),
   );
-  const newRecords = importableRecords.filter((record) => !existing.has(record.raw_fingerprint));
+  const newRecords = options.forceRefresh
+    ? importableRecords
+    : importableRecords.filter((record) => !existing.has(record.raw_fingerprint));
   const usageRecords = [];
   const hookEvents = [];
 
@@ -919,6 +1091,7 @@ async function autoImportConfiguredSources(paths, options = {}) {
         extractors,
         importState,
         repairCostEstimates: false,
+        forceRefresh: options.forceRefresh === true,
       }));
     } catch (error) {
       results.push({
@@ -968,6 +1141,7 @@ module.exports = {
   discoverVscodeChatSessionFiles,
   backfillVscodeUsageResponseIds,
   ingestFile,
+  applyVscodeDebugCachedTokens,
   normalizeVscodeFallbackUsage,
   normalizeVscodeChatSession,
   repairUsageCostEstimates,

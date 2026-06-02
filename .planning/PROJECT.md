@@ -43,17 +43,18 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 - Validated: Preserve fallback label evidence with source type, source field, source value, confidence, session ID, and usage record linkage - v0.1.8
 - Validated: Keep full prompt capture disabled by default for fallback parsing - v0.1.8
 - Validated: Show human-readable and JSON fallback diagnostics that local estimates are advisory and may be incomplete - v0.1.8
+- Validated: Import observed local charge evidence such as `totalNanoAiu`, per-model request cost, and premium request counters - v0.1.9
+- Validated: Import session-local model pricing metadata from VS Code/Insiders and Copilot logs - v0.1.9
+- Validated: Preserve actual charge fields, pricing metadata, and derived estimates as distinct report/store concepts - v0.1.9
+- Validated: Track cache-read availability as known, explicitly zero, or unknown - v0.1.9
+- Validated: Report complete-token estimates as high confidence and cache-unknown prompt-token estimates as upper bounds - v0.1.9
+- Validated: Surface pricing basis, estimate confidence, and source/session evidence in human and JSON reports - v0.1.9
+- Validated: Treat VS Code cache keys/cache types and context-utilization logs as diagnostics, not numeric billing inputs - v0.1.9
+- Validated: Redact auth-like values from VS Code extension, AHP, agenthost, and hook log diagnostics - v0.1.9
 
 ### Active
 
-- Active: Import observed local charge evidence such as `totalNanoAiu`, per-model request cost, and premium request counters - v0.1.9
-- Active: Import session-local model pricing metadata from VS Code/Insiders and Copilot logs - v0.1.9
-- Active: Preserve actual charge fields, pricing metadata, and derived estimates as distinct report/store concepts - v0.1.9
-- Active: Track cache-read availability as known, explicitly zero, or unknown - v0.1.9
-- Active: Report complete-token estimates as high confidence and cache-unknown prompt-token estimates as upper bounds - v0.1.9
-- Active: Surface pricing basis, estimate confidence, and source/session evidence in human and JSON reports - v0.1.9
-- Active: Treat VS Code cache keys/cache types and context-utilization logs as diagnostics, not numeric billing inputs - v0.1.9
-- Active: Redact auth-like values from VS Code extension, AHP, agenthost, and hook log diagnostics - v0.1.9
+None.
 
 ### Out of Scope
 

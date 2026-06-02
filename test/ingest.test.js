@@ -322,6 +322,84 @@ test('ingestFile stores VS Code fallback token usage from json files', async () 
   assert.equal(usage[0].output_tokens, 360);
 });
 
+test('VS Code fallback without numeric cache reads uses upper-bound session-local pricing', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-vscode-upper-'));
+  const sessionFile = path.join(tmp, 'session.jsonl');
+  fs.writeFileSync(sessionFile, JSON.stringify({
+    kind: 0,
+    v: {
+      sessionId: 'session-upper',
+      inputState: {
+        selectedModel: {
+          metadata: {
+            id: 'gpt-5-mini',
+            inputCost: 25,
+            outputCost: 200,
+            cacheCost: 2,
+            multiplierNumeric: 0,
+          },
+        },
+      },
+      requests: [{
+        message: { text: 'Estimate DEMO-881 without debug cache data.' },
+        responseId: 'response-upper',
+        resolvedModel: 'gpt-5-mini',
+        usage: { inputTokens: 1000, outputTokens: 100 },
+        metadata: { cacheKey: 'cache-key', renderedUserMessage: [{ cacheType: 'ephemeral' }] },
+      }],
+    },
+  }) + '\n');
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  await ingestFile({ dbPath: paths.usageDb, file: sessionFile, source: 'vscode-chat' });
+
+  const usage = await queryOne(paths.usageDb, 'SELECT cache_read_status, pricing_basis, estimate_confidence, pricing_source, estimated_ai_credits, upper_bound_ai_credits, pricing_diagnostics_json FROM usage_records');
+  assert.equal(usage[0].cache_read_status, 'unknown');
+  assert.equal(usage[0].pricing_basis, 'upper_bound');
+  assert.equal(usage[0].estimate_confidence, 'upper_bound');
+  assert.equal(usage[0].pricing_source, 'session');
+  assert.equal(usage[0].estimated_ai_credits, 0.045);
+  assert.equal(usage[0].upper_bound_ai_credits, 0.045);
+  assert.match(usage[0].pricing_diagnostics_json, /cache_key_present/);
+  assert.match(usage[0].pricing_diagnostics_json, /included_or_zero/);
+});
+
+test('VS Code debug log cachedTokens upgrades fallback cache-read evidence', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-vscode-debug-'));
+  const workspace = path.join(tmp, 'workspaceStorage', 'workspace-a');
+  const chatDir = path.join(workspace, 'chatSessions');
+  const debugDir = path.join(workspace, 'GitHub.copilot-chat', 'debug-logs', 'session-debug');
+  fs.mkdirSync(chatDir, { recursive: true });
+  fs.mkdirSync(debugDir, { recursive: true });
+  const sessionFile = path.join(chatDir, 'session-debug.jsonl');
+  fs.writeFileSync(sessionFile, JSON.stringify({
+    kind: 0,
+    v: {
+      sessionId: 'session-debug',
+      inputState: { selectedModel: { metadata: { id: 'gpt-5-mini', inputCost: 25, outputCost: 200, cacheCost: 2 } } },
+      requests: [{
+        message: { text: 'Use debug cache data for DEMO-882.' },
+        responseId: 'response-debug',
+        resolvedModel: 'gpt-5-mini',
+        usage: { inputTokens: 1000, outputTokens: 100 },
+      }],
+    },
+  }) + '\n');
+  fs.writeFileSync(path.join(debugDir, 'main.jsonl'), JSON.stringify({
+    type: 'llm_request',
+    attrs: { cachedTokens: 250 },
+  }) + '\n');
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  await ingestFile({ dbPath: paths.usageDb, file: sessionFile, source: 'vscode-chat' });
+
+  const usage = await queryOne(paths.usageDb, 'SELECT cache_read_tokens, cache_read_status, pricing_basis, estimate_confidence, estimated_ai_credits, pricing_diagnostics_json FROM usage_records');
+  assert.equal(usage[0].cache_read_tokens, 250);
+  assert.equal(usage[0].cache_read_status, 'known');
+  assert.equal(usage[0].pricing_basis, 'estimated');
+  assert.equal(usage[0].estimate_confidence, 'high');
+  assert.equal(usage[0].estimated_ai_credits, 0.03925);
+  assert.match(usage[0].pricing_diagnostics_json, /vscode_debug_cached_tokens/);
+});
+
 test('normalizeVscodeFallbackUsage returns token-bearing request usage', () => {
   const parsed = readJsonl(path.join(fixtures, 'vscode-fallback-usage.jsonl'));
   const records = normalizeVscodeFallbackUsage(parsed.records);
@@ -357,7 +435,7 @@ test('ingestFile stores Copilot session-state shutdown usage without OTel env', 
   });
   assert.equal(result.usage_records, 1);
   assert.ok(result.label_evidence >= 1);
-  const usage = await queryOne(paths.usageDb, 'SELECT session_id, resolved_model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, reasoning_tokens FROM usage_records');
+  const usage = await queryOne(paths.usageDb, 'SELECT session_id, resolved_model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, reasoning_tokens, actual_charge_nano_aiu, actual_ai_credits, pricing_basis, cache_read_status FROM usage_records');
   assert.equal(usage[0].session_id, 'session-native');
   assert.equal(usage[0].resolved_model, 'gpt-5-mini');
   assert.equal(usage[0].input_tokens, 1200);
@@ -365,8 +443,32 @@ test('ingestFile stores Copilot session-state shutdown usage without OTel env', 
   assert.equal(usage[0].cache_read_tokens, 100);
   assert.equal(usage[0].cache_creation_tokens, 50);
   assert.equal(usage[0].reasoning_tokens, 25);
+  assert.equal(usage[0].actual_charge_nano_aiu, 0);
+  assert.equal(usage[0].actual_ai_credits, 0);
+  assert.equal(usage[0].pricing_basis, 'actual');
+  assert.equal(usage[0].cache_read_status, 'known');
   const evidence = await queryOne(paths.usageDb, "SELECT label, source_type FROM label_evidence WHERE label = 'DEMO-900'");
   assert.equal(evidence[0].source_type, 'usage');
+});
+
+test('Copilot session-state trusts nonzero totalNanoAiu as observed local charge', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-session-charge-'));
+  const sessionFile = path.join(tmp, 'events.jsonl');
+  fs.writeFileSync(sessionFile, [
+    '{"type":"session.start","data":{"sessionId":"session-charge","context":{"cwd":"/repo/DEMO-902","gitRoot":"/repo","branch":"feature/DEMO-902"}},"id":"start1","timestamp":"2026-06-02T08:00:00.000Z"}',
+    '{"type":"session.shutdown","data":{"totalPremiumRequests":0,"modelMetrics":{"gpt-5-mini":{"requests":{"count":3,"cost":0},"usage":{"inputTokens":1000,"outputTokens":200,"cacheReadTokens":100,"cacheWriteTokens":0,"reasoningTokens":0},"totalNanoAiu":974185000}}},"id":"shutdown1","timestamp":"2026-06-02T08:00:03.000Z"}',
+  ].join('\n') + '\n');
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  await ingestFile({ dbPath: paths.usageDb, file: sessionFile, source: 'copilot-session' });
+
+  const usage = await queryOne(paths.usageDb, 'SELECT actual_charge_nano_aiu, actual_ai_credits, actual_usd, estimated_ai_credits, pricing_basis, pricing_metadata_json, pricing_diagnostics_json FROM usage_records');
+  assert.equal(usage[0].actual_charge_nano_aiu, 974185000);
+  assert.equal(usage[0].actual_ai_credits, 0.974185);
+  assert.equal(usage[0].actual_usd, 0.00974185);
+  assert.ok(usage[0].estimated_ai_credits > 0);
+  assert.equal(usage[0].pricing_basis, 'actual');
+  assert.match(usage[0].pricing_metadata_json, /totalPremiumRequests/);
+  assert.match(usage[0].pricing_diagnostics_json, /requests_cost_zero/);
 });
 
 test('Copilot session-state import checkpoints appended logs without dropping new usage', async () => {

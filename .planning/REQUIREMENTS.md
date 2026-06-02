@@ -11,24 +11,24 @@ This milestone turns pricing from a single implied estimate into an evidence-ran
 
 ### Price Evidence Import
 
-- [ ] **PRICE-01**: User can import known local charge or AI Credit fields from Copilot CLI session-state logs, including `totalNanoAiu`, per-model request cost, and total premium request counters when present.
-- [ ] **PRICE-02**: User can import session-local model pricing metadata from VS Code and VS Code Insiders logs, including `inputCost`, `outputCost`, `cacheCost`, model picker pricing text, and `billing.token_prices` records.
-- [ ] **PRICE-03**: User can preserve charge fields, pricing table fields, and derived estimates as distinct store/report concepts so actual observed values are not overwritten by estimates.
+- [x] **PRICE-01**: User can import known local charge or AI Credit fields from Copilot CLI session-state logs, including `totalNanoAiu`, per-model request cost, and total premium request counters when present.
+- [x] **PRICE-02**: User can import session-local model pricing metadata from VS Code and VS Code Insiders logs, including `inputCost`, `outputCost`, `cacheCost`, model picker pricing text, and `billing.token_prices` records.
+- [x] **PRICE-03**: User can preserve charge fields, pricing table fields, and derived estimates as distinct store/report concepts so actual observed values are not overwritten by estimates.
 
 ### Estimate Classification
 
-- [ ] **PRICE-04**: User can see whether each usage record has cache-read counts known, explicitly zero, or unknown.
-- [ ] **PRICE-05**: User can get a high-confidence estimate when input, output, cache-read, cache-write, model, and price data are all known.
-- [ ] **PRICE-06**: User can get an upper-bound estimate when prompt/output tokens are known but cache-read token counts are missing, with the uncached-input assumption recorded.
-- [ ] **PRICE-07**: User can see warnings for unknown pricing, stale/static pricing fallback, included/free `0x` sessions, and conflicting charge versus estimate evidence.
-- [ ] **PRICE-11**: User can see cache metadata and context-utilization diagnostics separately from billable token buckets, so cache keys, cache types, and compaction utilization are never mistaken for numeric cache-read usage.
+- [x] **PRICE-04**: User can see whether each usage record has cache-read counts known, explicitly zero, or unknown.
+- [x] **PRICE-05**: User can get a high-confidence estimate when input, output, cache-read, cache-write, model, and price data are all known.
+- [x] **PRICE-06**: User can get an upper-bound estimate when prompt/output tokens are known but cache-read token counts are missing, with the uncached-input assumption recorded.
+- [x] **PRICE-07**: User can see warnings for unknown pricing, stale/static pricing fallback, included/free `0x` sessions, and conflicting charge versus estimate evidence.
+- [x] **PRICE-11**: User can see cache metadata and context-utilization diagnostics separately from billable token buckets, so cache keys, cache types, and compaction utilization are never mistaken for numeric cache-read usage.
 
 ### Reports
 
-- [ ] **PRICE-08**: User can inspect label, model, repo, and detail reports with pricing basis fields in JSON output, including actual charge, estimated charge, upper-bound charge, AI Credits, and estimate confidence.
-- [ ] **PRICE-09**: User can read human report output that clearly distinguishes actual, estimated, and upper-bound values without making the table noisy.
-- [ ] **PRICE-10**: User can trace pricing evidence back to source type, session ID, request/exchange ID, and model so duplicate session exchange imports still collapse to one billed/estimated usage record.
-- [ ] **PRICE-12**: User can import diagnostics from VS Code logs without persisting or printing auth tokens or full prompt/assistant content found in agenthost, AHP, hook, or extension logs.
+- [x] **PRICE-08**: User can inspect label, model, repo, and detail reports with pricing basis fields in JSON output, including actual charge, estimated charge, upper-bound charge, AI Credits, and estimate confidence.
+- [x] **PRICE-09**: User can read human report output that clearly distinguishes actual, estimated, and upper-bound values without making the table noisy.
+- [x] **PRICE-10**: User can trace pricing evidence back to source type, session ID, request/exchange ID, and model so duplicate session exchange imports still collapse to one billed/estimated usage record.
+- [x] **PRICE-12**: User can import diagnostics from VS Code logs without persisting or printing auth tokens or full prompt/assistant content found in agenthost, AHP, hook, or extension logs.
 
 ## Future Requirements
 

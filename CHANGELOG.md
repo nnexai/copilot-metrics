@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.9 - 2026-06-02
+
+### Added
+
+- Pricing evidence fields now distinguish trusted observed local charge evidence, high-confidence token-price estimates, upper-bound estimates, cache-read status, pricing source, confidence, and diagnostics in JSON reports.
+- Copilot CLI session-state imports now preserve `totalNanoAiu`, request cost/count, premium request counters, and comparable estimates without treating included/zero request cost as proof of zero token value.
+- VS Code chat fallback imports now use session-local model pricing metadata and companion debug logs at `GitHub.copilot-chat/debug-logs/<session-id>/main.jsonl` when `llm_request.attrs.cachedTokens` is present.
+- Report commands support `--refresh` to re-read configured sources and merge newly available pricing evidence into existing usage rows without duplicating the exchange.
+
+### Changed
+
+- Rows with prompt/output tokens but unknown numeric cache-read counts are reported as upper-bound estimates instead of exact estimates.
+- Human reports keep compact tables while adding pricing-basis markers for actual, upper-bound, and estimated values.
+- Duplicate usage merge now preserves the strongest pricing evidence when OTel, VS Code fallback, debug logs, and Copilot session-state data arrive at different times.
+
 ## 0.1.8 - 2026-06-02
 
 ### Added

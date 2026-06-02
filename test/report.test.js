@@ -93,6 +93,61 @@ test('reports auto-import configured JSONL sources idempotently', async () => {
   assert.equal(rows[0].count, 4);
 });
 
+test('report --refresh re-reads configured sources and merges new debug pricing evidence', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-refresh-report-'));
+  const userHome = path.join(home, 'user-home');
+  const workspace = path.join(userHome, '.config', 'Code - Insiders', 'User', 'workspaceStorage', 'workspace-a');
+  const chatDir = path.join(workspace, 'chatSessions');
+  const debugDir = path.join(workspace, 'GitHub.copilot-chat', 'debug-logs', 'session-refresh');
+  fs.mkdirSync(chatDir, { recursive: true });
+  fs.mkdirSync(debugDir, { recursive: true });
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({
+    sources: {
+      vscode: {
+        additionalChatSessions: [chatDir],
+      },
+    },
+  }, null, 2));
+  fs.writeFileSync(path.join(chatDir, 'session-refresh.jsonl'), JSON.stringify({
+    kind: 0,
+    v: {
+      sessionId: 'session-refresh',
+      inputState: { selectedModel: { metadata: { id: 'gpt-5-mini', inputCost: 25, outputCost: 200, cacheCost: 2 } } },
+      requests: [{
+        message: { text: 'Refresh DEMO-883 pricing evidence.' },
+        responseId: 'response-refresh',
+        resolvedModel: 'gpt-5-mini',
+        usage: { inputTokens: 1000, outputTokens: 100 },
+      }],
+    },
+  }) + '\n');
+
+  const env = {
+    ...process.env,
+    COPILOT_HOME: path.join(home, 'copilot-home'),
+    HOME: userHome,
+    USERPROFILE: userHome,
+  };
+  const first = JSON.parse(execFileSync(process.execPath, [cli, 'report', 'labels', '--home', home, '--json'], { cwd: root, encoding: 'utf8', env }));
+  assert.equal(first.labels.find((row) => row.label === 'DEMO-883').upper_bound_usage_records, 1);
+
+  fs.writeFileSync(path.join(debugDir, 'main.jsonl'), JSON.stringify({
+    type: 'llm_request',
+    attrs: { cachedTokens: 250 },
+  }) + '\n');
+  const second = JSON.parse(execFileSync(process.execPath, [cli, 'report', 'labels', '--refresh', '--home', home, '--json'], { cwd: root, encoding: 'utf8', env }));
+  const refreshed = second.labels.find((row) => row.label === 'DEMO-883');
+  assert.equal(refreshed.usage_records, 1);
+  assert.equal(refreshed.cache_read_tokens, 250);
+  assert.equal(refreshed.upper_bound_usage_records, 0);
+
+  const rows = await queryOne(path.join(home, 'store', 'copilot-metrics.sqlite'), 'SELECT COUNT(*) AS count, cache_read_tokens, cache_read_status FROM usage_records');
+  assert.equal(rows[0].count, 1);
+  assert.equal(rows[0].cache_read_tokens, 250);
+  assert.equal(rows[0].cache_read_status, 'known');
+});
+
 test('hook-only labels are visible without implying token usage', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-hook-only-'));
   run(['import', '--source', 'hooks', '--file', path.join(fixtures, 'hook-events.jsonl'), '--home', home, '--json']);

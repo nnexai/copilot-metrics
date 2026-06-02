@@ -43,14 +43,71 @@ function modelPriceKey(model) {
   return normalized;
 }
 
-function estimateCost(record) {
+function localPrice(record) {
+  const metadata = record.pricing_metadata && typeof record.pricing_metadata === 'object'
+    ? record.pricing_metadata
+    : {};
+  if (!metadata.token_prices) return null;
+  const prices = metadata.token_prices && typeof metadata.token_prices === 'object'
+    ? metadata.token_prices
+    : metadata;
+
+  const input = Number(prices.input_usd_per_million ?? prices.input);
+  const output = Number(prices.output_usd_per_million ?? prices.output);
+  const cacheRead = Number(prices.cache_read_usd_per_million ?? prices.cacheRead ?? prices.cache_read ?? prices.cache);
+  const cacheWrite = Number(prices.cache_write_usd_per_million ?? prices.cacheWrite ?? prices.cache_write ?? 0);
+  if (!Number.isFinite(input) || !Number.isFinite(output)) return null;
+  return {
+    input,
+    output,
+    cacheRead: Number.isFinite(cacheRead) ? cacheRead : input,
+    cacheWrite: Number.isFinite(cacheWrite) ? cacheWrite : 0,
+    source: metadata.source || 'session',
+  };
+}
+
+function priceForRecord(record) {
+  const sessionPrice = localPrice(record);
+  if (sessionPrice) return sessionPrice;
   const model = modelPriceKey(record.resolved_model || record.requested_model);
   const price = MODEL_PRICES[model];
-  if (!model) {
+  if (!model) return { warning: 'missing_model' };
+  if (!price) return { warning: `unknown_model:${model}` };
+  return { ...price, source: 'static' };
+}
+
+function cacheReadStatus(record) {
+  if (record.cache_read_status) return record.cache_read_status;
+  if (record.cache_read_tokens === null || record.cache_read_tokens === undefined) return 'unknown';
+  return Number(record.cache_read_tokens || 0) > 0 ? 'known' : 'explicit_zero';
+}
+
+function actualCharge(record) {
+  const nanoAiu = Number(record.actual_charge_nano_aiu ?? record.total_nano_aiu);
+  if (Number.isFinite(nanoAiu) && nanoAiu >= 0) {
+    const credits = Number((nanoAiu / 1_000_000_000).toFixed(9));
+    return {
+      actual_charge_nano_aiu: nanoAiu,
+      actual_ai_credits: credits,
+      actual_usd: Number((credits * 0.01).toFixed(8)),
+      actual_basis: 'totalNanoAiu',
+    };
+  }
+  return {
+    actual_charge_nano_aiu: null,
+    actual_ai_credits: null,
+    actual_usd: null,
+    actual_basis: null,
+  };
+}
+
+function estimateCost(record) {
+  const price = priceForRecord(record);
+  if (price.warning === 'missing_model') {
     return { estimated_usd: null, estimated_ai_credits: null, warning: 'missing_model' };
   }
-  if (!price) {
-    return { estimated_usd: null, estimated_ai_credits: null, warning: `unknown_model:${model}` };
+  if (price.warning) {
+    return { estimated_usd: null, estimated_ai_credits: null, warning: price.warning };
   }
 
   const cacheReadTokens = Number(record.cache_read_tokens || 0);
@@ -68,13 +125,69 @@ function estimateCost(record) {
   return {
     estimated_usd: Number(usd.toFixed(8)),
     estimated_ai_credits: Number((usd / 0.01).toFixed(6)),
+    pricing_source: price.source,
     warning: null,
+  };
+}
+
+function classifyPricing(record) {
+  const estimate = estimateCost(record);
+  const actual = actualCharge(record);
+  const status = cacheReadStatus(record);
+  const diagnostics = Array.isArray(record.pricing_diagnostics) ? [...record.pricing_diagnostics] : [];
+  const warnings = [];
+  if (estimate.warning) warnings.push(estimate.warning);
+  if (status === 'unknown') warnings.push('cache_read_unknown_upper_bound');
+  if (record.included_or_zero) diagnostics.push('included_or_zero');
+
+  let pricingBasis = 'estimated';
+  let confidence = 'high';
+  let upperBoundUsd = null;
+  let upperBoundCredits = null;
+
+  if (estimate.warning) {
+    pricingBasis = 'unknown_price';
+    confidence = 'unknown';
+  } else if (status === 'unknown') {
+    pricingBasis = 'upper_bound';
+    confidence = 'upper_bound';
+    upperBoundUsd = estimate.estimated_usd;
+    upperBoundCredits = estimate.estimated_ai_credits;
+  }
+
+  if (actual.actual_charge_nano_aiu !== null) {
+    pricingBasis = 'actual';
+    if (confidence === 'unknown') confidence = 'actual';
+    if (estimate.estimated_ai_credits !== null) {
+      const delta = Math.abs(Number(actual.actual_ai_credits || 0) - Number(estimate.estimated_ai_credits || 0));
+      if (delta > Math.max(0.01, Number(estimate.estimated_ai_credits || 0) * 0.5)) {
+        diagnostics.push('actual_estimate_delta');
+      }
+    }
+  } else if (record.included_or_zero && pricingBasis === 'estimated') {
+    pricingBasis = 'included_or_zero';
+    confidence = 'plan_included';
+  }
+
+  return {
+    ...actual,
+    estimated_usd: estimate.estimated_usd,
+    estimated_ai_credits: estimate.estimated_ai_credits,
+    upper_bound_usd: upperBoundUsd,
+    upper_bound_ai_credits: upperBoundCredits,
+    pricing_basis: pricingBasis,
+    estimate_confidence: confidence,
+    cache_read_status: status,
+    pricing_source: estimate.pricing_source || null,
+    pricing_diagnostics: Array.from(new Set(diagnostics)),
+    warnings,
   };
 }
 
 module.exports = {
   PRICING_VERSION,
   MODEL_PRICES,
+  classifyPricing,
   estimateCost,
   modelPriceKey,
 };

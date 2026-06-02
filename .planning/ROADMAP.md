@@ -6,7 +6,7 @@
 
 ## Overview
 
-Build a local-first Copilot usage tracker in incremental CLI-first slices. The initial milestone delivered setup, ingestion, attribution, reports, hardening, publishing, and setup-once behavior. The current v0.1.9 milestone improves pricing by separating actual local charge evidence, high-confidence estimates, and upper-bound fallback estimates.
+Build a local-first Copilot usage tracker in incremental CLI-first slices. The initial milestone delivered setup, ingestion, attribution, reports, hardening, publishing, and setup-once behavior. The completed v0.1.9 milestone improves pricing by separating actual local charge evidence, high-confidence estimates, and upper-bound fallback estimates.
 
 ## Phases
 
@@ -22,7 +22,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 - [x] **Phase 5: GitHub and npm Publishing Preparation** - Add repository automation and package publishing readiness for GitHub and npm.
 - [x] **Phase 6: 0.1.1 Zero-friction setup, automatic hook ingestion, and complete token reporting** - Add setup-once reports, idempotent auto-import, complete token categories, and hook-only label semantics.
 - [x] **Phase 7: 0.1.8 Session log fallback ingestion** - Make local VS Code, VS Code Insiders, and Copilot CLI session logs the default fallback path when hooks and OTel are unavailable.
-- [ ] **Phase 8: 0.1.9 Better pricing estimates** - Use the strongest available local pricing evidence and report actual, estimated, and upper-bound values distinctly.
+- [x] **Phase 8: 0.1.9 Better pricing estimates** - Use the strongest available local pricing evidence and report actual, estimated, and upper-bound values distinctly.
 
 ## Phase Details
 
@@ -259,7 +259,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] Pricing evidence, estimate confidence, and report semantics
+- [x] Pricing evidence, estimate confidence, and report semantics
 
 **Expected deliverables:**
 - Store/import support for actual local charge evidence such as Copilot CLI `totalNanoAiu`, per-model request cost, total premium requests, and any future observed AI Credit/cents fields.
@@ -302,7 +302,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 5. GitHub and npm Publishing Preparation | 0/0 | Complete via Phase 4 | 2026-05-30 |
 | 6. 0.1.1 Zero-friction setup, automatic hook ingestion, and complete token reporting | 1/1 | Complete | 2026-05-30 |
 | 7. 0.1.8 Session log fallback ingestion | 1/1 | Complete | 2026-06-02 |
-| 8. 0.1.9 Better pricing estimates | 0/1 | Planned | — |
+| 8. 0.1.9 Better pricing estimates | 1/1 | Complete | 2026-06-02 |
 
 ## Deferred
 

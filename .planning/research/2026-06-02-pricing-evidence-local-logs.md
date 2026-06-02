@@ -99,10 +99,11 @@ Interpretation:
 - VS Code Insiders can expose session-local model pricing metadata.
 - `cacheKey` and `cacheType` prove cache-related prompt handling exists, but they are not token counts and must not be converted into discounted cache-read usage.
 - VS Code hook/log metadata can support `cache_present=true` and `cache_read_unknown`, but not `cache_read_tokens`.
+- Follow-up research from `rajbos/ai-engineering-fluency` shows a stronger VS Code path: Copilot Chat debug logs can live beside sessions under `debug-logs/{sessionId}/main.jsonl`, where `llm_request` events expose `attrs.cachedTokens`. When that companion file exists, those numeric cached-token counts should be treated as cache-read evidence for VS Code fallback rows.
 - No VS Code session-end actual charge field was found in the inspected local files: no `totalNanoAiu`, final `aiCredits`, `creditsUsed`, cents, or per-session billed `cost`.
 - `multiplierNumeric: 0`, `pricing: 0x`, and token SKU values should be preserved as plan/inclusion evidence, but they are not equivalent to a measured session debit.
 - Context utilization feedback is useful for diagnostics and compaction analysis, but it is not a billable token bucket.
-- Without numeric cache-read counts, the prompt-token cost can only be an upper bound if priced as fully uncached input.
+- Without numeric cache-read counts from either session fields or a debug-log companion file, the prompt-token cost can only be an upper bound if priced as fully uncached input.
 
 Privacy note:
 
@@ -114,7 +115,8 @@ Privacy note:
 - Add cache availability states: `known`, `explicit_zero`, and `unknown`.
 - Prefer actual local charge fields in reports when present, but preserve token-price estimates for comparison.
 - Use session-local model prices before static fallback pricing when the source provides token price metadata.
-- Label VS Code fallback rows with missing numeric cache-read counts as upper-bound estimates, not exact estimates.
+- Check VS Code `debug-logs/{sessionId}/main.jsonl` companion files for `llm_request.attrs.cachedTokens`; when present, use those as numeric cache-read evidence.
+- Label VS Code fallback rows with missing numeric cache-read counts after debug-log lookup as upper-bound estimates, not exact estimates.
 - Add a distinct `included_or_zero` / `plan_included` basis for `0x`, `multiplierNumeric: 0`, or quota SKU evidence when no measured charge exists.
 - Add a `context_usage_only` diagnostic for logs that expose context utilization but not billable token buckets.
 - Treat VS Code cache metadata as evidence to explain why an upper bound may overstate cost, not as a pricing input.

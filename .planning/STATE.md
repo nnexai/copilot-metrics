@@ -2,21 +2,21 @@
 gsd_state_version: 1.0
 milestone: v0.1.9
 milestone_name: Better pricing estimates
-status: planning
-last_updated: "2026-06-02T08:25:00.000Z"
+status: complete
+last_updated: "2026-06-02T12:00:00.000Z"
 last_activity: 2026-06-02
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 1
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 100
 ---
 
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** v0.1.9 milestone planning
+**Status:** v0.1.9 milestone complete
 
 ## Project Reference
 
@@ -43,10 +43,10 @@ Phase 8: 0.1.9 Better pricing estimates
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-06-02 — Milestone v0.1.9 started for better pricing estimates and pricing evidence in reports
+Phase: 8 complete
+Plan: 08-01 complete
+Status: Verification passed
+Last activity: 2026-06-02 — Phase 8 and v0.1.9 milestone audit completed with pricing evidence fields, VS Code debug-log cached-token support, report `--refresh`, and release docs
 
 ## Notes
 
@@ -67,6 +67,10 @@ Last activity: 2026-06-02 — Milestone v0.1.9 started for better pricing estima
 - Manual Copilot CLI validation passed with `gpt-5-mini`: telemetry JSONL existed and imported, hook JSONL existed, and hook import recorded 16 hook events.
 - Phase 6 added and completed `copilot-metrics@0.1.1`: setup-once config persistence, idempotent auto-import before reports, complete cache/reasoning token reporting, hook-only label status, installed shim hook command support, docs/changelog/package version updates.
 - Phase 6 automated verification passed: `npm test`, `npm run check`, `npm run smoke`, and `npm run verify:package`.
+- Phase 8 completed `copilot-metrics@0.1.9`: trusted observed local charge evidence via `totalNanoAiu`, session-local pricing metadata, cache-read status, upper-bound estimates, VS Code debug-log cached-token extraction, report `--refresh`, pricing-basis JSON fields, compact human report basis markers, and release docs.
+- Phase 8 automated verification passed: `npm test`, `npm run check`, `npm run smoke`, `npm run verify:package`, and `npm run check:readme-version`.
+- Local VS Code Insiders debug-log validation found the expected `GitHub.copilot-chat/debug-logs/<session-id>/main.jsonl` layout; sampled current files contained only `session_start` rows, so positive `llm_request.attrs.cachedTokens` extraction is fixture validated.
+- v0.1.9 milestone audit passed. Complete-milestone/archive/cleanup is deferred until after the human-gated publish step because it commits, tags, archives, and deletes current planning files.
 
 ## Accumulated Context
 
@@ -76,6 +80,7 @@ Last activity: 2026-06-02 — Milestone v0.1.9 started for better pricing estima
 - Phase 7 added: `copilot-metrics@0.1.8` fallback release for default VS Code, VS Code Insiders, and Copilot CLI session-log parsing when hooks and OTel are unavailable.
 - Phase 7 completed: fallback session-log ingestion now includes setup defaults, additive custom sources, VS Code `.jsonl`/`.json` token-bearing parsing, Copilot CLI session-state checkpoints, cross-source usage dedupe, fallback diagnostics, privacy-preserving raw/checkpoint storage, and `0.1.8` release docs.
 - Phase 8 added: `copilot-metrics@0.1.9` pricing evidence release for actual local charge signals, session-local price metadata, cache-read availability, upper-bound estimates, and clearer report semantics.
+- Phase 8 completed: `copilot-metrics@0.1.9` now separates actual local charge evidence, high-confidence estimates, upper-bound estimates, cache diagnostics, and pricing provenance across import, store, and reports.
 
 ## Quick Tasks Completed
 
@@ -87,4 +92,5 @@ Last activity: 2026-06-02 — Milestone v0.1.9 started for better pricing estima
 
 ## Operator Next Steps
 
-- Plan and execute Phase 8: pricing evidence, estimate confidence, and report semantics.
+- Publish `copilot-metrics@0.1.9` through the existing release workflow when ready.
+- After publish, validate from outside the checkout with `npx -y copilot-metrics@0.1.9 --help` and representative report commands.

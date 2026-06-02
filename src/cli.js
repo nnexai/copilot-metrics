@@ -82,11 +82,11 @@ Usage:
   copilot-metrics hook-log --event <name>
   copilot-metrics store init [--json]
   copilot-metrics import --source vscode|vscode-chat|copilot-cli|copilot-session|hooks --file <path> [--json]
-  copilot-metrics report labels [--json]
-  copilot-metrics report label <id> [--detail] [--json]
-  copilot-metrics report models [--json]
-  copilot-metrics report repos [--json]
-  copilot-metrics report unattributed [--json]
+  copilot-metrics report labels [--refresh] [--json]
+  copilot-metrics report label <id> [--detail] [--refresh] [--json]
+  copilot-metrics report models [--refresh] [--json]
+  copilot-metrics report repos [--refresh] [--json]
+  copilot-metrics report unattributed [--refresh] [--json]
   copilot-metrics pricing list [--json]
 
 Environment:
@@ -454,6 +454,7 @@ async function main(args, io) {
         cwd: io.cwd,
         extractors: loadConfiguredExtractors(paths.configJson, io.cwd),
         onProgress: progress,
+        forceRefresh: flags.refresh === true,
       });
       const diagnostics = telemetryDiagnostics(imports);
 
