@@ -8,17 +8,15 @@ Copilot Metrics is a local Node.js/npm-based toolkit for estimating GitHub Copil
 
 Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
 
-## Current Milestone: v0.2.1 selected session pricing
+## Current Milestone: v0.3.0 configurable label patterns
 
-**Goal:** Make `copilot-metrics@0.2.1` report exactly one selected price per Copilot session/request, chosen by the strongest available pricing evidence, while keeping alternate estimates as audit diagnostics instead of double-counting them.
+**Goal:** Make `copilot-metrics@0.3.0` support a middle-ground label configuration where users keep the internal metadata extractor but provide their own regex pattern in config.
 
 **Target features:**
-- Add explicit selected pricing fields for the confidence-ordered winner: actual charge, displayed credit, complete estimate, upper bound, included/zero, then unknown.
-- Make label, model, repo, and detail reports aggregate selected prices, not every comparable estimate stored on a row.
-- Keep displayed credits, token estimates, upper bounds, inferred cache reads, and conflicts as separate audit evidence.
-- Canonicalize VS Code session/request identities so OTel rows, chat-session rows, and response ID aliases merge into one priced usage record.
-- Repair existing local stores that already contain duplicate VS Code rows from old identity formats or fallback/OTel alias mismatches.
-- Make refresh focused enough to update changed VS Code session evidence without long silent full scans.
+- Add `labelPatterns` config for regex-driven internal extraction.
+- Preserve built-in field scanning, source metadata, source values, and confidence scoring for configured regex matches.
+- Keep JavaScript `labelExtractors` as full replacement extractors when configured.
+- Document the default, pattern-configured, and JavaScript replacement paths.
 
 ## Requirements
 
@@ -53,11 +51,11 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 - Validated: Surface pricing basis, estimate confidence, and source/session evidence in human and JSON reports - v0.1.9
 - Validated: Treat VS Code cache keys/cache types and context-utilization logs as diagnostics, not numeric billing inputs - v0.1.9
 - Validated: Redact auth-like values from VS Code extension, AHP, agenthost, and hook log diagnostics - v0.1.9
+- Validated: Configure the internal label extractor with user-provided regex patterns while preserving built-in metadata evidence behavior - v0.3.0
 
 ### Active
 
-- User can import VS Code displayed credit lines from chat session details, use them before upper-bound token estimation when no stronger actual charge evidence exists, and optionally derive effective cache-read estimates from displayed price deltas - v0.2.0
-- User can report one selected price per Copilot session/request, chosen by confidence, while retaining non-selected evidence only for diagnostics and repairable audit trails - v0.2.1
+No active requirements. `v0.3.0` local release verification is complete; publish remains human-gated.
 
 ### Out of Scope
 

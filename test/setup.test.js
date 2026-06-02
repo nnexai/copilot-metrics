@@ -57,6 +57,8 @@ test('setup snapshot persists central config for setup-once flow', () => {
   assert.deepEqual(config.sources.vscode.chatSessions, snapshot.paths.vscodeChatSessionDirs);
   assert.deepEqual(config.sources.vscode.additionalChatSessions, []);
   assert.deepEqual(config.sources.copilotCli.additionalSessions, []);
+  assert.deepEqual(config.labelPatterns, []);
+  assert.deepEqual(config.labelExtractors, []);
 });
 
 test('setup snapshot upgrades existing central config with session source', () => {

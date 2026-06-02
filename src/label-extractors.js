@@ -3,6 +3,7 @@
 const path = require('node:path');
 
 const JIRA_LABEL_RE = /\b([A-Z][A-Z0-9]+-\d+)\b/gi;
+const DEFAULT_LABEL_PATTERNS = [JIRA_LABEL_RE];
 
 function canonicalLabel(label) {
   return String(label || '').trim().toUpperCase();
@@ -24,7 +25,54 @@ function sourceValue(field, value, label) {
   return label;
 }
 
-function extractJiraLabels(sourceType, sourceData = {}) {
+function ensureGlobalFlags(flags = '') {
+  const unique = Array.from(new Set(String(flags).split('').filter(Boolean))).join('');
+  return unique.includes('g') ? unique : `${unique}g`;
+}
+
+function parseRegexLiteral(value) {
+  const match = String(value).match(/^\/(.+)\/([a-z]*)$/i);
+  return match ? { pattern: match[1], flags: match[2] } : null;
+}
+
+function compileLabelPattern(entry) {
+  if (entry instanceof RegExp) {
+    return new RegExp(entry.source, ensureGlobalFlags(entry.flags));
+  }
+
+  if (typeof entry === 'string') {
+    const literal = parseRegexLiteral(entry);
+    if (literal) return new RegExp(literal.pattern, ensureGlobalFlags(literal.flags));
+    return new RegExp(entry, 'gi');
+  }
+
+  if (entry && typeof entry.pattern === 'string') {
+    return new RegExp(entry.pattern, ensureGlobalFlags(entry.flags || 'i'));
+  }
+
+  throw new Error('Configured label pattern must be a regex string or an object with a pattern field.');
+}
+
+function configuredLabelPatterns(config = {}) {
+  const patterns = [];
+  if (config.labelPattern) patterns.push(config.labelPattern);
+  if (config.labelRegex) patterns.push(config.labelRegex);
+  if (Array.isArray(config.labelPatterns)) patterns.push(...config.labelPatterns);
+  return patterns.map(compileLabelPattern);
+}
+
+function matchLabelPatterns(text, patterns) {
+  const labels = [];
+  for (const pattern of patterns) {
+    pattern.lastIndex = 0;
+    for (const match of String(text).matchAll(pattern)) {
+      labels.push(canonicalLabel(match[1] || match[0]));
+    }
+  }
+  return labels;
+}
+
+function extractLabelsWithPatterns(sourceType, sourceData = {}, patterns = DEFAULT_LABEL_PATTERNS) {
   const evidence = [];
   const fields = {
     labels: sourceData.labels,
@@ -42,9 +90,7 @@ function extractJiraLabels(sourceType, sourceData = {}) {
     const values = Array.isArray(value) ? value : [value];
     for (const item of values) {
       if (item === undefined || item === null) continue;
-      const text = String(item);
-      for (const match of text.matchAll(JIRA_LABEL_RE)) {
-        const label = canonicalLabel(match[1]);
+      for (const label of matchLabelPatterns(item, patterns)) {
         evidence.push({
           label,
           source_type: sourceType,
@@ -57,6 +103,15 @@ function extractJiraLabels(sourceType, sourceData = {}) {
   }
 
   return evidence;
+}
+
+function extractJiraLabels(sourceType, sourceData = {}) {
+  return extractLabelsWithPatterns(sourceType, sourceData, DEFAULT_LABEL_PATTERNS);
+}
+
+function createPatternExtractor(patterns) {
+  const compiled = patterns.map(compileLabelPattern);
+  return (sourceType, sourceData) => extractLabelsWithPatterns(sourceType, sourceData, compiled);
 }
 
 function normalizeExtractorResult(result, sourceType) {
@@ -100,6 +155,11 @@ function loadConfiguredExtractors(configPath, cwd = process.cwd()) {
   }
 
   const configured = Array.isArray(config.labelExtractors) ? config.labelExtractors : [];
+  if (configured.length === 0) {
+    const patterns = configuredLabelPatterns(config);
+    return patterns.length > 0 ? [createPatternExtractor(patterns)] : [];
+  }
+
   return configured.map((entry) => {
     const modulePath = typeof entry === 'string' ? entry : entry && entry.path;
     if (!modulePath) return null;
@@ -112,8 +172,11 @@ function loadConfiguredExtractors(configPath, cwd = process.cwd()) {
 }
 
 module.exports = {
+  DEFAULT_LABEL_PATTERNS,
   JIRA_LABEL_RE,
   canonicalLabel,
+  configuredLabelPatterns,
+  createPatternExtractor,
   extractJiraLabels,
   loadConfiguredExtractors,
   runLabelExtractors,

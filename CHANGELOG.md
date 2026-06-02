@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 - 2026-06-02
+
+### Added
+
+- Local config can now provide `labelPatterns` to customize the built-in label extractor's regex while keeping the internal metadata scanning, evidence fields, and confidence rules.
+- `labelPattern` and `labelRegex` are accepted as single-pattern aliases for simple configs.
+
+### Changed
+
+- JavaScript `labelExtractors` remain full replacement extractors. When configured, they override both the default Jira pattern and any configured `labelPatterns`.
+
 ## 0.2.1 - 2026-06-02
 
 ### Added

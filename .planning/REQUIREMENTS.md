@@ -1,33 +1,22 @@
-# Requirements: v0.2.1 selected session pricing
+# Requirements: v0.3.0 configurable label patterns
 
 **Created:** 2026-06-02
-**Milestone:** v0.2.1 selected session pricing
+**Milestone:** v0.3.0 configurable label patterns
 
 ## Overview
 
-This milestone fixes the practical reporting gap found after the v0.2.0 release. A Copilot session/request can have multiple local evidence sources: VS Code OTel rows, VS Code chat-session fallback rows, displayed credit strings, token-price estimates, upper-bound estimates, and `0x` included evidence. The user-facing total must count exactly one selected price per session/request: the price with the highest confidence according to the pricing precedence. Other prices remain useful, but only as comparable diagnostics. The release also repairs duplicate VS Code rows created by old identity formats and by response ID aliases such as top-level `response_*` IDs versus metadata response IDs.
+This release adds the middle-ground label customization path: users can keep the built-in extractor's safe metadata fields, source evidence, confidence rules, and de-duplication while replacing only the regex pattern used to identify labels. Full JavaScript extractors remain available for advanced replacement logic.
 
-## Active Requirements
+## Validated Requirements
 
-### Selected Pricing
-
-- [ ] **SEL-01**: User gets one selected price per Copilot session/request, chosen by confidence order: actual charge evidence, displayed credit evidence, complete token estimate, upper-bound estimate, included/zero evidence, then unknown.
-- [ ] **SEL-02**: User can inspect non-selected pricing evidence as diagnostics without those values contributing to label, model, repo, or session totals.
-- [ ] **SEL-03**: User can see selected price fields in JSON reports, including selected AI Credits, selected USD, selected pricing basis, selected confidence, and the evidence source that won.
-- [ ] **SEL-04**: User-facing human reports aggregate and display selected prices by default, while preserving compact markers for displayed, actual, estimate, upper-bound, included/zero, and conflict cases.
-
-### VS Code Session Deduplication
-
-- [ ] **SEL-05**: User can merge VS Code OTel, VS Code chat-session fallback, and displayed-credit evidence into one usage record when they refer to the same session/request.
-- [ ] **SEL-06**: User can preserve response ID aliases such as top-level `response_*`, `result.metadata.responseId`, `modelMessageId`, request ID, session ID, model, and timestamp proximity as evidence for canonical matching.
-- [ ] **SEL-07**: User does not get duplicate usage totals when old stored identities differ only by token bucket inclusion or by fallback versus OTel source identity.
-- [ ] **SEL-08**: User can repair an existing local store so already-ingested duplicate VS Code rows collapse to one selected-price record without deleting source evidence needed for audit.
-
-### Refresh and Verification
-
-- [ ] **SEL-09**: User can refresh changed VS Code session evidence without a long silent full scan; refresh should be targeted by source file change state or expose progress when broad scanning is unavoidable.
-- [ ] **SEL-10**: User can verify the behavior with fixtures covering selected-price aggregation, displayed-over-estimate precedence in reports, `0x` included rows contributing zero selected price, OTel/chat alias merging, old identity repair, and repeated refresh idempotence.
-- [ ] **SEL-11**: User can run release verification for `copilot-metrics@0.2.1` through npm scripts and isolated `npx` validation after publish.
+- [x] **PAT-01**: User can configure one or more regex patterns through local config using `labelPatterns`.
+- [x] **PAT-02**: Configured regex patterns use the built-in extractor's field coverage, source evidence shape, source-value handling, and confidence scoring.
+- [x] **PAT-03**: Pattern matches use the first capture group as the label when present, otherwise the full regex match.
+- [x] **PAT-04**: User can use `labelPattern` or `labelRegex` as a single-pattern alias for simple configs.
+- [x] **PAT-05**: Existing `labelExtractors` JavaScript callbacks keep replacement semantics and override default/configured regex extraction when present.
+- [x] **PAT-06**: Setup-created config includes the new pattern option without requiring users to configure it.
+- [x] **PAT-07**: README and changelog document the default extractor, configured pattern extractor, and JavaScript replacement extractor behavior for `copilot-metrics@0.3.0`.
+- [x] **PAT-08**: User can verify the release through the existing npm scripts and package dry-run.
 
 ## Future Requirements
 
@@ -46,14 +35,11 @@ This milestone fixes the practical reporting gap found after the v0.2.0 release.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SEL-01 | Phase 10 | Planned |
-| SEL-02 | Phase 10 | Planned |
-| SEL-03 | Phase 10 | Planned |
-| SEL-04 | Phase 10 | Planned |
-| SEL-05 | Phase 10 | Planned |
-| SEL-06 | Phase 10 | Planned |
-| SEL-07 | Phase 10 | Planned |
-| SEL-08 | Phase 10 | Planned |
-| SEL-09 | Phase 10 | Planned |
-| SEL-10 | Phase 10 | Planned |
-| SEL-11 | Phase 10 | Planned |
+| PAT-01 | Phase 11 | Validated |
+| PAT-02 | Phase 11 | Validated |
+| PAT-03 | Phase 11 | Validated |
+| PAT-04 | Phase 11 | Validated |
+| PAT-05 | Phase 11 | Validated |
+| PAT-06 | Phase 11 | Validated |
+| PAT-07 | Phase 11 | Validated |
+| PAT-08 | Phase 11 | Validated |

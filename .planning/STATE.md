@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.2.1
-milestone_name: selected session pricing
+milestone: v0.3.0
+milestone_name: configurable label patterns
 status: completed
-last_updated: "2026-06-02T14:45:00.000Z"
+last_updated: "2026-06-02T15:30:00.000Z"
 last_activity: 2026-06-02
 progress:
   total_phases: 1
@@ -23,7 +23,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-06-02)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Milestone v0.2.1 selected session pricing complete; publish gate pending
+**Current focus:** Milestone v0.3.0 configurable label patterns complete; publish gate pending
 
 ## Workflow Settings
 
@@ -39,14 +39,14 @@ See: `.planning/PROJECT.md` (updated 2026-06-02)
 
 ## Current Phase
 
-Phase 10: 0.2.1 selected session pricing and VS Code dedupe (complete)
+Phase 11: 0.3.0 configurable label patterns (complete)
 
 ## Current Position
 
-Phase: 10 complete
-Plan: 10-01 complete
+Phase: 11 complete
+Plan: quick release complete
 Status: Local release verification complete; human-gated publish remains
-Last activity: 2026-06-02 — Phase 10 completed for `copilot-metrics@0.2.1`
+Last activity: 2026-06-02 — Phase 11 completed for `copilot-metrics@0.3.0`
 
 ## Notes
 
@@ -78,6 +78,7 @@ Last activity: 2026-06-02 — Phase 10 completed for `copilot-metrics@0.2.1`
 - Phase 9 automated verification passed: `npm test`, `npm run check`, `npm run smoke`, `npm run verify:package`, and `npm run check:readme-version`.
 - Phase 10 added for `copilot-metrics@0.2.1`: reports must count exactly one selected price per session/request by confidence, keep non-selected price evidence as diagnostics, merge VS Code OTel/chat/display aliases, repair old duplicate rows, and avoid long silent refresh scans.
 - Phase 10 completed `copilot-metrics@0.2.1`: selected local pricing fields now drive report totals, non-selected evidence remains diagnostic, VS Code duplicate OTel/chat/display aliases are repairable, existing stores backfill selected pricing metadata, docs and release files are updated, and local package verification passed.
+- Phase 11 completed `copilot-metrics@0.3.0`: local config now supports `labelPatterns`, `labelPattern`, and `labelRegex` for regex-driven internal label extraction while JavaScript `labelExtractors` remain replacement-only; docs, tests, package version, and local release verification are updated.
 
 ## Accumulated Context
 
@@ -91,6 +92,7 @@ Last activity: 2026-06-02 — Phase 10 completed for `copilot-metrics@0.2.1`
 - Phase 9 completed: `copilot-metrics@0.2.0` parses VS Code displayed-credit details, uses them before token-price estimation when no stronger actual charge evidence exists, and marks inferred cache/credit values separately from observed fields.
 - Phase 10 added: `copilot-metrics@0.2.1` will make selected-price aggregation the user-facing total and repair VS Code duplicate identity paths found during current-day session analysis.
 - Phase 10 completed: `copilot-metrics@0.2.1` selects one price per usage row by confidence, repairs duplicate VS Code identity paths, and prepares the package for human-gated publication.
+- Phase 11 completed: `copilot-metrics@0.3.0` adds configurable regex patterns for the internal label extractor and prepares the package for human-gated publication.
 
 ## Quick Tasks Completed
 
@@ -99,8 +101,9 @@ Last activity: 2026-06-02 — Phase 10 completed for `copilot-metrics@0.2.1`
 | 2026-05-31 | 260531-w8w | Improve report label usability, setup install behavior, hook event coverage, and repeated import caching for `v0.1.4`. |
 | 2026-05-31 | 260531-vscode-response-attribution | Fix VS Code response ID label attribution, existing-store repair, and release `v0.1.5`. |
 | 2026-06-01 | 260601-b7v | Fix `v0.1.7` cost token splitting for USD/AI Credit estimates and make custom extractors override the built-in Jira extractor. |
+| 2026-06-02 | 260602-configurable-label-patterns | Prepare `v0.3.0` with configurable regex patterns for the internal label extractor. |
 
 ## Operator Next Steps
 
-- Publish `copilot-metrics@0.2.1` through the human-gated GitHub/npm release path.
-- After publish, validate from an isolated directory with `npx -y copilot-metrics@0.2.1 --help` and a focused selected-pricing report smoke.
+- Publish `copilot-metrics@0.3.0` through the human-gated GitHub/npm release path.
+- After publish, validate from an isolated directory with `npx -y copilot-metrics@0.3.0 --help` and a focused label-pattern config smoke.

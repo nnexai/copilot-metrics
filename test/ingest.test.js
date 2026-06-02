@@ -689,6 +689,55 @@ test('custom extractors override the built-in Jira extractor', () => {
   assert.deepEqual(evidence.map((item) => item.label), ['TEAM-42']);
 });
 
+test('configured label patterns use the built-in metadata extractor', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-pattern-'));
+  const configPath = path.join(tmp, 'config.json');
+  fs.writeFileSync(configPath, `${JSON.stringify({
+    labelPatterns: ['\\b(ENGREQ-\\d+)\\b'],
+  })}\n`);
+  const extractors = loadConfiguredExtractors(configPath, process.cwd());
+  const evidence = runLabelExtractors('usage', {
+    branch: 'feature/ENGREQ-42',
+    cwd: '/work/DEMO-12345/ENGREQ-99',
+  }, extractors);
+
+  assert.deepEqual(evidence.map((item) => item.label).sort(), ['ENGREQ-42', 'ENGREQ-99']);
+  assert.ok(evidence.some((item) => item.label === 'ENGREQ-42' && item.source_field === 'branch' && item.confidence === 0.85));
+  assert.ok(evidence.every((item) => item.label !== 'DEMO-12345'));
+});
+
+test('configured label pattern accepts regex literal strings', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-pattern-'));
+  const configPath = path.join(tmp, 'config.json');
+  fs.writeFileSync(configPath, `${JSON.stringify({
+    labelPattern: '/\\b(team_[a-z]+-\\d+)\\b/i',
+  })}\n`);
+  const extractors = loadConfiguredExtractors(configPath, process.cwd());
+  const evidence = runLabelExtractors('hook', {
+    task_hint: 'follow team_core-17 and DEMO-12345',
+  }, extractors);
+
+  assert.deepEqual(evidence.map((item) => item.label), ['TEAM_CORE-17']);
+  assert.equal(evidence[0].source_field, 'task_hint');
+});
+
+test('custom extractors override configured label patterns', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-extractor-'));
+  const extractorPath = path.join(tmp, 'extractor.cjs');
+  fs.writeFileSync(extractorPath, `
+module.exports = () => [{ label: 'TEAM-42', source_field: 'custom' }];
+`);
+  const configPath = path.join(tmp, 'config.json');
+  fs.writeFileSync(configPath, `${JSON.stringify({
+    labelPatterns: ['\\b(ENGREQ-\\d+)\\b'],
+    labelExtractors: [extractorPath],
+  })}\n`);
+  const extractors = loadConfiguredExtractors(configPath, process.cwd());
+  const evidence = runLabelExtractors('usage', { branch: 'feature/ENGREQ-42' }, extractors);
+
+  assert.deepEqual(evidence.map((item) => item.label), ['TEAM-42']);
+});
+
 test('configured custom extractors load from config without source changes', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-extractor-'));
   const extractorPath = path.join(tmp, 'extractor.cjs');

@@ -6,7 +6,7 @@
 
 ## Overview
 
-Build a local-first Copilot usage tracker in incremental CLI-first slices. The initial milestone delivered setup, ingestion, attribution, reports, hardening, publishing, and setup-once behavior. The completed v0.2.0 milestone added VS Code displayed-credit evidence before falling back to token-price estimation. The completed v0.2.1 milestone makes reports count exactly one selected price per session/request and repairs VS Code duplicate identity paths.
+Build a local-first Copilot usage tracker in incremental CLI-first slices. The initial milestone delivered setup, ingestion, attribution, reports, hardening, publishing, and setup-once behavior. The completed v0.2.0 milestone added VS Code displayed-credit evidence before falling back to token-price estimation. The completed v0.2.1 milestone makes reports count exactly one selected price per session/request and repairs VS Code duplicate identity paths. The completed v0.3.0 milestone adds configurable regex patterns for the internal label extractor.
 
 ## Phases
 
@@ -26,6 +26,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 - [x] **Phase 8: 0.1.9 Better pricing estimates** - Use the strongest available local pricing evidence and report actual, estimated, and upper-bound values distinctly.
 - [x] **Phase 9: 0.2.0 VS Code displayed credits** - Treat VS Code displayed credit lines as observed local evidence before token-price estimates when stronger actual charge fields are absent, and infer effective cache-read tokens only as marked derived values. (completed 2026-06-02)
 - [x] **Phase 10: 0.2.1 selected session pricing and VS Code dedupe** - Count one confidence-selected price per session/request, merge VS Code OTel/chat/display aliases, repair existing duplicate rows, and make refresh targeted enough for current-session validation. (completed 2026-06-02)
+- [x] **Phase 11: 0.3.0 configurable label patterns** - Let users configure regex patterns for the built-in label extractor while preserving JavaScript extractor replacement semantics. (completed 2026-06-02)
 
 ## Phase Details
 

@@ -81,6 +81,7 @@ function ensureDataDirs(paths) {
         additionalSessions: [],
       },
     },
+    labelPatterns: [],
     labelExtractors: [],
   };
 
@@ -110,6 +111,7 @@ function ensureDataDirs(paths) {
         additionalSessions: asArray(current.sources?.copilotCli?.additionalSessions),
       },
     },
+    labelPatterns: current.labelPatterns || asArray(current.labelPattern || current.labelRegex) || defaultConfig.labelPatterns,
     labelExtractors: current.labelExtractors || defaultConfig.labelExtractors,
   };
   writePrivateFile(paths.configJson, `${JSON.stringify(next, null, 2)}\n`);
