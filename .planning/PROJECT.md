@@ -8,15 +8,16 @@ Copilot Metrics is a local Node.js/npm-based toolkit for estimating GitHub Copil
 
 Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
 
-## Current Milestone: v0.1.9 Better pricing estimates
+## Current Milestone: v0.2.0 VS Code displayed credits
 
-**Goal:** Make `copilot-metrics@0.1.9` distinguish actual local charge signals, high-confidence token estimates, and upper-bound fallback estimates so reports stop implying false precision when cache-read token counts are unavailable.
+**Goal:** Make `copilot-metrics@0.2.0` trust VS Code's displayed per-request credit line, such as `0.8 credits`, when stronger actual charge evidence is unavailable and before falling back to token-price estimation.
 
 **Target features:**
-- Import known local charge fields such as Copilot CLI `totalNanoAiu` / per-model request cost when present, preserving them separately from estimated pricing.
-- Use session-local model price metadata when available, including VS Code Insiders model picker token prices and Copilot CLI shutdown model metrics.
-- Mark cache-read availability explicitly so records with prompt/output tokens but missing cache-read counts are reported as upper-bound estimates rather than exact costs.
-- Surface pricing basis, estimate confidence, and cache/charge diagnostics in human-readable and JSON reports without losing label, repo, source, and session attribution.
+- Parse VS Code and VS Code Insiders chat-session display details such as `GPT-5 mini - 0.8 credits`, `0.8 credit`, and `0x`.
+- Preserve displayed credits as observed local display evidence, distinct from Copilot CLI `totalNanoAiu`, request cost, and token-price estimates.
+- Update pricing precedence so actual charge evidence wins first, displayed credits win next, complete token estimates follow, and upper-bound estimates remain the fallback when cache-read tokens are missing.
+- When displayed credits, token counts, and model pricing are available, infer effective cache-read tokens as a derived diagnostic without overwriting observed cache-read fields.
+- Surface displayed-credit basis, confidence, diagnostics, and source/session evidence in human-readable and JSON reports.
 
 ## Requirements
 
@@ -54,7 +55,7 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 
 ### Active
 
-None.
+- User can import VS Code displayed credit lines from chat session details, use them before upper-bound token estimation when no stronger actual charge evidence exists, and optionally derive effective cache-read estimates from displayed price deltas - v0.2.0
 
 ### Out of Scope
 
@@ -123,4 +124,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-02 starting v0.1.9 better pricing estimates*
+*Last updated: 2026-06-02 starting v0.2.0 VS Code displayed credits*

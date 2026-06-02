@@ -36,6 +36,14 @@ Copilot CLI session-state fallback    /
 - Add fixture coverage for Linux/macOS/Windows default path discovery, VS Code `.jsonl` and `.json` chat session shapes, Copilot CLI `events.jsonl`, missing/unreadable diagnostics, and custom extractor invocation.
 - Document privacy: fallback session logs may contain content locally, but `copilot-metrics` should not persist full prompts unless content capture is explicitly enabled.
 
+## Follow-up: VS Code Chronicle Session Indexing
+
+See `2026-06-02-vscode-chronicle-session-indexing.md`.
+
+VS Code `/chronicle` and `github.copilot.chat.localIndex.enabled` create a local SQLite session index that can improve session discovery and attribution. Local validation found exactly seven indexed VS Code Insiders sessions in `User/globalStorage/github.copilot-chat/session-store.db`, matching seven `GitHub.copilot-chat/debug-logs/<session-id>/` directories. The session store exposes useful metadata such as session ID, cwd, repository, branch, host type, and timestamps, but it also stores prompt/response text and FTS content, so `copilot-metrics` should not read content tables unless content capture is explicitly enabled.
+
+Chronicle indexing should be treated as an optional future discovery source, not a pricing source. On the inspected machine, the seven debug-log `main.jsonl` files contained no `llm_request` or `cachedTokens` rows, so no new token or cache-read evidence was available from Chronicle reindexing alone.
+
 ## Sources
 
 - https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference

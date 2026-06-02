@@ -6,7 +6,7 @@
 
 ## Overview
 
-Build a local-first Copilot usage tracker in incremental CLI-first slices. The initial milestone delivered setup, ingestion, attribution, reports, hardening, publishing, and setup-once behavior. The completed v0.1.9 milestone improves pricing by separating actual local charge evidence, high-confidence estimates, and upper-bound fallback estimates.
+Build a local-first Copilot usage tracker in incremental CLI-first slices. The initial milestone delivered setup, ingestion, attribution, reports, hardening, publishing, and setup-once behavior. The completed v0.1.9 milestone improves pricing by separating actual local charge evidence, high-confidence estimates, and upper-bound fallback estimates. The active v0.2.0 milestone adds VS Code displayed-credit evidence before falling back to token-price estimation.
 
 ## Phases
 
@@ -23,6 +23,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 - [x] **Phase 6: 0.1.1 Zero-friction setup, automatic hook ingestion, and complete token reporting** - Add setup-once reports, idempotent auto-import, complete token categories, and hook-only label semantics.
 - [x] **Phase 7: 0.1.8 Session log fallback ingestion** - Make local VS Code, VS Code Insiders, and Copilot CLI session logs the default fallback path when hooks and OTel are unavailable.
 - [x] **Phase 8: 0.1.9 Better pricing estimates** - Use the strongest available local pricing evidence and report actual, estimated, and upper-bound values distinctly.
+- [ ] **Phase 9: 0.2.0 VS Code displayed credits** - Treat VS Code displayed credit lines as observed local evidence before token-price estimates when stronger actual charge fields are absent, and infer effective cache-read tokens only as marked derived values.
 
 ## Phase Details
 
@@ -287,10 +288,47 @@ Plans:
 - Report tests for human and JSON pricing basis fields on label, model, repo, and detail reports.
 - `npm test`, `npm run check`, `npm run smoke`, `npm run verify:package`, and isolated `npx -y copilot-metrics@0.1.9` validation after publish.
 
+### Phase 9: 0.2.0 VS Code displayed credits
+
+**Goal:** Ship `copilot-metrics@0.2.0` with VS Code displayed-credit parsing and pricing precedence that uses displayed credits before complete or upper-bound token estimates when no stronger actual charge evidence exists.
+
+**Requirements**: DISP-01, DISP-02, DISP-03, DISP-04, DISP-05, DISP-06, DISP-07, DISP-08, DISP-09, DISP-10, DISP-11, DISP-12, DISP-13
+**Depends on:** Phase 8
+**Plans:** 1 plan
+
+Plans:
+- [ ] Displayed-credit evidence import, pricing precedence, and report semantics
+
+**Expected deliverables:**
+- VS Code and VS Code Insiders chat-session parser support for `result.details` display lines such as `GPT-5 mini - 0.8 credits`, `0.8 credit`, and `0x`.
+- Store/import fields for displayed credits, display text, source/session/request identifiers, pricing basis, confidence, and diagnostics.
+- Pricing selection precedence that keeps actual charge fields first, then displayed-credit evidence, then high-confidence token estimates, then upper-bound token estimates.
+- Derived effective cache-read calculations from displayed credits, prompt/output tokens, and model prices when the math is bounded, while preserving observed and inferred token fields separately.
+- Merge behavior that lets `--refresh` upgrade prior upper-bound rows with displayed-credit evidence without creating duplicate usage records.
+- Human and JSON reports that distinguish displayed-credit evidence from actual charges and token-price estimates, and mark inferred credits/cache values with `*` or a similar explicit marker.
+- Fixture coverage for numeric displayed credits, zero/included display lines, missing details, conflicts, inferred cache-read math, duplicate-source merges, and privacy-preserving parsing.
+
+**Success Criteria** (what must be TRUE):
+  1. A VS Code chat session row with `result.details` containing `0.8 credits` imports displayed credit evidence and selects it when no actual charge field exists.
+  2. A VS Code chat session row with `0x` imports included/zero display evidence without suppressing token and diagnostic fields.
+  3. A record with actual charge evidence still prefers the actual basis over displayed credits.
+  4. A record with displayed credits and missing cache-read token counts uses displayed credits instead of an upper-bound token estimate as the selected basis.
+  5. When displayed credits are lower than full uncached-input pricing and model cache pricing is known, reports can show bounded inferred cache-read tokens without populating observed cache-read fields.
+  6. Reports expose displayed-credit fields, inferred-cache fields, and compact basis markers in both JSON and human output.
+  7. Re-running reports with `--refresh` upgrades existing matching usage rows idempotently.
+
+**Verification focus:**
+- Fixture tests for VS Code `.jsonl` chat session details parsing across `credit`, `credits`, `0x`, absent details, and non-credit details.
+- Unit tests for pricing precedence: actual > displayed > complete estimate > upper bound > unknown.
+- Unit tests for bounded cache-read inference, clamping, non-inferable cases, and conflict diagnostics.
+- Store merge tests proving displayed-credit evidence can upgrade an existing row without double-counting source/session usage.
+- Report tests for JSON fields and compact human basis markers on label, model, repo, and detail reports.
+- `npm test`, `npm run check`, `npm run smoke`, `npm run verify:package`, and isolated `npx -y copilot-metrics@0.2.0` validation after publish.
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -303,10 +341,12 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 6. 0.1.1 Zero-friction setup, automatic hook ingestion, and complete token reporting | 1/1 | Complete | 2026-05-30 |
 | 7. 0.1.8 Session log fallback ingestion | 1/1 | Complete | 2026-06-02 |
 | 8. 0.1.9 Better pricing estimates | 1/1 | Complete | 2026-06-02 |
+| 9. 0.2.0 VS Code displayed credits | 0/1 | Planned | — |
 
 ## Deferred
 
 - Official GitHub usage report import and reconciliation.
+- Chronicle/session-store metadata discovery as an optional attribution source.
 - Local OTLP collector mode.
 - Richer opt-in content capture and redaction tools.
 - Dashboard or UI work after CLI queries prove the data model.

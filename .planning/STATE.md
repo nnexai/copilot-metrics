@@ -1,29 +1,29 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.1.9
-milestone_name: Better pricing estimates
-status: complete
-last_updated: "2026-06-02T12:00:00.000Z"
+milestone: v0.2.0
+milestone_name: VS Code displayed credits
+status: planning
+last_updated: "2026-06-02T12:30:00.000Z"
 last_activity: 2026-06-02
 progress:
   total_phases: 1
-  completed_phases: 1
+  completed_phases: 0
   total_plans: 1
-  completed_plans: 1
-  percent: 100
+  completed_plans: 0
+  percent: 0
 ---
 
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** v0.1.9 milestone complete
+**Status:** v0.2.0 milestone planning
 
 ## Project Reference
 
 See: `.planning/PROJECT.md` (updated 2026-06-02)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Milestone v0.1.9 better pricing estimates
+**Current focus:** Milestone v0.2.0 VS Code displayed credits
 
 ## Workflow Settings
 
@@ -39,14 +39,14 @@ See: `.planning/PROJECT.md` (updated 2026-06-02)
 
 ## Current Phase
 
-Phase 8: 0.1.9 Better pricing estimates
+Phase 9: 0.2.0 VS Code displayed credits
 
 ## Current Position
 
-Phase: 8 complete
-Plan: 08-01 complete
-Status: Verification passed
-Last activity: 2026-06-02 — Phase 8 and v0.1.9 milestone audit completed with pricing evidence fields, VS Code debug-log cached-token support, report `--refresh`, and release docs
+Phase: 9 planned
+Plan: —
+Status: Defining phase plan
+Last activity: 2026-06-02 — Milestone v0.2.0 started for VS Code displayed-credit evidence before token-price estimation
 
 ## Notes
 
@@ -71,6 +71,9 @@ Last activity: 2026-06-02 — Phase 8 and v0.1.9 milestone audit completed with 
 - Phase 8 automated verification passed: `npm test`, `npm run check`, `npm run smoke`, `npm run verify:package`, and `npm run check:readme-version`.
 - Local VS Code Insiders debug-log validation found the expected `GitHub.copilot-chat/debug-logs/<session-id>/main.jsonl` layout; sampled current files contained only `session_start` rows, so positive `llm_request.attrs.cachedTokens` extraction is fixture validated.
 - v0.1.9 milestone audit passed. Complete-milestone/archive/cleanup is deferred until after the human-gated publish step because it commits, tags, archives, and deletes current planning files.
+- v0.1.9 was released through GitHub and npm as `copilot-metrics@0.1.9`.
+- Follow-up VS Code Chronicle research found that Chronicle's `session-store.db` is useful for session discovery but not token/pricing fields; VS Code `chatSessions/*.jsonl` can include `result.details` display strings such as `0.8 credits`, plus token fields.
+- Phase 9 added for `copilot-metrics@0.2.0`: displayed-credit evidence should be selected after stronger actual charge evidence and before complete/upper-bound token estimates; displayed credits can also back-solve effective cache-read estimates when model pricing and token buckets make the inference bounded.
 
 ## Accumulated Context
 
@@ -81,6 +84,7 @@ Last activity: 2026-06-02 — Phase 8 and v0.1.9 milestone audit completed with 
 - Phase 7 completed: fallback session-log ingestion now includes setup defaults, additive custom sources, VS Code `.jsonl`/`.json` token-bearing parsing, Copilot CLI session-state checkpoints, cross-source usage dedupe, fallback diagnostics, privacy-preserving raw/checkpoint storage, and `0.1.8` release docs.
 - Phase 8 added: `copilot-metrics@0.1.9` pricing evidence release for actual local charge signals, session-local price metadata, cache-read availability, upper-bound estimates, and clearer report semantics.
 - Phase 8 completed: `copilot-metrics@0.1.9` now separates actual local charge evidence, high-confidence estimates, upper-bound estimates, cache diagnostics, and pricing provenance across import, store, and reports.
+- Phase 9 added: `copilot-metrics@0.2.0` will parse VS Code displayed-credit details, use them before token-price estimation when no stronger actual charge evidence exists, and mark inferred cache/credit values separately from observed fields.
 
 ## Quick Tasks Completed
 
@@ -92,5 +96,5 @@ Last activity: 2026-06-02 — Phase 8 and v0.1.9 milestone audit completed with 
 
 ## Operator Next Steps
 
-- Publish `copilot-metrics@0.1.9` through the existing release workflow when ready.
-- After publish, validate from outside the checkout with `npx -y copilot-metrics@0.1.9 --help` and representative report commands.
+- Plan Phase 9: displayed-credit evidence import, pricing precedence, inferred cache-read diagnostics, and report semantics.
+- Execute Phase 9 and publish `copilot-metrics@0.2.0` after verification.
