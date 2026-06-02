@@ -35,6 +35,12 @@ function enrichCosts(records) {
       actual_ai_credits: pricing.actual_ai_credits,
       actual_usd: pricing.actual_usd,
       actual_basis: pricing.actual_basis,
+      displayed_ai_credits: pricing.displayed_ai_credits,
+      displayed_usd: pricing.displayed_usd,
+      displayed_credit_text: pricing.displayed_credit_text,
+      displayed_credit_basis: pricing.displayed_credit_basis,
+      inferred_cache_read_tokens: pricing.inferred_cache_read_tokens,
+      inferred_cache_read_reason: pricing.inferred_cache_read_reason,
       estimated_usd: pricing.estimated_usd,
       estimated_ai_credits: pricing.estimated_ai_credits,
       upper_bound_usd: pricing.upper_bound_usd,
@@ -249,6 +255,59 @@ function requestUsage(request) {
   };
 }
 
+function detailsText(value) {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (Array.isArray(value)) {
+    return value.map(detailsText).filter(Boolean).join(' ');
+  }
+  if (value && typeof value === 'object') {
+    return detailsText(value.text)
+      || detailsText(value.value)
+      || detailsText(value.label)
+      || detailsText(value.markdown)
+      || null;
+  }
+  return null;
+}
+
+function displayedCreditFromText(text) {
+  const value = detailsText(text);
+  if (!value) return null;
+  if (/\b0\s*x\b/i.test(value)) {
+    return {
+      displayed_ai_credits: 0,
+      displayed_credit_text: value,
+      displayed_credit_basis: 'vscode_result_details',
+      included_or_zero: true,
+    };
+  }
+  const match = value.match(/(?:^|[^\d])(\d+(?:\.\d+)?)\s*credits?\b/i);
+  if (!match) return null;
+  const credits = Number(match[1]);
+  if (!Number.isFinite(credits) || credits < 0) return null;
+  return {
+    displayed_ai_credits: credits,
+    displayed_credit_text: value,
+    displayed_credit_basis: 'vscode_result_details',
+    included_or_zero: credits === 0,
+  };
+}
+
+function displayedCreditFromRequest(request) {
+  const candidates = [
+    request?.details,
+    request?.result?.details,
+    request?.response?.details,
+    request?.metadata?.details,
+    request?.result?.metadata?.details,
+  ];
+  for (const candidate of candidates) {
+    const parsed = displayedCreditFromText(candidate);
+    if (parsed) return parsed;
+  }
+  return null;
+}
+
 function aiCreditsToUsdPerMillion(value) {
   if (value === null || value === undefined || value === '') return null;
   const number = Number(value);
@@ -332,7 +391,13 @@ function mergeFallbackRequest(current, request, sessionId, rawLine, defaultPrici
     }
   }
   current.pricing_metadata = pricingMetadataFromModelMetadata(modelMetadataFromRequest(request)) || defaultPricingMetadata || current.pricing_metadata;
-  current.included_or_zero = includedOrZeroFromRequest(request) || defaultIncludedOrZero || current.included_or_zero || false;
+  const displayedCredit = displayedCreditFromRequest(request);
+  if (displayedCredit) {
+    current.displayed_ai_credits = displayedCredit.displayed_ai_credits;
+    current.displayed_credit_text = displayedCredit.displayed_credit_text;
+    current.displayed_credit_basis = displayedCredit.displayed_credit_basis;
+  }
+  current.included_or_zero = displayedCredit?.included_or_zero || includedOrZeroFromRequest(request) || defaultIncludedOrZero || current.included_or_zero || false;
   current.pricing_diagnostics = Array.from(new Set([...(current.pricing_diagnostics || []), ...defaultDiagnostics, ...diagnosticsFromRequest(request)]));
   pushPromptCandidates(current.texts, request);
 }
@@ -363,6 +428,11 @@ function normalizeVscodeFallbackUsage(records) {
       ...diagnosticsFromRequest({ metadata: root.inputState?.selectedModel?.metadata || root.selectedModel?.metadata || {} }),
     ]));
     defaultIncludedOrZero = defaultDiagnostics.includes('included_or_zero') || defaultIncludedOrZero;
+    const rootDisplayedCredit = displayedCreditFromRequest(root);
+    if (rootDisplayedCredit) {
+      defaultIncludedOrZero = rootDisplayedCredit.included_or_zero || defaultIncludedOrZero;
+      defaultDiagnostics = Array.from(new Set([...defaultDiagnostics, 'displayed_credit_root']));
+    }
 
     if (Array.isArray(root.requests)) {
       root.requests.forEach((request, index) => mergeFallbackRequest(entry(index), request, defaultSessionId, record.line, defaultPricingMetadata, defaultDiagnostics, defaultIncludedOrZero));
@@ -411,6 +481,9 @@ function normalizeVscodeFallbackUsage(records) {
       reasoning_tokens: request.reasoning_tokens || 0,
       cache_read_status: request.cache_read_status || 'unknown',
       pricing_metadata: request.pricing_metadata || null,
+      displayed_ai_credits: request.displayed_ai_credits ?? null,
+      displayed_credit_text: request.displayed_credit_text || null,
+      displayed_credit_basis: request.displayed_credit_basis || null,
       included_or_zero: request.included_or_zero || false,
       pricing_diagnostics: request.pricing_diagnostics || [],
       warnings: request.model ? [] : ['missing_model'],
@@ -757,6 +830,7 @@ async function repairUsageCostEstimates(dbPath) {
   const rows = await queryRows(dbPath, `
     SELECT id, requested_model, resolved_model, input_tokens, output_tokens,
       cache_read_tokens, cache_creation_tokens, reasoning_tokens, cache_read_status,
+      displayed_ai_credits, displayed_credit_text, displayed_credit_basis,
       pricing_metadata_json, pricing_diagnostics_json, warnings_json
     FROM usage_records
     WHERE estimated_ai_credits IS NULL
@@ -793,6 +867,12 @@ async function repairUsageCostEstimates(dbPath) {
       estimated_ai_credits: estimate.estimated_ai_credits,
       upper_bound_usd: estimate.upper_bound_usd,
       upper_bound_ai_credits: estimate.upper_bound_ai_credits,
+      displayed_ai_credits: estimate.displayed_ai_credits,
+      displayed_usd: estimate.displayed_usd,
+      displayed_credit_text: estimate.displayed_credit_text,
+      displayed_credit_basis: estimate.displayed_credit_basis,
+      inferred_cache_read_tokens: estimate.inferred_cache_read_tokens,
+      inferred_cache_read_reason: estimate.inferred_cache_read_reason,
       pricing_basis: estimate.pricing_basis,
       estimate_confidence: estimate.estimate_confidence,
       cache_read_status: estimate.cache_read_status,

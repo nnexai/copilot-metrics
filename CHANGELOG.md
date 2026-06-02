@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.0 - 2026-06-02
+
+### Added
+
+- VS Code and VS Code Insiders chat-session fallback imports now parse displayed credit details such as `0.8 credits`, `0.8 credit`, and `0x`.
+- Displayed VS Code credits are stored as local observed display evidence with display text, source/session/request evidence, selected pricing basis, confidence, and diagnostics.
+- Pricing precedence now selects actual local charge evidence first, displayed credits second, high-confidence token estimates third, and upper-bound token estimates last.
+- Reports expose displayed-credit fields and inferred effective cache-read diagnostics in label, detail, model, repo, and unattributed JSON output.
+
+### Changed
+
+- Human reports now include a compact `display*` pricing marker for VS Code displayed-credit evidence.
+- `--refresh` can upgrade existing matching VS Code fallback rows with newly parsed displayed-credit evidence without duplicating usage records.
+- Displayed credits can produce bounded inferred cache-read diagnostics when model pricing and token buckets make the delta explainable, while observed `cache_read_tokens` remains untouched.
+
 ## 0.1.9 - 2026-06-02
 
 ### Added

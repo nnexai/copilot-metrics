@@ -41,7 +41,9 @@ function usageStatus(row) {
 
 function pricingBasis(row) {
   if (n(row.actual_usage_records) > 0) return 'actual';
+  if (n(row.displayed_credit_usage_records) > 0) return 'display*';
   if (n(row.upper_bound_usage_records) > 0) return 'upper';
+  if (row.pricing_basis === 'displayed_credit') return 'display*';
   return row.pricing_basis || 'est';
 }
 
@@ -73,9 +75,13 @@ SELECT
   COALESCE((SELECT SUM(COALESCE(estimated_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS estimated_usd,
   COALESCE((SELECT SUM(COALESCE(actual_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS actual_ai_credits,
   COALESCE((SELECT SUM(COALESCE(actual_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS actual_usd,
+  COALESCE((SELECT SUM(COALESCE(displayed_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS displayed_ai_credits,
+  COALESCE((SELECT SUM(COALESCE(displayed_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS displayed_usd,
+  COALESCE((SELECT SUM(COALESCE(inferred_cache_read_tokens, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS inferred_cache_read_tokens,
   COALESCE((SELECT SUM(COALESCE(upper_bound_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS upper_bound_ai_credits,
   COALESCE((SELECT SUM(COALESCE(upper_bound_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS upper_bound_usd,
   (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'actual' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS actual_usage_records,
+  (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'displayed_credit' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS displayed_credit_usage_records,
   (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'upper_bound' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS upper_bound_usage_records,
   CASE
     WHEN (SELECT COUNT(DISTINCT usage_record_id) FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL) = 0 THEN 'hook-only'
@@ -111,9 +117,13 @@ SELECT
   COALESCE((SELECT SUM(COALESCE(estimated_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS estimated_usd,
   COALESCE((SELECT SUM(COALESCE(actual_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS actual_ai_credits,
   COALESCE((SELECT SUM(COALESCE(actual_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS actual_usd,
+  COALESCE((SELECT SUM(COALESCE(displayed_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS displayed_ai_credits,
+  COALESCE((SELECT SUM(COALESCE(displayed_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS displayed_usd,
+  COALESCE((SELECT SUM(COALESCE(inferred_cache_read_tokens, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS inferred_cache_read_tokens,
   COALESCE((SELECT SUM(COALESCE(upper_bound_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS upper_bound_ai_credits,
   COALESCE((SELECT SUM(COALESCE(upper_bound_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS upper_bound_usd,
   (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'actual' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS actual_usage_records,
+  (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'displayed_credit' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS displayed_credit_usage_records,
   (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'upper_bound' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS upper_bound_usage_records,
   CASE
     WHEN (SELECT COUNT(DISTINCT usage_record_id) FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL) = 0 THEN 'hook-only'
@@ -148,9 +158,13 @@ SELECT
   SUM(COALESCE(ur.estimated_usd, 0)) AS estimated_usd,
   SUM(COALESCE(ur.actual_ai_credits, 0)) AS actual_ai_credits,
   SUM(COALESCE(ur.actual_usd, 0)) AS actual_usd,
+  SUM(COALESCE(ur.displayed_ai_credits, 0)) AS displayed_ai_credits,
+  SUM(COALESCE(ur.displayed_usd, 0)) AS displayed_usd,
+  SUM(COALESCE(ur.inferred_cache_read_tokens, 0)) AS inferred_cache_read_tokens,
   SUM(COALESCE(ur.upper_bound_ai_credits, 0)) AS upper_bound_ai_credits,
   SUM(COALESCE(ur.upper_bound_usd, 0)) AS upper_bound_usd,
   SUM(CASE WHEN ur.pricing_basis = 'actual' THEN 1 ELSE 0 END) AS actual_usage_records,
+  SUM(CASE WHEN ur.pricing_basis = 'displayed_credit' THEN 1 ELSE 0 END) AS displayed_credit_usage_records,
   SUM(CASE WHEN ur.pricing_basis = 'upper_bound' THEN 1 ELSE 0 END) AS upper_bound_usage_records,
   MAX(ur.pricing_basis) AS pricing_basis,
   MAX(ur.estimate_confidence) AS estimate_confidence,
@@ -192,6 +206,12 @@ SELECT
   ur.actual_ai_credits,
   ur.actual_usd,
   ur.actual_basis,
+  ur.displayed_ai_credits,
+  ur.displayed_usd,
+  ur.displayed_credit_text,
+  ur.displayed_credit_basis,
+  ur.inferred_cache_read_tokens,
+  ur.inferred_cache_read_reason,
   ur.upper_bound_ai_credits,
   ur.upper_bound_usd,
   ur.pricing_basis,
@@ -223,9 +243,13 @@ SELECT
   SUM(COALESCE(estimated_usd, 0)) AS estimated_usd,
   SUM(COALESCE(actual_ai_credits, 0)) AS actual_ai_credits,
   SUM(COALESCE(actual_usd, 0)) AS actual_usd,
+  SUM(COALESCE(displayed_ai_credits, 0)) AS displayed_ai_credits,
+  SUM(COALESCE(displayed_usd, 0)) AS displayed_usd,
+  SUM(COALESCE(inferred_cache_read_tokens, 0)) AS inferred_cache_read_tokens,
   SUM(COALESCE(upper_bound_ai_credits, 0)) AS upper_bound_ai_credits,
   SUM(COALESCE(upper_bound_usd, 0)) AS upper_bound_usd,
   SUM(CASE WHEN pricing_basis = 'actual' THEN 1 ELSE 0 END) AS actual_usage_records,
+  SUM(CASE WHEN pricing_basis = 'displayed_credit' THEN 1 ELSE 0 END) AS displayed_credit_usage_records,
   SUM(CASE WHEN pricing_basis = 'upper_bound' THEN 1 ELSE 0 END) AS upper_bound_usage_records,
   MAX(pricing_basis) AS pricing_basis,
   MAX(estimate_confidence) AS estimate_confidence,
@@ -249,9 +273,13 @@ SELECT
   SUM(COALESCE(estimated_usd, 0)) AS estimated_usd,
   SUM(COALESCE(actual_ai_credits, 0)) AS actual_ai_credits,
   SUM(COALESCE(actual_usd, 0)) AS actual_usd,
+  SUM(COALESCE(displayed_ai_credits, 0)) AS displayed_ai_credits,
+  SUM(COALESCE(displayed_usd, 0)) AS displayed_usd,
+  SUM(COALESCE(inferred_cache_read_tokens, 0)) AS inferred_cache_read_tokens,
   SUM(COALESCE(upper_bound_ai_credits, 0)) AS upper_bound_ai_credits,
   SUM(COALESCE(upper_bound_usd, 0)) AS upper_bound_usd,
   SUM(CASE WHEN pricing_basis = 'actual' THEN 1 ELSE 0 END) AS actual_usage_records,
+  SUM(CASE WHEN pricing_basis = 'displayed_credit' THEN 1 ELSE 0 END) AS displayed_credit_usage_records,
   SUM(CASE WHEN pricing_basis = 'upper_bound' THEN 1 ELSE 0 END) AS upper_bound_usage_records,
   MAX(pricing_basis) AS pricing_basis,
   MAX(estimate_confidence) AS estimate_confidence,
@@ -280,6 +308,12 @@ SELECT
   ur.estimated_usd,
   ur.actual_ai_credits,
   ur.actual_usd,
+  ur.displayed_ai_credits,
+  ur.displayed_usd,
+  ur.displayed_credit_text,
+  ur.displayed_credit_basis,
+  ur.inferred_cache_read_tokens,
+  ur.inferred_cache_read_reason,
   ur.upper_bound_ai_credits,
   ur.upper_bound_usd,
   ur.pricing_basis,
@@ -316,7 +350,7 @@ function formatLabels(rows) {
       ]),
     ),
     '',
-    `AI Credits are estimates (${estimateLabel(rows)}). Pricing basis: actual = trusted local charge evidence, upper = upper-bound estimate, est = token-price estimate. 1 AI Credit is treated as $0.01 locally.`,
+    `AI Credits are estimates (${estimateLabel(rows)}). Pricing basis: actual = trusted local charge evidence, display* = VS Code displayed credits, upper = upper-bound estimate, est = token-price estimate. * marks inferred/display evidence. 1 AI Credit is treated as $0.01 locally.`,
   ].join('\n');
 }
 
@@ -382,7 +416,7 @@ function formatLabelReport(summary, models, details = null) {
       ]),
     ));
   }
-  output.push('', `AI Credits are estimates (${summary?.estimate_label || estimateLabel(models || [])}). Pricing basis: actual = trusted local charge evidence, upper = upper-bound estimate, est = token-price estimate.`);
+  output.push('', `AI Credits are estimates (${summary?.estimate_label || estimateLabel(models || [])}). Pricing basis: actual = trusted local charge evidence, display* = VS Code displayed credits, upper = upper-bound estimate, est = token-price estimate.`);
   return output.join('\n');
 }
 
@@ -401,7 +435,7 @@ function formatModels(rows) {
       ]),
     ),
     '',
-    `AI Credits are estimates (${estimateLabel(rows)}). Pricing basis: actual = trusted local charge evidence, upper = upper-bound estimate, est = token-price estimate.`,
+    `AI Credits are estimates (${estimateLabel(rows)}). Pricing basis: actual = trusted local charge evidence, display* = VS Code displayed credits, upper = upper-bound estimate, est = token-price estimate.`,
   ].join('\n');
 }
 
@@ -421,7 +455,7 @@ function formatRepos(rows) {
       ]),
     ),
     '',
-    `AI Credits are estimates (${estimateLabel(rows)}). Pricing basis: actual = trusted local charge evidence, upper = upper-bound estimate, est = token-price estimate.`,
+    `AI Credits are estimates (${estimateLabel(rows)}). Pricing basis: actual = trusted local charge evidence, display* = VS Code displayed credits, upper = upper-bound estimate, est = token-price estimate.`,
   ].join('\n');
 }
 
@@ -443,7 +477,7 @@ function formatUnattributed(rows) {
       ]),
     ),
     '',
-    `AI Credits are estimates (${estimateLabel(rows)}). Pricing basis: actual = trusted local charge evidence, upper = upper-bound estimate, est = token-price estimate.`,
+    `AI Credits are estimates (${estimateLabel(rows)}). Pricing basis: actual = trusted local charge evidence, display* = VS Code displayed credits, upper = upper-bound estimate, est = token-price estimate.`,
   ].join('\n');
 }
 

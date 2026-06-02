@@ -101,6 +101,32 @@ function actualCharge(record) {
   };
 }
 
+function displayedCreditEvidence(record) {
+  if (record.displayed_ai_credits === null || record.displayed_ai_credits === undefined || record.displayed_ai_credits === '') {
+    return {
+      displayed_ai_credits: null,
+      displayed_usd: null,
+      displayed_credit_text: record.displayed_credit_text || null,
+      displayed_credit_basis: null,
+    };
+  }
+  const credits = Number(record.displayed_ai_credits);
+  if (Number.isFinite(credits) && credits >= 0) {
+    return {
+      displayed_ai_credits: Number(credits.toFixed(9)),
+      displayed_usd: Number((credits * 0.01).toFixed(8)),
+      displayed_credit_text: record.displayed_credit_text || null,
+      displayed_credit_basis: record.displayed_credit_basis || 'vscode_result_details',
+    };
+  }
+  return {
+    displayed_ai_credits: null,
+    displayed_usd: null,
+    displayed_credit_text: record.displayed_credit_text || null,
+    displayed_credit_basis: null,
+  };
+}
+
 function estimateCost(record) {
   const price = priceForRecord(record);
   if (price.warning === 'missing_model') {
@@ -130,15 +156,40 @@ function estimateCost(record) {
   };
 }
 
+function inferredCacheRead(record, displayed, estimate) {
+  if (displayed.displayed_ai_credits === null || estimate.estimated_ai_credits === null) return null;
+  if (cacheReadStatus(record) !== 'unknown') return null;
+  const inputTokens = Number(record.input_tokens || 0);
+  if (inputTokens <= 0) return null;
+  const price = priceForRecord(record);
+  if (price.warning) return null;
+  const inputPrice = Number(price.input);
+  const cacheReadPrice = Number(price.cacheRead);
+  if (!Number.isFinite(inputPrice) || !Number.isFinite(cacheReadPrice) || inputPrice <= cacheReadPrice) return null;
+  const deltaCredits = Number(estimate.estimated_ai_credits || 0) - Number(displayed.displayed_ai_credits || 0);
+  if (deltaCredits <= 0) return null;
+  const savedUsdPerToken = (inputPrice - cacheReadPrice) / 1_000_000;
+  const inferredTokens = Math.round((deltaCredits * 0.01) / savedUsdPerToken);
+  if (!Number.isFinite(inferredTokens) || inferredTokens <= 0) return null;
+  return {
+    inferred_cache_read_tokens: Math.min(inferredTokens, inputTokens),
+    inferred_cache_read_reason: inferredTokens > inputTokens ? 'displayed_delta_clamped_to_input' : 'displayed_delta',
+  };
+}
+
 function classifyPricing(record) {
   const estimate = estimateCost(record);
   const actual = actualCharge(record);
+  const displayed = displayedCreditEvidence(record);
   const status = cacheReadStatus(record);
   const diagnostics = Array.isArray(record.pricing_diagnostics) ? [...record.pricing_diagnostics] : [];
   const warnings = [];
   if (estimate.warning) warnings.push(estimate.warning);
   if (status === 'unknown') warnings.push('cache_read_unknown_upper_bound');
-  if (record.included_or_zero) diagnostics.push('included_or_zero');
+  if (record.included_or_zero || displayed.displayed_ai_credits === 0) diagnostics.push('included_or_zero');
+
+  const inferred = inferredCacheRead(record, displayed, estimate);
+  if (inferred) diagnostics.push('displayed_inferred_cache_read');
 
   let pricingBasis = 'estimated';
   let confidence = 'high';
@@ -164,6 +215,15 @@ function classifyPricing(record) {
         diagnostics.push('actual_estimate_delta');
       }
     }
+  } else if (displayed.displayed_ai_credits !== null) {
+    pricingBasis = displayed.displayed_ai_credits === 0 ? 'included_or_zero' : 'displayed_credit';
+    confidence = displayed.displayed_ai_credits === 0 ? 'plan_included' : 'displayed';
+    if (estimate.estimated_ai_credits !== null) {
+      const delta = Math.abs(Number(displayed.displayed_ai_credits || 0) - Number(estimate.estimated_ai_credits || 0));
+      if (delta > Math.max(0.01, Number(estimate.estimated_ai_credits || 0) * 0.5)) {
+        diagnostics.push('displayed_estimate_delta');
+      }
+    }
   } else if (record.included_or_zero && pricingBasis === 'estimated') {
     pricingBasis = 'included_or_zero';
     confidence = 'plan_included';
@@ -171,6 +231,9 @@ function classifyPricing(record) {
 
   return {
     ...actual,
+    ...displayed,
+    inferred_cache_read_tokens: inferred?.inferred_cache_read_tokens ?? null,
+    inferred_cache_read_reason: inferred?.inferred_cache_read_reason ?? null,
     estimated_usd: estimate.estimated_usd,
     estimated_ai_credits: estimate.estimated_ai_credits,
     upper_bound_usd: upperBoundUsd,

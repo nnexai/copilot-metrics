@@ -121,6 +121,12 @@ CREATE TABLE IF NOT EXISTS usage_records (
   actual_ai_credits REAL,
   actual_usd REAL,
   actual_basis TEXT,
+  displayed_ai_credits REAL,
+  displayed_usd REAL,
+  displayed_credit_text TEXT,
+  displayed_credit_basis TEXT,
+  inferred_cache_read_tokens INTEGER,
+  inferred_cache_read_reason TEXT,
   estimated_usd REAL,
   estimated_ai_credits REAL,
   upper_bound_usd REAL,
@@ -188,6 +194,12 @@ CREATE TABLE IF NOT EXISTS import_checkpoints (
     changed = addColumnIfMissing(db, 'usage_records', 'actual_ai_credits', 'REAL') || changed;
     changed = addColumnIfMissing(db, 'usage_records', 'actual_usd', 'REAL') || changed;
     changed = addColumnIfMissing(db, 'usage_records', 'actual_basis', 'TEXT') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'displayed_ai_credits', 'REAL') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'displayed_usd', 'REAL') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'displayed_credit_text', 'TEXT') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'displayed_credit_basis', 'TEXT') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'inferred_cache_read_tokens', 'INTEGER') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'inferred_cache_read_reason', 'TEXT') || changed;
     changed = addColumnIfMissing(db, 'usage_records', 'upper_bound_usd', 'REAL') || changed;
     changed = addColumnIfMissing(db, 'usage_records', 'upper_bound_ai_credits', 'REAL') || changed;
     changed = addColumnIfMissing(db, 'usage_records', 'pricing_basis', "TEXT NOT NULL DEFAULT 'estimated'") || changed;
@@ -276,8 +288,9 @@ function basisRank(basis) {
     included_or_zero: 1,
     upper_bound: 2,
     estimated: 3,
-    actual: 4,
-    conflict: 5,
+    displayed_credit: 4,
+    actual: 5,
+    conflict: 6,
   }[basis] ?? 0;
 }
 
@@ -300,6 +313,12 @@ function mergeUsageEvidence(existing, usage) {
     actual_ai_credits: existing.actual_ai_credits ?? usage.actual_ai_credits ?? null,
     actual_usd: existing.actual_usd ?? usage.actual_usd ?? null,
     actual_basis: existing.actual_basis ?? usage.actual_basis ?? null,
+    displayed_ai_credits: existing.displayed_ai_credits ?? usage.displayed_ai_credits ?? null,
+    displayed_usd: existing.displayed_usd ?? usage.displayed_usd ?? null,
+    displayed_credit_text: existing.displayed_credit_text ?? usage.displayed_credit_text ?? null,
+    displayed_credit_basis: existing.displayed_credit_basis ?? usage.displayed_credit_basis ?? null,
+    inferred_cache_read_tokens: existing.inferred_cache_read_tokens ?? usage.inferred_cache_read_tokens ?? null,
+    inferred_cache_read_reason: existing.inferred_cache_read_reason ?? usage.inferred_cache_read_reason ?? null,
     upper_bound_usd: basisRank(incomingBasis) > basisRank(existingBasis) ? usage.upper_bound_usd ?? null : existing.upper_bound_usd ?? usage.upper_bound_usd ?? null,
     upper_bound_ai_credits: basisRank(incomingBasis) > basisRank(existingBasis) ? usage.upper_bound_ai_credits ?? null : existing.upper_bound_ai_credits ?? usage.upper_bound_ai_credits ?? null,
     pricing_basis: strongestBasis,
@@ -474,13 +493,17 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
         conversation_id, session_id, requested_model, resolved_model, repo, branch, cwd, commit_sha,
         input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, reasoning_tokens,
         actual_charge_nano_aiu, actual_ai_credits, actual_usd, actual_basis,
+        displayed_ai_credits, displayed_usd, displayed_credit_text, displayed_credit_basis,
+        inferred_cache_read_tokens, inferred_cache_read_reason,
         estimated_usd, estimated_ai_credits, upper_bound_usd, upper_bound_ai_credits,
         pricing_basis, estimate_confidence, cache_read_status, pricing_source,
         estimate_label, pricing_metadata_json, pricing_diagnostics_json, warnings_json, usage_identity
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     const existingUsageStatement = db.prepare(`
       SELECT id, session_id, repo, branch, cwd, timestamp, actual_charge_nano_aiu, actual_ai_credits,
-        actual_usd, actual_basis, upper_bound_usd, upper_bound_ai_credits, pricing_basis,
+        actual_usd, actual_basis, displayed_ai_credits, displayed_usd, displayed_credit_text,
+        displayed_credit_basis, inferred_cache_read_tokens, inferred_cache_read_reason,
+        upper_bound_usd, upper_bound_ai_credits, pricing_basis,
         estimate_confidence, cache_read_status, pricing_source, pricing_metadata_json,
         pricing_diagnostics_json, warnings_json
       FROM usage_records
@@ -496,6 +519,12 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
           actual_ai_credits = COALESCE(actual_ai_credits, ?),
           actual_usd = COALESCE(actual_usd, ?),
           actual_basis = COALESCE(actual_basis, ?),
+          displayed_ai_credits = COALESCE(displayed_ai_credits, ?),
+          displayed_usd = COALESCE(displayed_usd, ?),
+          displayed_credit_text = COALESCE(displayed_credit_text, ?),
+          displayed_credit_basis = COALESCE(displayed_credit_basis, ?),
+          inferred_cache_read_tokens = COALESCE(inferred_cache_read_tokens, ?),
+          inferred_cache_read_reason = COALESCE(inferred_cache_read_reason, ?),
           upper_bound_usd = ?,
           upper_bound_ai_credits = ?,
           pricing_basis = ?,
@@ -529,6 +558,12 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
             merged.actual_ai_credits,
             merged.actual_usd,
             merged.actual_basis,
+            merged.displayed_ai_credits,
+            merged.displayed_usd,
+            merged.displayed_credit_text,
+            merged.displayed_credit_basis,
+            merged.inferred_cache_read_tokens,
+            merged.inferred_cache_read_reason,
             merged.upper_bound_usd,
             merged.upper_bound_ai_credits,
             merged.pricing_basis,
@@ -567,6 +602,12 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
             usage.actual_ai_credits,
             usage.actual_usd,
             usage.actual_basis,
+            usage.displayed_ai_credits,
+            usage.displayed_usd,
+            usage.displayed_credit_text,
+            usage.displayed_credit_basis,
+            usage.inferred_cache_read_tokens,
+            usage.inferred_cache_read_reason,
             usage.estimated_usd,
             usage.estimated_ai_credits,
             usage.upper_bound_usd,
@@ -816,6 +857,12 @@ async function updateUsageCostEstimates(dbPath, updates) {
         estimated_ai_credits = ?,
         upper_bound_usd = ?,
         upper_bound_ai_credits = ?,
+        displayed_ai_credits = ?,
+        displayed_usd = ?,
+        displayed_credit_text = ?,
+        displayed_credit_basis = ?,
+        inferred_cache_read_tokens = ?,
+        inferred_cache_read_reason = ?,
         pricing_basis = ?,
         estimate_confidence = ?,
         cache_read_status = ?,
@@ -834,6 +881,12 @@ async function updateUsageCostEstimates(dbPath, updates) {
         update.estimated_ai_credits,
         update.upper_bound_usd ?? null,
         update.upper_bound_ai_credits ?? null,
+        update.displayed_ai_credits ?? null,
+        update.displayed_usd ?? null,
+        update.displayed_credit_text ?? null,
+        update.displayed_credit_basis ?? null,
+        update.inferred_cache_read_tokens ?? null,
+        update.inferred_cache_read_reason ?? null,
         update.pricing_basis || 'estimated',
         update.estimate_confidence || 'high',
         update.cache_read_status || 'explicit_zero',

@@ -11,6 +11,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 ## Phases
 
 **Phase Numbering:**
+
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions, if needed later
 
@@ -23,7 +24,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 - [x] **Phase 6: 0.1.1 Zero-friction setup, automatic hook ingestion, and complete token reporting** - Add setup-once reports, idempotent auto-import, complete token categories, and hook-only label semantics.
 - [x] **Phase 7: 0.1.8 Session log fallback ingestion** - Make local VS Code, VS Code Insiders, and Copilot CLI session logs the default fallback path when hooks and OTel are unavailable.
 - [x] **Phase 8: 0.1.9 Better pricing estimates** - Use the strongest available local pricing evidence and report actual, estimated, and upper-bound values distinctly.
-- [ ] **Phase 9: 0.2.0 VS Code displayed credits** - Treat VS Code displayed credit lines as observed local evidence before token-price estimates when stronger actual charge fields are absent, and infer effective cache-read tokens only as marked derived values.
+- [x] **Phase 9: 0.2.0 VS Code displayed credits** - Treat VS Code displayed credit lines as observed local evidence before token-price estimates when stronger actual charge fields are absent, and infer effective cache-read tokens only as marked derived values. (completed 2026-06-02)
 
 ## Phase Details
 
@@ -34,6 +35,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 **Covers:** FOUND-01, FOUND-02, FOUND-03, FOUND-04, FOUND-05, SETUP-01, SETUP-02, SETUP-03, SETUP-04, SETUP-05
 
 **Expected deliverables:**
+
 - `package.json` with npm scripts for build/test/lint or equivalent verification.
 - CLI entrypoint or scripts for initialization and setup guidance.
 - Central data directory resolver using a user-level folder by default.
@@ -43,12 +45,14 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 - Install/preview commands that keep setup simple and avoid manual file editing.
 
 **Success Criteria** (what must be TRUE):
+
   1. User can run npm scripts for project verification once the scaffold exists.
   2. User can initialize or inspect the central user-level data directory.
   3. User can configure VS Code Insiders and Copilot CLI to emit local OTel files with content capture disabled.
   4. User can install or preview a Copilot CLI hook logger for local task attribution.
 
 **Verification focus:**
+
 - Setup commands are runnable locally.
 - Generated paths point to the central user data folder.
 - Content capture remains disabled by default.
@@ -60,6 +64,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 **Covers:** INGEST-01, INGEST-02, INGEST-03, INGEST-04, INGEST-05, NORM-01, NORM-02, NORM-03, NORM-05, COST-01, COST-02, COST-03, COST-04, COST-05
 
 **Expected deliverables:**
+
 - JSONL ingestion pipeline for VS Code OTel, Copilot CLI OTel, and hook logs.
 - Local queryable store, likely SQLite or DuckDB.
 - Span classifier that separates LLM chat/model-call spans from root agent/tool spans.
@@ -68,12 +73,14 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 - Warnings for unknown models, missing token fields, and malformed records.
 
 **Success Criteria** (what must be TRUE):
+
   1. User can import sample VS Code, Copilot CLI, and hook JSONL records into a local store.
   2. LLM chat/model-call spans produce token totals while root agent spans do not double-count them.
   3. Known model records produce estimated USD and AI Credits.
   4. Unknown model or malformed records produce visible warnings instead of false precision.
 
 **Verification focus:**
+
 - Fixture-based tests for each input type.
 - Double-counting prevention test.
 - Unknown pricing test.
@@ -85,12 +92,14 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 **Covers:** NORM-04, NORM-06, REPORT-01, REPORT-02, REPORT-03, REPORT-04, REPORT-05, REPORT-06, REPORT-07, REPORT-08
 
 **Expected deliverables:**
+
 - Jira label extraction from prompts, directories, branch names, hook metadata, and tool-call context.
 - CLI queries for label overview, label summary, label detail, per model, per repo/directory, and unattributed usage.
 - Human-readable and machine-readable output modes for query commands.
 - Clear labels that reported costs are estimates.
 
 **Success Criteria** (what must be TRUE):
+
   1. User can list discovered Jira labels such as `DEMO-12345` with sessions, tokens, credits, first seen, and last seen.
   2. User can query summarized and detailed usage for a single label.
   3. User can inspect unattributed usage and see enough context to improve labels.
@@ -99,6 +108,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
   6. Cost output is clearly marked as an estimate.
 
 **Verification focus:**
+
 - Attribution precedence tests.
 - Report snapshot or structured-output tests.
 - Manual smoke with sample telemetry and hook fixtures.
@@ -110,6 +120,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 **Covers:** VERIFY-01, VERIFY-02, VERIFY-03, VERIFY-04, VERIFY-05, VERIFY-06
 
 **Expected deliverables:**
+
 - Focused test suite across ingestion, normalization, cost, and reporting.
 - Copilot CLI integration check that may invoke the real CLI or isolated test environments with cheap models.
 - README with setup, privacy warnings, and expected limitations.
@@ -117,6 +128,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 - Known gaps documented for official reconciliation, collector mode, and richer privacy controls.
 
 **Success Criteria** (what must be TRUE):
+
   1. Verification scripts pass from a clean checkout.
   2. Fresh setup can import sample telemetry and produce expected report totals.
   3. Copilot CLI integration verification uses cheap models and validates output/telemetry shape rather than answer quality.
@@ -124,6 +136,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
   5. First release has documented gaps and next-step candidates.
 
 **Verification focus:**
+
 - `npm test` and any lint/typecheck scripts pass.
 - Fresh-clone setup works from npm scripts.
 - Real or isolated Copilot CLI integration verification uses cheap models.
@@ -136,6 +149,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 **Covers:** SETUP-03, SETUP-04, INGEST-01, NORM-04, NORM-06, VERIFY-03
 
 **Expected deliverables:**
+
 - Primary-source research on VS Code Copilot hook support and Copilot CLI hook compatibility.
 - Explicit setup/configuration model for VS Code telemetry, Copilot CLI telemetry, and shared hook event ingestion.
 - Hook preview/install support that can target both surfaces or a specific surface.
@@ -143,6 +157,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 - Documentation and tests that show the project tracks both sources rather than assuming a single Copilot surface.
 
 **Success Criteria** (what must be TRUE):
+
   1. `setup` output and README separate VS Code telemetry, Copilot CLI telemetry, and hook metadata.
   2. Hook setup can emit a VS Code-compatible config, a Copilot CLI-native config, or a default config suitable for both.
   3. Hook ingestion preserves source/session/label evidence without requiring prompt content storage.
@@ -150,6 +165,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
   5. Research artifacts cite primary docs for the hook behavior being implemented.
 
 **Verification focus:**
+
 - Fixture tests for hook config shape and hook payload normalization.
 - `npm test`, `npm run check`, `npm run smoke`, and package verification.
 - Manual Copilot CLI flow with hooks enabled.
@@ -161,6 +177,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 **Covers:** PUBLISH-01, PUBLISH-02, PUBLISH-03, PUBLISH-04, PUBLISH-05
 
 **Expected deliverables:**
+
 - GitHub Actions workflow for install, test, and package verification on pull requests and main branch pushes.
 - npm publishing workflow or documented release workflow using provenance and explicit release gates.
 - Package metadata suitable for npm publication, including files allowlist, repository metadata, license, and bin validation.
@@ -168,6 +185,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 - Documentation for required GitHub/NPM secrets and any manual first-publish steps.
 
 **Success Criteria** (what must be TRUE):
+
   1. GitHub Actions can run the project verification commands from a clean checkout.
   2. npm package contents can be verified with a dry-run/pack command before publishing.
   3. Release documentation explains how to push to GitHub and publish to npm without leaking local telemetry data.
@@ -175,6 +193,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
   5. Publishing remains gated by explicit human action or GitHub release/tag controls.
 
 **Verification focus:**
+
 - Workflow YAML syntax and referenced npm scripts are valid.
 - `npm pack --dry-run` or equivalent package check passes.
 - Release checklist is complete enough for first GitHub push and npm publish.
@@ -190,9 +209,11 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 **Plans:** 1 plan
 
 Plans:
+
 - [x] Setup persistence, automatic import, and complete token reports
 
 **Expected deliverables:**
+
 - Setup/init persists usable configuration in the central user-level data directory so normal Copilot and CLI/report commands do not require users to remember `COPILOT_METRICS_HOME` or per-run environment exports.
 - Environment variables remain supported as explicit overrides for custom or automated runs, but the default setup-once flow does not depend on them.
 - Hook setup writes commands that target the installed `copilot-metrics` executable in a stable way for npx/global/package usage.
@@ -202,6 +223,7 @@ Plans:
 - Documentation explains the setup-once flow and the difference between hook attribution events and token-bearing telemetry.
 
 **Success Criteria** (what must be TRUE):
+
   1. A user can run setup once from a workspace, then run Copilot and `copilot-metrics report labels` without manually running `import` or exporting remembered environment variables.
   2. Reports automatically ingest newly appended configured JSONL files and remain idempotent across repeated runs.
   3. A label seen in hooks and matching token-bearing telemetry shows non-zero input/output/cache/reasoning totals when those token fields exist.
@@ -210,6 +232,7 @@ Plans:
   6. Empty or hook-only data produces clear output instead of SQLite errors or misleading token totals.
 
 **Verification focus:**
+
 - Fixture tests for idempotent auto-import before report commands.
 - Report tests for cache read, cache creation, and reasoning token columns in human and JSON output.
 - Setup tests proving persisted config is used without requiring `COPILOT_METRICS_HOME` in normal commands.
@@ -225,9 +248,11 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
+
 - [x] Session fallback discovery, import, attribution, diagnostics, and release
 
 **Expected deliverables:**
+
 - Setup/default config includes explicit fallback session sources for VS Code stable, VS Code Insiders, and Copilot CLI, with user-level persisted config and env vars remaining override-only.
 - Auto-import treats fallback session logs as first-class configured sources before reports, while keeping OTel and hooks as higher-fidelity optional sources when present.
 - VS Code fallback parser handles supported `.jsonl` and `.json` chat session files and extracts session/request identifiers, prompt candidates for label extraction, model/token fields when present, and diagnostics when token fields are absent.
@@ -237,6 +262,7 @@ Plans:
 - Documentation and release notes explain fallback behavior, privacy limits, default paths, and how to add custom session directories.
 
 **Success Criteria** (what must be TRUE):
+
   1. A user can run setup once, have no working hooks or OTel files, and still get report output from local VS Code/Insiders or Copilot CLI session logs when those logs include token metrics.
   2. Repeated report runs are idempotent for fallback logs and do not double-count usage or label evidence.
   3. Custom label extractors are invoked for fallback-derived source data through the same callback contract as OTel and hooks.
@@ -244,6 +270,7 @@ Plans:
   5. Content capture remains disabled by default; fallback parsing does not persist full prompts or responses unless explicitly enabled.
 
 **Verification focus:**
+
 - Fixture tests for VS Code stable and Insiders default path discovery on Linux, macOS, and Windows path conventions.
 - Fixture tests for VS Code `.jsonl` and `.json` chat session fallback parsing.
 - Fixture tests for Copilot CLI `session-state/*/events.jsonl` fallback import, including `COPILOT_HOME`.
@@ -260,9 +287,11 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
+
 - [x] Pricing evidence, estimate confidence, and report semantics
 
 **Expected deliverables:**
+
 - Store/import support for actual local charge evidence such as Copilot CLI `totalNanoAiu`, per-model request cost, total premium requests, and any future observed AI Credit/cents fields.
 - Store/import support for session-local model pricing metadata from VS Code/Insiders and Copilot logs, while keeping the existing static pricing table as a fallback.
 - A pricing basis model that distinguishes `actual`, `estimated`, `upper_bound`, `included_or_zero`, `unknown_price`, and `conflict` cases in structured output.
@@ -273,6 +302,7 @@ Plans:
 - Tests and fixtures based on observed Copilot CLI and VS Code Insiders session-log shapes, without storing full prompt content or auth tokens.
 
 **Success Criteria** (what must be TRUE):
+
   1. Copilot CLI session shutdown records with cache-read tokens and `totalNanoAiu` produce actual local charge fields plus a comparable estimate.
   2. VS Code/Insiders records with model price metadata but no numeric cache-read counts produce upper-bound estimates and visible cache-unknown diagnostics.
   3. Records with complete token buckets produce high-confidence estimates using either session-local pricing or the static table.
@@ -281,6 +311,7 @@ Plans:
   6. VS Code cache keys/cache types and context-utilization lines are surfaced as diagnostics only, not priced token buckets.
 
 **Verification focus:**
+
 - Fixture tests for Copilot CLI `session.shutdown` with `totalNanoAiu`, `modelMetrics`, cache-read tokens, and zero/included request cost.
 - Fixture tests for VS Code/Insiders chat sessions with prompt/output tokens, `cacheKey`/`cacheType`, model `inputCost`/`outputCost`/`cacheCost`, `multiplierNumeric: 0`, and missing numeric cache-read counts.
 - Fixture tests for VS Code extension/AHP/agenthost logs that redact auth-like values and classify context utilization separately from billing usage.
@@ -294,12 +325,14 @@ Plans:
 
 **Requirements**: DISP-01, DISP-02, DISP-03, DISP-04, DISP-05, DISP-06, DISP-07, DISP-08, DISP-09, DISP-10, DISP-11, DISP-12, DISP-13
 **Depends on:** Phase 8
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
+
 - [ ] Displayed-credit evidence import, pricing precedence, and report semantics
 
 **Expected deliverables:**
+
 - VS Code and VS Code Insiders chat-session parser support for `result.details` display lines such as `GPT-5 mini - 0.8 credits`, `0.8 credit`, and `0x`.
 - Store/import fields for displayed credits, display text, source/session/request identifiers, pricing basis, confidence, and diagnostics.
 - Pricing selection precedence that keeps actual charge fields first, then displayed-credit evidence, then high-confidence token estimates, then upper-bound token estimates.
@@ -309,6 +342,7 @@ Plans:
 - Fixture coverage for numeric displayed credits, zero/included display lines, missing details, conflicts, inferred cache-read math, duplicate-source merges, and privacy-preserving parsing.
 
 **Success Criteria** (what must be TRUE):
+
   1. A VS Code chat session row with `result.details` containing `0.8 credits` imports displayed credit evidence and selects it when no actual charge field exists.
   2. A VS Code chat session row with `0x` imports included/zero display evidence without suppressing token and diagnostic fields.
   3. A record with actual charge evidence still prefers the actual basis over displayed credits.
@@ -318,6 +352,7 @@ Plans:
   7. Re-running reports with `--refresh` upgrades existing matching usage rows idempotently.
 
 **Verification focus:**
+
 - Fixture tests for VS Code `.jsonl` chat session details parsing across `credit`, `credits`, `0x`, absent details, and non-credit details.
 - Unit tests for pricing precedence: actual > displayed > complete estimate > upper bound > unknown.
 - Unit tests for bounded cache-read inference, clamping, non-inferable cases, and conflict diagnostics.
@@ -341,7 +376,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 6. 0.1.1 Zero-friction setup, automatic hook ingestion, and complete token reporting | 1/1 | Complete | 2026-05-30 |
 | 7. 0.1.8 Session log fallback ingestion | 1/1 | Complete | 2026-06-02 |
 | 8. 0.1.9 Better pricing estimates | 1/1 | Complete | 2026-06-02 |
-| 9. 0.2.0 VS Code displayed credits | 0/1 | Planned | — |
+| 9. 0.2.0 VS Code displayed credits | 1/1 | Complete    | 2026-06-02 |
 
 ## Deferred
 

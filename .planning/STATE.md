@@ -2,21 +2,21 @@
 gsd_state_version: 1.0
 milestone: v0.2.0
 milestone_name: VS Code displayed credits
-status: planning
-last_updated: "2026-06-02T12:30:00.000Z"
+status: completed
+last_updated: "2026-06-02T11:23:13.108Z"
 last_activity: 2026-06-02
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 1
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 100
 ---
 
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** v0.2.0 milestone planning
+**Status:** Milestone complete
 
 ## Project Reference
 
@@ -43,10 +43,10 @@ Phase 9: 0.2.0 VS Code displayed credits
 
 ## Current Position
 
-Phase: 9 planned
-Plan: —
-Status: Defining phase plan
-Last activity: 2026-06-02 — Milestone v0.2.0 started for VS Code displayed-credit evidence before token-price estimation
+Phase: 9 complete
+Plan: 09-01 complete
+Status: Phase complete; release publish gate remains
+Last activity: 2026-06-02 — Phase 9 implemented and verified for `copilot-metrics@0.2.0`
 
 ## Notes
 
@@ -74,6 +74,8 @@ Last activity: 2026-06-02 — Milestone v0.2.0 started for VS Code displayed-cre
 - v0.1.9 was released through GitHub and npm as `copilot-metrics@0.1.9`.
 - Follow-up VS Code Chronicle research found that Chronicle's `session-store.db` is useful for session discovery but not token/pricing fields; VS Code `chatSessions/*.jsonl` can include `result.details` display strings such as `0.8 credits`, plus token fields.
 - Phase 9 added for `copilot-metrics@0.2.0`: displayed-credit evidence should be selected after stronger actual charge evidence and before complete/upper-bound token estimates; displayed credits can also back-solve effective cache-read estimates when model pricing and token buckets make the inference bounded.
+- Phase 9 completed `copilot-metrics@0.2.0`: VS Code displayed-credit parsing, displayed-over-estimate pricing precedence, `0x` display evidence, inferred cache-read diagnostics, refresh merge upgrades, JSON report fields, compact human `display*` markers, and release docs.
+- Phase 9 automated verification passed: `npm test`, `npm run check`, `npm run smoke`, `npm run verify:package`, and `npm run check:readme-version`.
 
 ## Accumulated Context
 
@@ -84,7 +86,7 @@ Last activity: 2026-06-02 — Milestone v0.2.0 started for VS Code displayed-cre
 - Phase 7 completed: fallback session-log ingestion now includes setup defaults, additive custom sources, VS Code `.jsonl`/`.json` token-bearing parsing, Copilot CLI session-state checkpoints, cross-source usage dedupe, fallback diagnostics, privacy-preserving raw/checkpoint storage, and `0.1.8` release docs.
 - Phase 8 added: `copilot-metrics@0.1.9` pricing evidence release for actual local charge signals, session-local price metadata, cache-read availability, upper-bound estimates, and clearer report semantics.
 - Phase 8 completed: `copilot-metrics@0.1.9` now separates actual local charge evidence, high-confidence estimates, upper-bound estimates, cache diagnostics, and pricing provenance across import, store, and reports.
-- Phase 9 added: `copilot-metrics@0.2.0` will parse VS Code displayed-credit details, use them before token-price estimation when no stronger actual charge evidence exists, and mark inferred cache/credit values separately from observed fields.
+- Phase 9 completed: `copilot-metrics@0.2.0` parses VS Code displayed-credit details, uses them before token-price estimation when no stronger actual charge evidence exists, and marks inferred cache/credit values separately from observed fields.
 
 ## Quick Tasks Completed
 
@@ -96,5 +98,5 @@ Last activity: 2026-06-02 — Milestone v0.2.0 started for VS Code displayed-cre
 
 ## Operator Next Steps
 
-- Plan Phase 9: displayed-credit evidence import, pricing precedence, inferred cache-read diagnostics, and report semantics.
-- Execute Phase 9 and publish `copilot-metrics@0.2.0` after verification.
+- Publish `copilot-metrics@0.2.0` through the existing human-gated GitHub Actions/npm release flow.
+- After publish, validate from an isolated directory with `npx -y copilot-metrics@0.2.0 --help` and a focused report/import smoke.

@@ -363,6 +363,100 @@ test('VS Code fallback without numeric cache reads uses upper-bound session-loca
   assert.match(usage[0].pricing_diagnostics_json, /included_or_zero/);
 });
 
+test('VS Code displayed credits select displayed-credit basis before upper-bound estimates', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-vscode-display-'));
+  const sessionFile = path.join(tmp, 'session.jsonl');
+  fs.writeFileSync(sessionFile, JSON.stringify({
+    kind: 0,
+    v: {
+      sessionId: 'session-display',
+      inputState: {
+        selectedModel: {
+          metadata: {
+            id: 'gpt-5-mini',
+            inputCost: 25,
+            outputCost: 200,
+            cacheCost: 2,
+          },
+        },
+      },
+      requests: [{
+        message: { text: 'Use displayed credits for DEMO-884.' },
+        responseId: 'response-display',
+        resolvedModel: 'gpt-5-mini',
+        usage: { inputTokens: 100000, outputTokens: 2000 },
+        result: { details: 'GPT-5 mini - 0.8 credits' },
+      }],
+    },
+  }) + '\n');
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  await ingestFile({ dbPath: paths.usageDb, file: sessionFile, source: 'vscode-chat' });
+
+  const usage = await queryOne(paths.usageDb, `
+    SELECT pricing_basis, estimate_confidence, displayed_ai_credits, displayed_usd,
+      displayed_credit_text, estimated_ai_credits, upper_bound_ai_credits,
+      cache_read_tokens, cache_read_status, inferred_cache_read_tokens,
+      inferred_cache_read_reason, pricing_diagnostics_json
+    FROM usage_records
+  `);
+  assert.equal(usage[0].pricing_basis, 'displayed_credit');
+  assert.equal(usage[0].estimate_confidence, 'displayed');
+  assert.equal(usage[0].displayed_ai_credits, 0.8);
+  assert.equal(usage[0].displayed_usd, 0.008);
+  assert.equal(usage[0].displayed_credit_text, 'GPT-5 mini - 0.8 credits');
+  assert.ok(usage[0].estimated_ai_credits > usage[0].displayed_ai_credits);
+  assert.equal(usage[0].upper_bound_ai_credits, usage[0].estimated_ai_credits);
+  assert.equal(usage[0].cache_read_tokens, 0);
+  assert.equal(usage[0].cache_read_status, 'unknown');
+  assert.ok(usage[0].inferred_cache_read_tokens > 0);
+  assert.equal(usage[0].inferred_cache_read_reason, 'displayed_delta');
+  assert.match(usage[0].pricing_diagnostics_json, /displayed_inferred_cache_read/);
+  assert.match(usage[0].pricing_diagnostics_json, /displayed_estimate_delta/);
+});
+
+test('VS Code displayed 0x imports included display evidence', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-vscode-zero-display-'));
+  const sessionFile = path.join(tmp, 'session.jsonl');
+  fs.writeFileSync(sessionFile, JSON.stringify({
+    kind: 0,
+    v: {
+      sessionId: 'session-zero-display',
+      requests: [{
+        message: { text: 'Zero display DEMO-885.' },
+        responseId: 'response-zero-display',
+        resolvedModel: 'gpt-5-mini',
+        usage: { inputTokens: 1000, outputTokens: 100 },
+        result: { details: 'GPT-5 mini - 0x' },
+      }],
+    },
+  }) + '\n');
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  await ingestFile({ dbPath: paths.usageDb, file: sessionFile, source: 'vscode-chat' });
+
+  const usage = await queryOne(paths.usageDb, 'SELECT pricing_basis, estimate_confidence, displayed_ai_credits, displayed_credit_text, pricing_diagnostics_json FROM usage_records');
+  assert.equal(usage[0].pricing_basis, 'included_or_zero');
+  assert.equal(usage[0].estimate_confidence, 'plan_included');
+  assert.equal(usage[0].displayed_ai_credits, 0);
+  assert.equal(usage[0].displayed_credit_text, 'GPT-5 mini - 0x');
+  assert.match(usage[0].pricing_diagnostics_json, /included_or_zero/);
+});
+
+test('actual charge evidence remains stronger than displayed credits', async () => {
+  const pricing = require('../src/pricing').classifyPricing({
+    resolved_model: 'gpt-5-mini',
+    input_tokens: 40000,
+    output_tokens: 1000,
+    cache_read_tokens: 0,
+    cache_read_status: 'unknown',
+    actual_charge_nano_aiu: 500000000,
+    displayed_ai_credits: 0.8,
+    displayed_credit_text: 'GPT-5 mini - 0.8 credits',
+  });
+  assert.equal(pricing.pricing_basis, 'actual');
+  assert.equal(pricing.actual_ai_credits, 0.5);
+  assert.equal(pricing.displayed_ai_credits, 0.8);
+});
+
 test('VS Code debug log cachedTokens upgrades fallback cache-read evidence', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-vscode-debug-'));
   const workspace = path.join(tmp, 'workspaceStorage', 'workspace-a');

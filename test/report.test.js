@@ -148,6 +148,61 @@ test('report --refresh re-reads configured sources and merges new debug pricing 
   assert.equal(rows[0].cache_read_status, 'known');
 });
 
+test('report --refresh merges displayed-credit evidence without duplicate usage', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-display-refresh-report-'));
+  const userHome = path.join(home, 'user-home');
+  const workspace = path.join(userHome, '.config', 'Code - Insiders', 'User', 'workspaceStorage', 'workspace-a');
+  const chatDir = path.join(workspace, 'chatSessions');
+  fs.mkdirSync(chatDir, { recursive: true });
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({
+    sources: {
+      vscode: {
+        additionalChatSessions: [chatDir],
+      },
+    },
+  }, null, 2));
+  const sessionFile = path.join(chatDir, 'session-display-refresh.jsonl');
+  const baseRecord = {
+    kind: 0,
+    v: {
+      sessionId: 'session-display-refresh',
+      inputState: { selectedModel: { metadata: { id: 'gpt-5-mini', inputCost: 25, outputCost: 200, cacheCost: 2 } } },
+      requests: [{
+        message: { text: 'Refresh DEMO-886 displayed credit evidence.' },
+        responseId: 'response-display-refresh',
+        resolvedModel: 'gpt-5-mini',
+        usage: { inputTokens: 40000, outputTokens: 1000 },
+      }],
+    },
+  };
+  fs.writeFileSync(sessionFile, JSON.stringify(baseRecord) + '\n');
+
+  const env = {
+    ...process.env,
+    COPILOT_HOME: path.join(home, 'copilot-home'),
+    HOME: userHome,
+    USERPROFILE: userHome,
+  };
+  const first = JSON.parse(execFileSync(process.execPath, [cli, 'report', 'labels', '--home', home, '--json'], { cwd: root, encoding: 'utf8', env }));
+  assert.equal(first.labels.find((row) => row.label === 'DEMO-886').upper_bound_usage_records, 1);
+
+  baseRecord.v.requests[0].result = { details: 'GPT-5 mini - 0.8 credit' };
+  fs.writeFileSync(sessionFile, JSON.stringify(baseRecord) + '\n');
+  const second = JSON.parse(execFileSync(process.execPath, [cli, 'report', 'labels', '--refresh', '--home', home, '--json'], { cwd: root, encoding: 'utf8', env }));
+  const refreshed = second.labels.find((row) => row.label === 'DEMO-886');
+  assert.equal(refreshed.usage_records, 1);
+  assert.equal(refreshed.displayed_credit_usage_records, 1);
+  assert.equal(refreshed.displayed_ai_credits, 0.8);
+  assert.ok(refreshed.inferred_cache_read_tokens > 0);
+  assert.equal(refreshed.upper_bound_usage_records, 0);
+
+  const rows = await queryOne(path.join(home, 'store', 'copilot-metrics.sqlite'), 'SELECT COUNT(*) AS count, pricing_basis, displayed_ai_credits FROM usage_records');
+  assert.equal(rows[0].count, 1);
+  assert.equal(rows[0].pricing_basis, 'displayed_credit');
+  assert.equal(rows[0].displayed_ai_credits, 0.8);
+});
+
 test('hook-only labels are visible without implying token usage', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-hook-only-'));
   run(['import', '--source', 'hooks', '--file', path.join(fixtures, 'hook-events.jsonl'), '--home', home, '--json']);
@@ -186,6 +241,28 @@ test('human report output is compact and labels costs as estimates', () => {
   assert.match(output, /AI Credits are estimates/);
   assert.match(output, /Status/);
   assert.match(output, /\$ est\./);
+});
+
+test('human reports mark displayed-credit basis compactly', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-display-human-'));
+  const sessionFile = path.join(home, 'session.jsonl');
+  fs.writeFileSync(sessionFile, JSON.stringify({
+    kind: 0,
+    v: {
+      sessionId: 'session-display-human',
+      requests: [{
+        message: { text: 'Show DEMO-887 displayed basis.' },
+        responseId: 'response-display-human',
+        resolvedModel: 'gpt-5-mini',
+        usage: { inputTokens: 40000, outputTokens: 1000 },
+        result: { details: 'GPT-5 mini - 0.8 credits' },
+      }],
+    },
+  }) + '\n');
+  run(['import', '--source', 'vscode-chat', '--file', sessionFile, '--home', home, '--json']);
+  const output = run(['report', 'labels', '--home', home]);
+  assert.match(output, /display\*/);
+  assert.match(output, /VS Code displayed credits/);
 });
 
 test('single label human report includes per-model breakdown by default', () => {
