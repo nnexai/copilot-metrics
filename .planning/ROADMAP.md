@@ -6,7 +6,7 @@
 
 ## Overview
 
-Build a local-first Copilot usage tracker in five slices: easy-install CLI/scripts/hooks foundation, telemetry ingestion and cost estimation, Jira-label attribution and CLI querying, hardening for regular use, then GitHub/npm publishing preparation.
+Build a local-first Copilot usage tracker in incremental CLI-first slices. The initial milestone delivered setup, ingestion, attribution, reports, hardening, publishing, and setup-once behavior. The current v0.1.8 milestone adds default session-log fallback ingestion so reports still work when hooks and OpenTelemetry are unavailable.
 
 ## Phases
 
@@ -21,6 +21,7 @@ Build a local-first Copilot usage tracker in five slices: easy-install CLI/scrip
 - [x] **Phase 4.1: VS Code and Copilot CLI Hook Support Research** - Research, model, and validate hook setup for both VS Code Copilot and Copilot CLI.
 - [x] **Phase 5: GitHub and npm Publishing Preparation** - Add repository automation and package publishing readiness for GitHub and npm.
 - [x] **Phase 6: 0.1.1 Zero-friction setup, automatic hook ingestion, and complete token reporting** - Add setup-once reports, idempotent auto-import, complete token categories, and hook-only label semantics.
+- [ ] **Phase 7: 0.1.8 Session log fallback ingestion** - Make local VS Code, VS Code Insiders, and Copilot CLI session logs the default fallback path when hooks and OTel are unavailable.
 
 ## Phase Details
 
@@ -213,10 +214,45 @@ Plans:
 - Manual npx validation from an isolated workspace using cheap Copilot models where real Copilot CLI is involved.
 - Version, changelog, package verification, GitHub release, and npm trusted-publishing validation for `0.1.1`.
 
+### Phase 7: 0.1.8 Session log fallback ingestion
+
+**Goal:** Ship `copilot-metrics@0.1.8` with session-log parsing as the default fallback for VS Code stable, VS Code Insiders, and Copilot CLI when hooks and OpenTelemetry are missing or broken.
+
+**Requirements**: FALLBACK-01, FALLBACK-02, FALLBACK-03, FALLBACK-04, FALLBACK-05, FALLBACK-06, FALLBACK-07, FALLBACK-08, FALLBACK-09, FALLBACK-10, FALLBACK-11
+**Depends on:** Phase 6
+**Plans:** 1 plan
+
+Plans:
+- [ ] Session fallback discovery, import, attribution, diagnostics, and release
+
+**Expected deliverables:**
+- Setup/default config includes explicit fallback session sources for VS Code stable, VS Code Insiders, and Copilot CLI, with user-level persisted config and env vars remaining override-only.
+- Auto-import treats fallback session logs as first-class configured sources before reports, while keeping OTel and hooks as higher-fidelity optional sources when present.
+- VS Code fallback parser handles supported `.jsonl` and `.json` chat session files and extracts session/request identifiers, prompt candidates for label extraction, model/token fields when present, and diagnostics when token fields are absent.
+- Copilot CLI fallback parser imports `session-state/*/events.jsonl` from `COPILOT_HOME` or `~/.copilot` and maps shutdown model metrics into normalized usage records.
+- Fallback-derived usage and evidence run through the existing `runLabelExtractors` callback path, including configured custom extractors that override the built-in Jira extractor.
+- Reports preserve source/session attribution and clearly mark fallback diagnostics without implying official billing precision.
+- Documentation and release notes explain fallback behavior, privacy limits, default paths, and how to add custom session directories.
+
+**Success Criteria** (what must be TRUE):
+  1. A user can run setup once, have no working hooks or OTel files, and still get report output from local VS Code/Insiders or Copilot CLI session logs when those logs include token metrics.
+  2. Repeated report runs are idempotent for fallback logs and do not double-count usage or label evidence.
+  3. Custom label extractors are invoked for fallback-derived source data through the same callback contract as OTel and hooks.
+  4. Missing, unreadable, unsupported, and tokenless fallback logs produce actionable diagnostics in human-readable and JSON output.
+  5. Content capture remains disabled by default; fallback parsing does not persist full prompts or responses unless explicitly enabled.
+
+**Verification focus:**
+- Fixture tests for VS Code stable and Insiders default path discovery on Linux, macOS, and Windows path conventions.
+- Fixture tests for VS Code `.jsonl` and `.json` chat session fallback parsing.
+- Fixture tests for Copilot CLI `session-state/*/events.jsonl` fallback import, including `COPILOT_HOME`.
+- Custom extractor tests proving fallback data uses the existing configured extractor callback.
+- Report auto-import tests proving fallback idempotence and diagnostics.
+- `npm test`, `npm run check`, `npm run smoke`, `npm run verify:package`, and isolated `npx -y copilot-metrics@0.1.8` validation after publish.
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -227,6 +263,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 4.1. VS Code and Copilot CLI Hook Support Research | 1/1 | Complete | 2026-05-30 |
 | 5. GitHub and npm Publishing Preparation | 0/0 | Complete via Phase 4 | 2026-05-30 |
 | 6. 0.1.1 Zero-friction setup, automatic hook ingestion, and complete token reporting | 1/1 | Complete | 2026-05-30 |
+| 7. 0.1.8 Session log fallback ingestion | 0/1 | Planned | — |
 
 ## Deferred
 

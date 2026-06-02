@@ -8,6 +8,16 @@ Copilot Metrics is a local Node.js/npm-based toolkit for estimating GitHub Copil
 
 Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
 
+## Current Milestone: v0.1.8 Session log fallback ingestion
+
+**Goal:** Make `copilot-metrics@0.1.8` useful when Copilot hooks and OpenTelemetry are unavailable by defaulting to local session-log parsing for VS Code, VS Code Insiders, and Copilot CLI while preserving the existing label extraction callback.
+
+**Target features:**
+- Discover VS Code and VS Code Insiders Copilot chat session logs from platform default user data paths and configured overrides.
+- Discover Copilot CLI session logs from `~/.copilot/session-state` or `COPILOT_HOME` and import them by default before reports.
+- Normalize fallback session-log records into the existing usage, token estimate, source/session, and label evidence pipeline.
+- Reuse the same configured label extractor callback contract for labels found in fallback prompts, directories, branches, repos, task hints, and session metadata.
+
 ## Requirements
 
 ### Validated
@@ -25,7 +35,17 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 
 ### Active
 
-(None currently - start the next milestone to define new active requirements.)
+- FALLBACK-01: User can run setup once and have default source discovery include VS Code stable, VS Code Insiders, and Copilot CLI session-log fallback locations without manual environment exports.
+- FALLBACK-02: User can configure additional fallback session directories or files for VS Code, VS Code Insiders, and Copilot CLI while retaining the built-in default discovery paths.
+- FALLBACK-03: User can see fallback source diagnostics that distinguish missing paths, unreadable files, unsupported formats, content-only sessions, and sessions without token metrics.
+- FALLBACK-04: User can run any report command with missing hooks and missing OpenTelemetry files and still auto-import token-bearing records from discovered fallback session logs.
+- FALLBACK-05: User can re-run report commands after fallback imports without double-counting previously imported session-log records.
+- FALLBACK-06: User can import VS Code and VS Code Insiders chat session logs from both `.jsonl` and `.json` session files when the file shape is supported.
+- FALLBACK-07: User can import Copilot CLI `session-state/*/events.jsonl` logs from `~/.copilot` or `COPILOT_HOME` and map shutdown model metrics into usage records.
+- FALLBACK-08: User can rely on the same configured label extractor callback for fallback-derived labels from prompt text, directories, branches, repos, task hints, explicit labels, and session metadata.
+- FALLBACK-09: User can inspect fallback-derived label evidence in reports with source type, source field, source value, confidence, session ID, and usage record linkage preserved.
+- FALLBACK-10: User can keep content capture disabled by default; fallback parsing stores only normalized usage fields and redacted label evidence values unless explicit content capture is enabled.
+- FALLBACK-11: User can see human-readable and JSON report diagnostics explaining that fallback estimates are advisory and may be incomplete when session logs omit token fields.
 
 ### Out of Scope
 
@@ -69,6 +89,7 @@ The most important attribution convention is Jira ticket IDs such as `DEMO-12345
 | Use a central user-level data directory | Keeps metadata local, independent of individual repos, and suitable for cross-project Copilot usage. | Validated in v0.1.1 |
 | Start with file-based OTel ingestion | JSONL exports are simple, local, auditable, and lower-friction than a collector. | Validated in v0.1.1 |
 | Add CLI hooks for attribution | OTel provides tokens and models; hooks add task, cwd, transcript, and session context. | Validated in v0.1.1 |
+| Treat session logs as the default fallback | Hooks and OTel can fail or be unavailable; local session logs are the next best source and already exist for VS Code and Copilot CLI. | Active in v0.1.8 |
 | Prioritize Jira labels | User's primary grouping is ticket IDs such as `DEMO-12345`, extracted from prompt, directory, branch, and tool-call context. | Validated in v0.1.1 |
 | Build CLI reports before dashboards | The user wants scripts/hooks/query tools first; dashboard is not a current priority. | Validated in v0.1.1 |
 | Use cheap models for Copilot CLI verification | Integration tests can call Copilot CLI, but the goal is validating output/telemetry, not paying for high-quality answers. | Validated in v0.1.1 |
@@ -93,4 +114,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-30 after v0.1.1 milestone completion*
+*Last updated: 2026-06-02 for v0.1.8 milestone planning*

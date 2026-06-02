@@ -1,29 +1,29 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.1.1
-milestone_name: Local Copilot Usage Tracker
-status: completed
-last_updated: "2026-05-30T08:07:34.481Z"
-last_activity: 2026-05-30 — Milestone v0.1.1 completed and archived
+milestone: v0.1.8
+milestone_name: Session log fallback ingestion
+status: planning
+last_updated: "2026-06-02T06:36:11.415Z"
+last_activity: 2026-06-02
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 1
+  completed_plans: 0
+  percent: 0
 ---
 
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** v0.1.1 milestone complete
+**Status:** v0.1.8 milestone planning
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-05-30)
+See: `.planning/PROJECT.md` (updated 2026-06-02)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Milestone v0.1.1 archived; cleanup/commit gate pending
+**Current focus:** Milestone v0.1.8 session log fallback ingestion
 
 ## Workflow Settings
 
@@ -39,14 +39,14 @@ See: `.planning/PROJECT.md` (updated 2026-05-30)
 
 ## Current Phase
 
-All planned implementation phases complete
+Phase 7: 0.1.8 Session log fallback ingestion
 
 ## Current Position
 
-Phase: Milestone v0.1.1 complete
+Phase: 7 - 0.1.8 Session log fallback ingestion
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-05-30 — Milestone v0.1.1 completed and archived
+Status: Roadmap ready; phase planning next
+Last activity: 2026-06-02 — Milestone v0.1.8 requirements and roadmap created
 
 ## Notes
 
@@ -73,6 +73,7 @@ Last activity: 2026-05-30 — Milestone v0.1.1 completed and archived
 ### Roadmap Evolution
 
 - Phase 6 added: `copilot-metrics@0.1.1` patch release for setup-once behavior, automatic hook/source imports before reports, complete token reporting including cache/reasoning tokens, and clear hook-only attribution semantics.
+- Phase 7 added: `copilot-metrics@0.1.8` fallback release for default VS Code, VS Code Insiders, and Copilot CLI session-log parsing when hooks and OTel are unavailable.
 
 ## Quick Tasks Completed
 
@@ -84,4 +85,4 @@ Last activity: 2026-05-30 — Milestone v0.1.1 completed and archived
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Start phase planning with `$gsd-plan-phase 7`
