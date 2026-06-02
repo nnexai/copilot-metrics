@@ -17,6 +17,7 @@ test('resolvePaths uses COPILOT_METRICS_HOME override', () => {
   assert.equal(paths.vscodeOtelJsonl, path.join(home, 'telemetry', 'vscode-copilot-otel.jsonl'));
   assert.equal(paths.hookEventsJsonl, path.join(home, 'hooks', 'copilot-hooks.jsonl'));
   assert.equal(paths.copilotSessionStateDir, path.join(os.homedir(), '.copilot', 'session-state'));
+  assert.ok(paths.vscodeChatSessionDirs.some((dir) => dir.includes('workspaceStorage')));
 });
 
 test('resolvePaths respects COPILOT_HOME for global hooks', () => {
@@ -53,6 +54,9 @@ test('setup snapshot persists central config for setup-once flow', () => {
   assert.equal(config.telemetry.vscode, snapshot.paths.vscodeOtelJsonl);
   assert.equal(config.sources.copilotCli.telemetry, snapshot.paths.copilotCliOtelJsonl);
   assert.equal(config.sources.copilotCli.sessions, snapshot.paths.copilotSessionStateDir);
+  assert.deepEqual(config.sources.vscode.chatSessions, snapshot.paths.vscodeChatSessionDirs);
+  assert.deepEqual(config.sources.vscode.additionalChatSessions, []);
+  assert.deepEqual(config.sources.copilotCli.additionalSessions, []);
 });
 
 test('setup snapshot upgrades existing central config with session source', () => {
@@ -68,6 +72,37 @@ test('setup snapshot upgrades existing central config with session source', () =
   const config = JSON.parse(fs.readFileSync(snapshot.paths.configJson, 'utf8'));
   assert.equal(config.sources.copilotCli.hooks, '/custom/hooks.jsonl');
   assert.equal(config.sources.copilotCli.sessions, snapshot.paths.copilotSessionStateDir);
+});
+
+test('setup snapshot preserves custom fallback paths while retaining defaults', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-setup-custom-fallback-'));
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: '/tmp/work' });
+  fs.mkdirSync(path.dirname(paths.configJson), { recursive: true });
+  fs.writeFileSync(paths.configJson, `${JSON.stringify({
+    version: 1,
+    sources: {
+      vscode: {
+        chatSessions: ['/custom/vscode-chat'],
+        additionalChatSessions: ['/extra/vscode-chat'],
+      },
+      copilotCli: {
+        sessions: '/custom/copilot/session-state',
+        additionalSessions: ['/extra/copilot/session-state'],
+      },
+    },
+  })}\n`);
+  const snapshot = setupSnapshot({
+    env: { COPILOT_METRICS_HOME: tmp },
+    cwd: '/tmp/work',
+    command: '/usr/bin/copilot-metrics',
+  });
+  const config = JSON.parse(fs.readFileSync(snapshot.paths.configJson, 'utf8'));
+  assert.ok(config.sources.vscode.chatSessions.includes(snapshot.paths.vscodeStableChatSessionDir));
+  assert.ok(config.sources.vscode.chatSessions.includes(snapshot.paths.vscodeInsidersChatSessionDir));
+  assert.ok(config.sources.vscode.chatSessions.includes('/custom/vscode-chat'));
+  assert.deepEqual(config.sources.vscode.additionalChatSessions, ['/extra/vscode-chat']);
+  assert.equal(config.sources.copilotCli.sessions, '/custom/copilot/session-state');
+  assert.deepEqual(config.sources.copilotCli.additionalSessions, ['/extra/copilot/session-state']);
 });
 
 test('installVscodeSettings merges telemetry settings into user settings', () => {

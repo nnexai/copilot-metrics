@@ -12,7 +12,9 @@ const { normalizePayload } = require('../src/otel');
 const { estimateCost, PRICING_VERSION } = require('../src/pricing');
 const {
   backfillVscodeUsageResponseIds,
+  configuredSourceEntries,
   ingestFile,
+  normalizeVscodeFallbackUsage,
   normalizeVscodeChatSession,
   repairUsageCostEstimates,
 } = require('../src/ingest');
@@ -221,7 +223,7 @@ test('ingestFile links VS Code chat labels to OTel usage by response id without 
     source: 'vscode-chat',
   });
 
-  assert.equal(result.raw_records, 0);
+  assert.equal(result.raw_records, 2);
   assert.equal(result.usage_records, 1);
   assert.equal(result.label_evidence, 1);
 
@@ -232,8 +234,9 @@ test('ingestFile links VS Code chat labels to OTel usage by response id without 
   assert.equal(evidence[0].session_id, 'chat-session');
   assert.ok(evidence[0].usage_record_id > 0);
 
-  const rawRows = await queryOne(paths.usageDb, "SELECT COUNT(*) AS count FROM raw_records WHERE source = 'vscode-chat'");
-  assert.equal(rawRows[0].count, 0);
+  const rawRows = await queryOne(paths.usageDb, "SELECT payload_json FROM raw_records WHERE source = 'vscode-chat'");
+  assert.equal(rawRows.length, 2);
+  assert.doesNotMatch(rawRows.map((row) => row.payload_json).join('\n'), /HDASPF-321/);
 
   const second = await ingestFile({
     dbPath: paths.usageDb,
@@ -241,6 +244,90 @@ test('ingestFile links VS Code chat labels to OTel usage by response id without 
     source: 'vscode-chat',
   });
   assert.equal(second.label_evidence, 0);
+});
+
+test('ingestFile stores VS Code fallback token usage from jsonl without persisting prompts', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-vscode-fallback-'));
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  const result = await ingestFile({
+    dbPath: paths.usageDb,
+    file: path.join(fixtures, 'vscode-fallback-usage.jsonl'),
+    source: 'vscode-chat',
+  });
+
+  assert.equal(result.usage_records, 1);
+  assert.ok(result.label_evidence >= 1);
+  const usage = await queryOne(paths.usageDb, 'SELECT source, surface, session_id, resolved_model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, reasoning_tokens FROM usage_records');
+  assert.equal(usage[0].source, 'vscode-chat');
+  assert.equal(usage[0].surface, 'vscode-chat-session');
+  assert.equal(usage[0].session_id, 'fallback-session');
+  assert.equal(usage[0].resolved_model, 'gpt-5-mini');
+  assert.equal(usage[0].input_tokens, 1400);
+  assert.equal(usage[0].output_tokens, 350);
+  assert.equal(usage[0].cache_read_tokens, 40);
+  assert.equal(usage[0].cache_creation_tokens, 10);
+  assert.equal(usage[0].reasoning_tokens, 5);
+
+  const evidence = await queryOne(paths.usageDb, "SELECT label, source_field, usage_record_id FROM label_evidence WHERE label = 'DEMO-777'");
+  assert.ok(evidence.some((row) => row.source_field === 'prompt' && row.usage_record_id > 0));
+  const rawRows = await queryOne(paths.usageDb, "SELECT payload_json FROM raw_records WHERE source = 'vscode-chat'");
+  assert.doesNotMatch(rawRows.map((row) => row.payload_json).join('\n'), /Please finish/);
+
+  const second = await ingestFile({
+    dbPath: paths.usageDb,
+    file: path.join(fixtures, 'vscode-fallback-usage.jsonl'),
+    source: 'vscode-chat',
+  });
+  assert.equal(second.new_raw_records, 0);
+  assert.equal(second.usage_records, 0);
+});
+
+test('same session exchange is not duplicated across OTel and fallback sources', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-cross-source-dedupe-'));
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+
+  await ingestFile({
+    dbPath: paths.usageDb,
+    file: path.join(fixtures, 'vscode-log-records.jsonl'),
+    source: 'vscode',
+  });
+  const fallback = await ingestFile({
+    dbPath: paths.usageDb,
+    file: path.join(fixtures, 'vscode-fallback-duplicate.jsonl'),
+    source: 'vscode-chat',
+  });
+
+  assert.equal(fallback.usage_records, 1);
+  const rows = await queryOne(paths.usageDb, 'SELECT COUNT(*) AS count, SUM(input_tokens) AS input FROM usage_records');
+  assert.equal(rows[0].count, 1);
+  assert.equal(rows[0].input, 30000);
+  const evidence = await queryOne(paths.usageDb, "SELECT label, usage_record_id FROM label_evidence WHERE label = 'HDASPF-321'");
+  assert.ok(evidence.length >= 1);
+  assert.equal(new Set(evidence.map((row) => row.usage_record_id)).size, 1);
+});
+
+test('ingestFile stores VS Code fallback token usage from json files', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-vscode-fallback-json-'));
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  const result = await ingestFile({
+    dbPath: paths.usageDb,
+    file: path.join(fixtures, 'vscode-fallback-usage.json'),
+    source: 'vscode-chat',
+  });
+
+  assert.equal(result.usage_records, 1);
+  const usage = await queryOne(paths.usageDb, 'SELECT session_id, input_tokens, output_tokens FROM usage_records');
+  assert.equal(usage[0].session_id, 'fallback-json-session');
+  assert.equal(usage[0].input_tokens, 1500);
+  assert.equal(usage[0].output_tokens, 360);
+});
+
+test('normalizeVscodeFallbackUsage returns token-bearing request usage', () => {
+  const parsed = readJsonl(path.join(fixtures, 'vscode-fallback-usage.jsonl'));
+  const records = normalizeVscodeFallbackUsage(parsed.records);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].session_id, 'fallback-session');
+  assert.equal(records[0].input_tokens, 1400);
 });
 
 test('normalizeVscodeChatSession ignores chat labels without response ids', () => {
@@ -280,6 +367,63 @@ test('ingestFile stores Copilot session-state shutdown usage without OTel env', 
   assert.equal(usage[0].reasoning_tokens, 25);
   const evidence = await queryOne(paths.usageDb, "SELECT label, source_type FROM label_evidence WHERE label = 'DEMO-900'");
   assert.equal(evidence[0].source_type, 'usage');
+});
+
+test('Copilot session-state import checkpoints appended logs without dropping new usage', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-session-append-'));
+  const sessionFile = path.join(tmp, 'events.jsonl');
+  fs.writeFileSync(sessionFile, [
+    '{"type":"session.start","data":{"sessionId":"session-append","context":{"cwd":"/repo/DEMO-901","gitRoot":"/repo","branch":"feature/DEMO-901","headCommit":"abc123"}},"id":"start1","timestamp":"2026-06-02T08:00:00.000Z"}',
+    '{"type":"hook.start","data":{"input":{"prompt":"Work on DEMO-901"}},"id":"hook1","timestamp":"2026-06-02T08:00:01.000Z"}',
+  ].join('\n') + '\n');
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+
+  const first = await ingestFile({ dbPath: paths.usageDb, file: sessionFile, source: 'copilot-session' });
+  assert.equal(first.usage_records, 0);
+  assert.equal(first.new_raw_records, 2);
+
+  fs.appendFileSync(sessionFile, '{"type":"session.shutdown","data":{"modelMetrics":{"gpt-5-mini":{"usage":{"inputTokens":500,"outputTokens":125}}}},"id":"shutdown1","timestamp":"2026-06-02T08:00:02.000Z"}\n');
+  const second = await ingestFile({ dbPath: paths.usageDb, file: sessionFile, source: 'copilot-session' });
+  assert.equal(second.new_raw_records, 1);
+  assert.equal(second.usage_records, 1);
+
+  const usage = await queryOne(paths.usageDb, 'SELECT session_id, branch, input_tokens, output_tokens FROM usage_records');
+  assert.equal(usage[0].session_id, 'session-append');
+  assert.equal(usage[0].branch, 'feature/DEMO-901');
+  assert.equal(usage[0].input_tokens, 500);
+  assert.equal(usage[0].output_tokens, 125);
+  const evidence = await queryOne(paths.usageDb, "SELECT label, source_field FROM label_evidence WHERE label = 'DEMO-901'");
+  assert.ok(evidence.length >= 1);
+
+  const third = await ingestFile({ dbPath: paths.usageDb, file: sessionFile, source: 'copilot-session' });
+  assert.equal(third.new_raw_records, 0);
+  assert.equal(third.usage_records, 0);
+});
+
+test('configured source discovery keeps default fallback paths and additive custom paths', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-discovery-'));
+  const custom = path.join(tmp, 'custom-chat');
+  fs.mkdirSync(custom, { recursive: true });
+  fs.copyFileSync(path.join(fixtures, 'vscode-fallback-usage.json'), path.join(custom, 'session.json'));
+  const paths = resolvePaths({
+    env: { COPILOT_METRICS_HOME: tmp, HOME: '/home/tester', COPILOT_HOME: path.join(tmp, 'copilot-home') },
+    cwd: process.cwd(),
+    platform: 'linux',
+  });
+  const entries = configuredSourceEntries(paths, {
+    sources: {
+      vscode: {
+        additionalChatSessions: [custom],
+      },
+      copilotCli: {
+        additionalSessions: [path.join(tmp, 'missing-session-state')],
+      },
+    },
+  });
+
+  assert.ok(entries.files.some((entry) => entry.source === 'vscode-chat' && entry.file.endsWith('session.json')));
+  assert.ok(entries.diagnostics.some((entry) => entry.source === 'vscode-chat' && entry.file.includes('.config/Code/User/workspaceStorage')));
+  assert.ok(entries.diagnostics.some((entry) => entry.source === 'copilot-session' && entry.code === 'missing_path'));
 });
 
 test('ingestFile stores copilot cli records and hook events', async () => {

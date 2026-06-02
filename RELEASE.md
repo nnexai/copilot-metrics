@@ -48,10 +48,10 @@ The script creates an example workspace, configures `copilot-metrics`, installs 
 
 ## GitHub Actions Publish
 
-1. Confirm `package.json` version is `0.1.0`.
+1. Confirm `package.json` contains the release version and README examples match it with `npm run check:readme-version`.
 2. Commit all release changes.
 3. Push `main`.
-4. Create a GitHub release for `v0.1.0`.
+4. Create a GitHub release tag that matches the `package.json` version, for example `v$(node -p "require('./package.json').version")`.
 5. Confirm the `Node.js Package` workflow passes and publishes to npm through Trusted Publishing.
 
 ## Post-Publish Verification
@@ -59,10 +59,11 @@ The script creates an example workspace, configures `copilot-metrics`, installs 
 After the workflow publishes:
 
 ```bash
-npm view copilot-metrics@0.1.0 version
-npm view copilot-metrics@0.1.0 dist.tarball
-npx copilot-metrics@0.1.0 --help
-npx copilot-metrics@0.1.0 paths --json
+VERSION=$(node -p "require('./package.json').version")
+npm view copilot-metrics@$VERSION version
+npm view copilot-metrics@$VERSION dist.tarball
+npx copilot-metrics@$VERSION --help
+npx copilot-metrics@$VERSION paths --json
 ```
 
 ## Do Not Publish

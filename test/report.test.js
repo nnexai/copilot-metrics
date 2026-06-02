@@ -12,12 +12,13 @@ const root = path.join(__dirname, '..');
 const cli = path.join(root, 'bin', 'copilot-metrics.js');
 const fixtures = path.join(__dirname, 'fixtures');
 const defaultCopilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-test-copilot-home-'));
+const defaultUserHome = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-test-user-home-'));
 
 function run(args) {
   return execFileSync(process.execPath, [cli, ...args], {
     cwd: root,
     encoding: 'utf8',
-    env: { ...process.env, COPILOT_HOME: defaultCopilotHome },
+    env: { ...process.env, COPILOT_HOME: defaultCopilotHome, HOME: defaultUserHome, USERPROFILE: defaultUserHome },
   });
 }
 
@@ -77,7 +78,12 @@ test('reports auto-import configured JSONL sources idempotently', async () => {
   fs.copyFileSync(path.join(fixtures, 'hook-events.jsonl'), path.join(home, 'hooks', 'copilot-hooks.jsonl'));
   fs.copyFileSync(path.join(fixtures, 'copilot-session-events.jsonl'), path.join(home, 'copilot-home', 'session-state', 'session-native', 'events.jsonl'));
 
-  const env = { ...process.env, COPILOT_HOME: path.join(home, 'copilot-home') };
+  const env = {
+    ...process.env,
+    COPILOT_HOME: path.join(home, 'copilot-home'),
+    HOME: path.join(home, 'user-home'),
+    USERPROFILE: path.join(home, 'user-home'),
+  };
   const first = JSON.parse(execFileSync(process.execPath, [cli, 'report', 'labels', '--home', home, '--json'], { cwd: root, encoding: 'utf8', env }));
   const second = JSON.parse(execFileSync(process.execPath, [cli, 'report', 'labels', '--home', home, '--json'], { cwd: root, encoding: 'utf8', env }));
   assert.deepEqual(second.labels, first.labels);

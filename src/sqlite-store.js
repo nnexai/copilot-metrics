@@ -14,18 +14,37 @@ function getSqlModule() {
 async function openDatabase(dbPath) {
   const SQL = await getSqlModule();
   if (fs.existsSync(dbPath)) {
-    return new SQL.Database(fs.readFileSync(dbPath));
+    try {
+      return new SQL.Database(fs.readFileSync(dbPath));
+    } catch (error) {
+      const message = error && error.message ? error.message : error && error.name ? error.name : String(error);
+      throw new Error(`SQLite store is unreadable at ${dbPath}: ${message}. Move the file aside and re-run setup/report to rebuild from local sources.`);
+    }
   }
   return new SQL.Database();
 }
 
 function persistDatabase(dbPath, db) {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true, mode: 0o700 });
-  fs.writeFileSync(dbPath, Buffer.from(db.export()), { mode: 0o600 });
+  const tmpPath = `${dbPath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmpPath, Buffer.from(db.export()), { mode: 0o600 });
   try {
-    fs.chmodSync(dbPath, 0o600);
+    fs.chmodSync(tmpPath, 0o600);
   } catch {
     // Best-effort on non-POSIX filesystems.
+  }
+  fs.renameSync(tmpPath, dbPath);
+}
+
+function closeDatabase(db) {
+  if (db && typeof db.close === 'function') db.close();
+}
+
+function rollbackDatabase(db) {
+  try {
+    db.run('ROLLBACK');
+  } catch {
+    // Ignore rollback failures when the transaction was already closed.
   }
 }
 
@@ -39,12 +58,33 @@ function hasColumn(db, table, column) {
 function addColumnIfMissing(db, table, column, definition) {
   if (!hasColumn(db, table, column)) {
     db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    return true;
+  }
+  return false;
+}
+
+function hasIndex(db, index) {
+  const statement = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ? LIMIT 1");
+  try {
+    statement.bind([index]);
+    return statement.step();
+  } finally {
+    statement.free();
   }
 }
 
+function createIndexIfMissing(db, index, sql) {
+  if (hasIndex(db, index)) return false;
+  db.run(sql);
+  return true;
+}
+
 async function initStore(dbPath) {
+  const isNewStore = !fs.existsSync(dbPath);
   const db = await openDatabase(dbPath);
-  db.run(`
+  try {
+    let changed = isNewStore;
+    db.run(`
 CREATE TABLE IF NOT EXISTS raw_records (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   imported_at TEXT NOT NULL,
@@ -80,7 +120,8 @@ CREATE TABLE IF NOT EXISTS usage_records (
   estimated_usd REAL,
   estimated_ai_credits REAL,
   estimate_label TEXT NOT NULL,
-  warnings_json TEXT NOT NULL
+  warnings_json TEXT NOT NULL,
+  usage_identity TEXT
 );
 CREATE TABLE IF NOT EXISTS hook_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -119,11 +160,32 @@ CREATE TABLE IF NOT EXISTS import_warnings (
   code TEXT NOT NULL,
   message TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS import_checkpoints (
+  source TEXT NOT NULL,
+  source_file TEXT NOT NULL,
+  checkpoint_line INTEGER NOT NULL DEFAULT 0,
+  context_json TEXT NOT NULL DEFAULT '{}',
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (source, source_file)
+);
 `);
-  addColumnIfMissing(db, 'raw_records', 'source_file', 'TEXT');
-  addColumnIfMissing(db, 'raw_records', 'raw_fingerprint', 'TEXT');
-  db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_records_fingerprint ON raw_records (source, source_file, raw_fingerprint)');
-  persistDatabase(dbPath, db);
+    changed = addColumnIfMissing(db, 'raw_records', 'source_file', 'TEXT') || changed;
+    changed = addColumnIfMissing(db, 'raw_records', 'raw_fingerprint', 'TEXT') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'usage_identity', 'TEXT') || changed;
+    changed = createIndexIfMissing(
+      db,
+      'idx_raw_records_fingerprint',
+      'CREATE UNIQUE INDEX idx_raw_records_fingerprint ON raw_records (source, source_file, raw_fingerprint)',
+    ) || changed;
+    changed = createIndexIfMissing(
+      db,
+      'idx_usage_records_identity',
+      'CREATE UNIQUE INDEX idx_usage_records_identity ON usage_records (usage_identity) WHERE usage_identity IS NOT NULL',
+    ) || changed;
+    if (changed) persistDatabase(dbPath, db);
+  } finally {
+    closeDatabase(db);
+  }
 }
 
 function runPrepared(db, sql, rows) {
@@ -167,8 +229,8 @@ function insertLabelEvidence(db, importedAt, evidenceRows) {
 }
 
 async function existingRawFingerprints(dbPath, source, sourceFile, fingerprints) {
-  await initStore(dbPath);
   if (!fingerprints.length) return new Set();
+  await initStore(dbPath);
   const db = await openDatabase(dbPath);
   const existing = new Set();
   const statement = db.prepare('SELECT 1 FROM raw_records WHERE source = ? AND source_file = ? AND raw_fingerprint = ? LIMIT 1');
@@ -180,6 +242,7 @@ async function existingRawFingerprints(dbPath, source, sourceFile, fingerprints)
     }
   } finally {
     statement.free();
+    closeDatabase(db);
   }
   return existing;
 }
@@ -194,13 +257,122 @@ async function importedLineHighWater(dbPath, source, sourceFile) {
   return Number(rows[0]?.line || 0);
 }
 
+function importStateKey(source, sourceFile) {
+  return `${source}\0${sourceFile}`;
+}
+
+async function loadImportState(dbPath) {
+  await initStore(dbPath);
+  const db = await openDatabase(dbPath);
+  const highWater = new Map();
+  const checkpoints = new Map();
+  try {
+    const rawResult = db.exec(`
+      SELECT source, source_file, COALESCE(MAX(line), 0) AS line
+      FROM raw_records
+      WHERE source_file IS NOT NULL
+      GROUP BY source, source_file
+    `);
+    if (rawResult.length) {
+      const [{ columns, values }] = rawResult;
+      const sourceIndex = columns.indexOf('source');
+      const fileIndex = columns.indexOf('source_file');
+      const lineIndex = columns.indexOf('line');
+      for (const row of values) {
+        highWater.set(importStateKey(row[sourceIndex], row[fileIndex]), Number(row[lineIndex] || 0));
+      }
+    }
+
+    const checkpointResult = db.exec('SELECT source, source_file, checkpoint_line, context_json FROM import_checkpoints');
+    if (checkpointResult.length) {
+      const [{ columns, values }] = checkpointResult;
+      const sourceIndex = columns.indexOf('source');
+      const fileIndex = columns.indexOf('source_file');
+      const lineIndex = columns.indexOf('checkpoint_line');
+      const contextIndex = columns.indexOf('context_json');
+      for (const row of values) {
+        let context = {};
+        try {
+          context = JSON.parse(row[contextIndex] || '{}');
+        } catch {
+          context = {};
+        }
+        checkpoints.set(importStateKey(row[sourceIndex], row[fileIndex]), {
+          checkpoint_line: Number(row[lineIndex] || 0),
+          context,
+        });
+      }
+    }
+  } finally {
+    closeDatabase(db);
+  }
+  return { highWater, checkpoints };
+}
+
+async function importCheckpoint(dbPath, source, sourceFile) {
+  await initStore(dbPath);
+  const rows = await queryRows(
+    dbPath,
+    'SELECT checkpoint_line, context_json FROM import_checkpoints WHERE source = ? AND source_file = ?',
+    [source, sourceFile],
+  );
+  if (!rows.length) {
+    return {
+      checkpoint_line: await importedLineHighWater(dbPath, source, sourceFile),
+      context: {},
+    };
+  }
+  let context = {};
+  try {
+    context = JSON.parse(rows[0].context_json || '{}');
+  } catch {
+    context = {};
+  }
+  return {
+    checkpoint_line: Number(rows[0].checkpoint_line || 0),
+    context,
+  };
+}
+
+async function upsertImportCheckpoint(dbPath, source, sourceFile, checkpointLine, context = {}) {
+  await initStore(dbPath);
+  const db = await openDatabase(dbPath);
+  try {
+    db.run(
+      `INSERT INTO import_checkpoints (source, source_file, checkpoint_line, context_json, updated_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(source, source_file) DO UPDATE SET
+         checkpoint_line = excluded.checkpoint_line,
+         context_json = excluded.context_json,
+         updated_at = excluded.updated_at`,
+      [source, sourceFile, checkpointLine, JSON.stringify(context || {}), new Date().toISOString()],
+    );
+    persistDatabase(dbPath, db);
+  } finally {
+    closeDatabase(db);
+  }
+}
+
+async function clearImportCheckpoint(dbPath, source, sourceFile) {
+  await initStore(dbPath);
+  const db = await openDatabase(dbPath);
+  try {
+    db.run('DELETE FROM import_checkpoints WHERE source = ? AND source_file = ?', [source, sourceFile]);
+    persistDatabase(dbPath, db);
+  } finally {
+    closeDatabase(db);
+  }
+}
+
 async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords, hookEvents, warnings) {
   await initStore(dbPath);
   const db = await openDatabase(dbPath);
   const importedAt = new Date().toISOString();
+  let insertedUsageRecords = 0;
+  let duplicateUsageRecords = 0;
 
-  db.run('BEGIN');
   try {
+    db.run('BEGIN');
     runPrepared(
       db,
       'INSERT OR IGNORE INTO raw_records (imported_at, source, source_file, line, raw_fingerprint, payload_json) VALUES (?, ?, ?, ?, ?, ?)',
@@ -212,52 +384,68 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
         imported_at, source, raw_line, span_id, trace_id, parent_span_id, timestamp, surface,
         conversation_id, session_id, requested_model, resolved_model, repo, branch, cwd, commit_sha,
         input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, reasoning_tokens,
-        estimated_usd, estimated_ai_credits, estimate_label, warnings_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        estimated_usd, estimated_ai_credits, estimate_label, warnings_json, usage_identity
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const existingUsageStatement = db.prepare('SELECT id, session_id, repo, branch, cwd, timestamp FROM usage_records WHERE usage_identity = ? LIMIT 1');
     try {
       for (const usage of usageRecords) {
-        usageStatement.run([
-          importedAt,
-          source,
-          usage.raw_line,
-          usage.span_id,
-          usage.trace_id,
-          usage.parent_span_id,
-          usage.timestamp,
-          usage.surface,
-          usage.conversation_id,
-          usage.session_id,
-          usage.requested_model,
-          usage.resolved_model,
-          usage.repo,
-          usage.branch,
-          usage.cwd,
-          usage.commit_sha,
-          usage.input_tokens,
-          usage.output_tokens,
-          usage.cache_read_tokens,
-          usage.cache_creation_tokens,
-          usage.reasoning_tokens,
-          usage.estimated_usd,
-          usage.estimated_ai_credits,
-          usage.estimate_label,
-          JSON.stringify(usage.warnings || []),
-        ]);
-        const usageRecordId = lastInsertId(db);
+        let usageRecordId = null;
+        let existingUsage = null;
+        if (usage.usage_identity) {
+          existingUsageStatement.bind([usage.usage_identity]);
+          if (existingUsageStatement.step()) existingUsage = existingUsageStatement.getAsObject();
+          existingUsageStatement.reset();
+        }
+        if (existingUsage) {
+          usageRecordId = existingUsage.id;
+          duplicateUsageRecords += 1;
+        } else {
+          usageStatement.run([
+            importedAt,
+            source,
+            usage.raw_line,
+            usage.span_id,
+            usage.trace_id,
+            usage.parent_span_id,
+            usage.timestamp,
+            usage.surface,
+            usage.conversation_id,
+            usage.session_id,
+            usage.requested_model,
+            usage.resolved_model,
+            usage.repo,
+            usage.branch,
+            usage.cwd,
+            usage.commit_sha,
+            usage.input_tokens,
+            usage.output_tokens,
+            usage.cache_read_tokens,
+            usage.cache_creation_tokens,
+            usage.reasoning_tokens,
+            usage.estimated_usd,
+            usage.estimated_ai_credits,
+            usage.estimate_label,
+            JSON.stringify(usage.warnings || []),
+            usage.usage_identity || null,
+          ]);
+          usageRecordId = lastInsertId(db);
+          insertedUsageRecords += 1;
+        }
         for (const evidence of usage.label_evidence || []) {
           labelEvidence.push({
             ...evidence,
             usage_record_id: usageRecordId,
-            session_id: usage.session_id,
-            repo: usage.repo,
-            branch: usage.branch,
-            cwd: usage.cwd,
-            timestamp: usage.timestamp,
+            session_id: usage.session_id || existingUsage?.session_id,
+            repo: usage.repo || existingUsage?.repo,
+            branch: usage.branch || existingUsage?.branch,
+            cwd: usage.cwd || existingUsage?.cwd,
+            timestamp: usage.timestamp || existingUsage?.timestamp,
           });
         }
       }
     } finally {
       usageStatement.free();
+      existingUsageStatement.free();
     }
 
     const hookStatement = db.prepare('INSERT INTO hook_events (imported_at, source, raw_line, event, session_id, cwd, repo, branch, labels_json, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -301,12 +489,18 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
     );
 
     db.run('COMMIT');
+    persistDatabase(dbPath, db);
   } catch (error) {
-    db.run('ROLLBACK');
+    rollbackDatabase(db);
     throw error;
+  } finally {
+    closeDatabase(db);
   }
 
-  persistDatabase(dbPath, db);
+  return {
+    inserted_usage_records: insertedUsageRecords,
+    duplicate_usage_records: duplicateUsageRecords,
+  };
 }
 
 async function attachVscodeChatLabelEvidence(dbPath, mappings) {
@@ -342,8 +536,8 @@ async function attachVscodeChatLabelEvidence(dbPath, mappings) {
     ) VALUES (?, ?, 'usage', 'vscode_chat_response', ?, ?, ?, NULL, ?, ?, ?, ?, ?)
   `);
 
-  db.run('BEGIN');
   try {
+    db.run('BEGIN');
     for (const mapping of mappings) {
       usageStatement.bind([mapping.responseId]);
       const usageRows = [];
@@ -375,16 +569,17 @@ async function attachVscodeChatLabelEvidence(dbPath, mappings) {
       }
     }
     db.run('COMMIT');
+    persistDatabase(dbPath, db);
   } catch (error) {
-    db.run('ROLLBACK');
+    rollbackDatabase(db);
     throw error;
   } finally {
     usageStatement.free();
     existingStatement.free();
     insertStatement.free();
+    closeDatabase(db);
   }
 
-  persistDatabase(dbPath, db);
   return { matched_usage_records: matchedUsageRecords, label_evidence: labelEvidence };
 }
 
@@ -426,8 +621,8 @@ async function updateVscodeUsageResponseIds(dbPath, updates) {
       AND COALESCE(resolved_model, requested_model, '') = COALESCE(?, '')
   `);
   let updated = 0;
-  db.run('BEGIN');
   try {
+    db.run('BEGIN');
     for (const update of updates) {
       statement.run([
         update.span_id,
@@ -444,14 +639,15 @@ async function updateVscodeUsageResponseIds(dbPath, updates) {
       updated += typeof db.getRowsModified === 'function' ? db.getRowsModified() : 0;
     }
     db.run('COMMIT');
+    persistDatabase(dbPath, db);
   } catch (error) {
-    db.run('ROLLBACK');
+    rollbackDatabase(db);
     throw error;
   } finally {
     statement.free();
+    closeDatabase(db);
   }
 
-  persistDatabase(dbPath, db);
   return updated;
 }
 
@@ -468,8 +664,8 @@ async function updateUsageCostEstimates(dbPath, updates) {
     WHERE id = ?
   `);
   let updated = 0;
-  db.run('BEGIN');
   try {
+    db.run('BEGIN');
     for (const update of updates) {
       statement.run([
         update.estimated_usd,
@@ -480,23 +676,28 @@ async function updateUsageCostEstimates(dbPath, updates) {
       updated += typeof db.getRowsModified === 'function' ? db.getRowsModified() : 0;
     }
     db.run('COMMIT');
+    persistDatabase(dbPath, db);
   } catch (error) {
-    db.run('ROLLBACK');
+    rollbackDatabase(db);
     throw error;
   } finally {
     statement.free();
+    closeDatabase(db);
   }
 
-  persistDatabase(dbPath, db);
   return updated;
 }
 
 async function queryOne(dbPath, sql) {
   const db = await openDatabase(dbPath);
-  const result = db.exec(sql);
-  if (!result.length) return [];
-  const [{ columns, values }] = result;
-  return values.map((row) => Object.fromEntries(row.map((value, index) => [columns[index], value])));
+  try {
+    const result = db.exec(sql);
+    if (!result.length) return [];
+    const [{ columns, values }] = result;
+    return values.map((row) => Object.fromEntries(row.map((value, index) => [columns[index], value])));
+  } finally {
+    closeDatabase(db);
+  }
 }
 
 async function queryRows(dbPath, sql, params = []) {
@@ -508,18 +709,23 @@ async function queryRows(dbPath, sql, params = []) {
     while (statement.step()) rows.push(statement.getAsObject());
   } finally {
     statement.free();
+    closeDatabase(db);
   }
   return rows;
 }
 
 module.exports = {
   attachVscodeChatLabelEvidence,
+  clearImportCheckpoint,
   existingRawFingerprints,
+  importCheckpoint,
   importedLineHighWater,
   initStore,
   insertImport,
+  loadImportState,
   queryOne,
   queryRows,
+  upsertImportCheckpoint,
   updateUsageCostEstimates,
   updateVscodeUsageResponseIds,
   vscodeRawRecordsNeedingResponseBackfill,

@@ -11,6 +11,11 @@ main(process.argv.slice(2), {
   cwd: process.cwd(),
   commandPath: process.argv[1],
 }).catch((error) => {
-  process.stderr.write(`copilot-metrics: ${error.message}\n`);
+  const message = error && error.message
+    ? error.message
+    : error && error.name
+      ? error.name
+      : String(error);
+  process.stderr.write(`copilot-metrics: ${message}\n`);
   process.exitCode = 1;
 });

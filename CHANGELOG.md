@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.8 - 2026-06-02
+
+### Added
+
+- VS Code stable and VS Code Insiders chat session logs are now default fallback sources, with support for token-bearing `.jsonl` and `.json` session shapes.
+- Fallback imports now use source/file/line checkpoints so appended session logs process only new records on subsequent report runs.
+- Usage imports now deduplicate the same session exchange across sources, so OTel and fallback session logs do not add duplicate usage rows when they report the same response at different times.
+- Report diagnostics now include fallback notes for missing paths, unsupported formats, content-only sessions, and tokenless session logs.
+- Human report commands now show a compact TTY progress indicator while configured sources are imported.
+
+### Changed
+
+- Setup persists explicit fallback session source configuration while preserving custom additional fallback paths.
+- Prompt-like session fields remain transient for label extraction; raw prompt content is not persisted in fallback checkpoints.
+- Import, report, and store commands now serialize access to the local SQLite store with a lock to avoid concurrent writes corrupting the database.
+- Unreadable SQLite stores now produce an actionable error message instead of a raw `ErrnoError`.
+
 ## 0.1.7 - 2026-06-01
 
 ### Fixed

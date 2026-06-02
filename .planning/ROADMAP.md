@@ -21,7 +21,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 - [x] **Phase 4.1: VS Code and Copilot CLI Hook Support Research** - Research, model, and validate hook setup for both VS Code Copilot and Copilot CLI.
 - [x] **Phase 5: GitHub and npm Publishing Preparation** - Add repository automation and package publishing readiness for GitHub and npm.
 - [x] **Phase 6: 0.1.1 Zero-friction setup, automatic hook ingestion, and complete token reporting** - Add setup-once reports, idempotent auto-import, complete token categories, and hook-only label semantics.
-- [ ] **Phase 7: 0.1.8 Session log fallback ingestion** - Make local VS Code, VS Code Insiders, and Copilot CLI session logs the default fallback path when hooks and OTel are unavailable.
+- [x] **Phase 7: 0.1.8 Session log fallback ingestion** - Make local VS Code, VS Code Insiders, and Copilot CLI session logs the default fallback path when hooks and OTel are unavailable.
 
 ## Phase Details
 
@@ -223,7 +223,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] Session fallback discovery, import, attribution, diagnostics, and release
+- [x] Session fallback discovery, import, attribution, diagnostics, and release
 
 **Expected deliverables:**
 - Setup/default config includes explicit fallback session sources for VS Code stable, VS Code Insiders, and Copilot CLI, with user-level persisted config and env vars remaining override-only.
@@ -263,7 +263,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 4.1. VS Code and Copilot CLI Hook Support Research | 1/1 | Complete | 2026-05-30 |
 | 5. GitHub and npm Publishing Preparation | 0/0 | Complete via Phase 4 | 2026-05-30 |
 | 6. 0.1.1 Zero-friction setup, automatic hook ingestion, and complete token reporting | 1/1 | Complete | 2026-05-30 |
-| 7. 0.1.8 Session log fallback ingestion | 0/1 | Planned | — |
+| 7. 0.1.8 Session log fallback ingestion | 1/1 | Complete | 2026-06-02 |
 
 ## Deferred
 

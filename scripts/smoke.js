@@ -11,11 +11,19 @@ const root = path.join(__dirname, '..');
 const cli = path.join(root, 'bin', 'copilot-metrics.js');
 const fixtures = path.join(root, 'test', 'fixtures');
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-smoke-'));
+const userHome = path.join(home, 'user-home');
+const copilotHome = path.join(home, 'copilot-home');
 
 function run(args) {
   return execFileSync(process.execPath, [cli, ...args, '--home', home], {
     cwd: root,
     encoding: 'utf8',
+    env: {
+      ...process.env,
+      HOME: userHome,
+      USERPROFILE: userHome,
+      COPILOT_HOME: copilotHome,
+    },
   });
 }
 

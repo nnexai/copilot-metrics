@@ -32,20 +32,21 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 - Validated: Provide CLI-first reports for label overview, summarized usage per label, detailed usage per label, model, repo/directory, and unattributed usage - v0.1.1
 - Validated: Provide both human-readable and machine-readable output for queries and reports - v0.1.1
 - Validated: Keep sensitive content capture disabled by default and avoid storing full prompts unless explicitly enabled - v0.1.1
+- Validated: Discover VS Code stable, VS Code Insiders, and Copilot CLI session-log fallback locations by default after setup - v0.1.8
+- Validated: Configure additive fallback session directories or files while retaining built-in default discovery paths - v0.1.8
+- Validated: Surface fallback diagnostics for missing paths, unsupported formats, content-only sessions, tokenless sessions, and import errors - v0.1.8
+- Validated: Auto-import token-bearing fallback session logs before reports when hooks and OpenTelemetry are missing - v0.1.8
+- Validated: Use checkpoints and cross-source usage identities so repeated reports do not reprocess old session-log rows or double-count the same exchange - v0.1.8
+- Validated: Import supported VS Code `.jsonl` and `.json` chat session fallback files - v0.1.8
+- Validated: Import Copilot CLI `session-state/*/events.jsonl` fallback logs from `~/.copilot` or `COPILOT_HOME` - v0.1.8
+- Validated: Run fallback-derived labels through the same configured extractor callback path as OTel and hooks - v0.1.8
+- Validated: Preserve fallback label evidence with source type, source field, source value, confidence, session ID, and usage record linkage - v0.1.8
+- Validated: Keep full prompt capture disabled by default for fallback parsing - v0.1.8
+- Validated: Show human-readable and JSON fallback diagnostics that local estimates are advisory and may be incomplete - v0.1.8
 
 ### Active
 
-- FALLBACK-01: User can run setup once and have default source discovery include VS Code stable, VS Code Insiders, and Copilot CLI session-log fallback locations without manual environment exports.
-- FALLBACK-02: User can configure additional fallback session directories or files for VS Code, VS Code Insiders, and Copilot CLI while retaining the built-in default discovery paths.
-- FALLBACK-03: User can see fallback source diagnostics that distinguish missing paths, unreadable files, unsupported formats, content-only sessions, and sessions without token metrics.
-- FALLBACK-04: User can run any report command with missing hooks and missing OpenTelemetry files and still auto-import token-bearing records from discovered fallback session logs.
-- FALLBACK-05: User can re-run report commands after fallback imports without double-counting previously imported session-log records.
-- FALLBACK-06: User can import VS Code and VS Code Insiders chat session logs from both `.jsonl` and `.json` session files when the file shape is supported.
-- FALLBACK-07: User can import Copilot CLI `session-state/*/events.jsonl` logs from `~/.copilot` or `COPILOT_HOME` and map shutdown model metrics into usage records.
-- FALLBACK-08: User can rely on the same configured label extractor callback for fallback-derived labels from prompt text, directories, branches, repos, task hints, explicit labels, and session metadata.
-- FALLBACK-09: User can inspect fallback-derived label evidence in reports with source type, source field, source value, confidence, session ID, and usage record linkage preserved.
-- FALLBACK-10: User can keep content capture disabled by default; fallback parsing stores only normalized usage fields and redacted label evidence values unless explicit content capture is enabled.
-- FALLBACK-11: User can see human-readable and JSON report diagnostics explaining that fallback estimates are advisory and may be incomplete when session logs omit token fields.
+No active requirements; v0.1.8 milestone requirements are validated.
 
 ### Out of Scope
 
@@ -89,7 +90,7 @@ The most important attribution convention is Jira ticket IDs such as `DEMO-12345
 | Use a central user-level data directory | Keeps metadata local, independent of individual repos, and suitable for cross-project Copilot usage. | Validated in v0.1.1 |
 | Start with file-based OTel ingestion | JSONL exports are simple, local, auditable, and lower-friction than a collector. | Validated in v0.1.1 |
 | Add CLI hooks for attribution | OTel provides tokens and models; hooks add task, cwd, transcript, and session context. | Validated in v0.1.1 |
-| Treat session logs as the default fallback | Hooks and OTel can fail or be unavailable; local session logs are the next best source and already exist for VS Code and Copilot CLI. | Active in v0.1.8 |
+| Treat session logs as the default fallback | Hooks and OTel can fail or be unavailable; local session logs are the next best source and already exist for VS Code and Copilot CLI. | Validated in v0.1.8 |
 | Prioritize Jira labels | User's primary grouping is ticket IDs such as `DEMO-12345`, extracted from prompt, directory, branch, and tool-call context. | Validated in v0.1.1 |
 | Build CLI reports before dashboards | The user wants scripts/hooks/query tools first; dashboard is not a current priority. | Validated in v0.1.1 |
 | Use cheap models for Copilot CLI verification | Integration tests can call Copilot CLI, but the goal is validating output/telemetry, not paying for high-quality answers. | Validated in v0.1.1 |
@@ -114,4 +115,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-02 for v0.1.8 milestone planning*
+*Last updated: 2026-06-02 after v0.1.8 milestone verification*

@@ -3,6 +3,11 @@
 
 const { execFileSync } = require('node:child_process');
 
+execFileSync(process.execPath, ['scripts/sync-readme-version.js', '--check'], {
+  encoding: 'utf8',
+  stdio: 'inherit',
+});
+
 const forbidden = [
   /^\.codex\//,
   /^\.planning\//,
@@ -25,9 +30,10 @@ const required = [
   'src/reports.js',
   'skills/copilot-metrics/SKILL.md',
   'scripts/manual-copilot-cli-flow.js',
+  'scripts/sync-readme-version.js',
 ];
 
-const output = execFileSync('npm', ['pack', '--dry-run', '--json'], { encoding: 'utf8' });
+const output = execFileSync('npm', ['pack', '--dry-run', '--json', '--silent'], { encoding: 'utf8' });
 const [pack] = JSON.parse(output);
 const files = pack.files.map((file) => file.path).sort();
 

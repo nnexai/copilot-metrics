@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('node:fs');
 const { resolvePaths } = require('./paths');
 const {
   ensureDataDirs,
@@ -30,6 +31,7 @@ const {
   formatUnattributed,
 } = require('./reports');
 const { loadConfiguredExtractors } = require('./label-extractors');
+const path = require('node:path');
 
 function parseFlags(args) {
   const flags = {};
@@ -140,46 +142,163 @@ function formatCopilotCliSetup(result) {
 }
 
 function telemetryDiagnostics(importResults) {
+  const diagnostics = importResults
+    .filter((result) => result.diagnostic || ['missing_path', 'unreadable_path', 'unsupported_format'].includes(result.reason))
+    .map((result) => ({
+      code: result.reason || result.code,
+      message: result.message || `${result.source} fallback source could not be imported: ${result.file}`,
+    }));
+  for (const result of importResults) {
+    for (const warning of result.warnings || []) {
+      if (['content_only_session', 'no_token_metrics', 'unsupported_format', 'malformed_json', 'import_error'].includes(warning.code)) {
+        diagnostics.push({
+          code: warning.code,
+          message: `${result.source} fallback estimate note: ${warning.message}`,
+        });
+      }
+    }
+  }
   const hookResult = importResults.find((result) => result.source === 'hooks' && result.raw_records > 0);
-  if (!hookResult) return [];
+  if (!hookResult) return diagnostics;
   const sessionUsage = importResults.find((result) => result.source === 'copilot-session' && result.raw_records > 0);
-  if (sessionUsage) return [];
+  if (sessionUsage) return diagnostics;
 
   const cliTelemetry = importResults.find((result) => result.source === 'copilot-cli');
-  if (!cliTelemetry) return [];
+  if (!cliTelemetry) return diagnostics;
 
   if (cliTelemetry.skipped && cliTelemetry.reason === 'missing_file') {
-    return [{
+    diagnostics.push({
       code: 'missing_copilot_cli_otel',
       message: `Hook evidence was found, but no token-bearing Copilot session-state or OTel usage was imported. Check that ${cliTelemetry.file} exists for optional OTel data, or that Copilot session-state files are available under the configured COPILOT_HOME.`,
-    }];
+    });
+    return diagnostics;
   }
 
   if (cliTelemetry.raw_records === 0) {
-    return [{
+    diagnostics.push({
       code: 'empty_copilot_cli_otel',
       message: `Hook evidence was found, but Copilot CLI token telemetry is empty at ${cliTelemetry.file}. Run another Copilot session with OTel enabled.`,
-    }];
+    });
+    return diagnostics;
   }
 
   if (cliTelemetry.usage_records === 0) {
-    return [{
+    diagnostics.push({
       code: 'no_copilot_cli_usage_records',
       message: `Copilot CLI telemetry was found at ${cliTelemetry.file}, but no token-bearing LLM spans were normalized from it.`,
-    }];
+    });
+    return diagnostics;
   }
 
-  return [];
+  return diagnostics;
 }
 
 function appendDiagnostics(output, diagnostics) {
   if (diagnostics.length === 0) return output;
+  const visible = diagnostics.slice(0, 12);
+  const hidden = diagnostics.length - visible.length;
+  const counts = diagnostics.reduce((acc, diagnostic) => {
+    const key = diagnostic.code || 'unknown';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const summary = Object.entries(counts)
+    .map(([code, count]) => `${code}:${count}`)
+    .join(', ');
   return [
     output,
     '',
     'Diagnostics:',
-    ...diagnostics.map((diagnostic) => `- ${diagnostic.message}`),
-  ].join('\n');
+    ...visible.map((diagnostic) => `- ${diagnostic.message}`),
+    hidden > 0 ? `- ... ${hidden} more diagnostics (${summary})` : null,
+  ].filter(Boolean).join('\n');
+}
+
+function progressBar(current, total, width = 12) {
+  if (total <= 0) return ''.padEnd(width, '-');
+  const filled = Math.max(0, Math.min(width, Math.round((current / total) * width)));
+  return `${'#'.repeat(filled)}${'-'.repeat(width - filled)}`;
+}
+
+function createImportProgress(io, enabled) {
+  if (!enabled || !io.stderr || typeof io.stderr.write !== 'function') return null;
+  const interactive = Boolean(io.stderr.isTTY);
+  if (!interactive) return null;
+  let lastLineLength = 0;
+  const writeLine = (line, final = false) => {
+    if (interactive) {
+      const padded = line.padEnd(lastLineLength, ' ');
+      io.stderr.write(`\r${padded}${final ? '\n' : ''}`);
+      lastLineLength = final ? 0 : line.length;
+      return;
+    }
+    io.stderr.write(`${line}\n`);
+  };
+
+  return (event) => {
+    if (event.phase === 'discover') {
+      writeLine('Importing configured sources: scanning...');
+      return;
+    }
+    if (event.phase === 'start') {
+      if (event.total === 0) writeLine('Importing configured sources: none found', true);
+      return;
+    }
+    if (event.phase === 'source') {
+      const name = event.file ? path.basename(event.file) : event.source;
+      writeLine(`Importing [${progressBar(event.current - 1, event.total)}] ${event.current}/${event.total} ${event.source} ${name}`);
+      return;
+    }
+    if (event.phase === 'done') {
+      const result = event.result || {};
+      const usage = Number(result.usage_records || 0);
+      const duplicates = Number(result.duplicate_usage_records || 0);
+      const suffix = result.skipped
+        ? `skipped:${result.reason || 'unknown'}`
+        : `usage:${usage}${duplicates ? ` dup:${duplicates}` : ''}`;
+      writeLine(`Importing [${progressBar(event.current, event.total)}] ${event.current}/${event.total} ${suffix}`);
+      return;
+    }
+    if (event.phase === 'finish') {
+      writeLine(`Importing configured sources: complete (${event.total} checked)`, true);
+    }
+  };
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withStoreLock(paths, io, fn) {
+  const lockDir = `${paths.usageDb}.lock`;
+  const deadline = Date.now() + 120_000;
+  let announced = false;
+  while (true) {
+    try {
+      fs.mkdirSync(lockDir, { recursive: false });
+      fs.writeFileSync(`${lockDir}/owner`, JSON.stringify({
+        pid: process.pid,
+        started_at: new Date().toISOString(),
+      }));
+      break;
+    } catch (error) {
+      if (error && error.code !== 'EEXIST') throw error;
+      if (Date.now() > deadline) {
+        throw new Error(`Timed out waiting for Copilot Metrics store lock: ${lockDir}`);
+      }
+      if (!announced && io.stderr && typeof io.stderr.write === 'function') {
+        io.stderr.write(`Waiting for Copilot Metrics store lock: ${lockDir}\n`);
+        announced = true;
+      }
+      await sleep(250);
+    }
+  }
+
+  try {
+    return await fn();
+  } finally {
+    fs.rmSync(lockDir, { recursive: true, force: true });
+  }
 }
 
 async function main(args, io) {
@@ -291,7 +410,7 @@ async function main(args, io) {
       throw new Error(`Unknown store action "${subcommand}". Use init.`);
     }
     ensureDataDirs(paths);
-    await initStore(paths.usageDb);
+    await withStoreLock(paths, io, () => initStore(paths.usageDb));
     writeOutput(io.stdout, json ? { dbPath: paths.usageDb } : `Initialized SQLite store: ${paths.usageDb}`, json);
     return;
   }
@@ -310,12 +429,12 @@ async function main(args, io) {
     }
     if (!file) throw new Error('import requires --file <path>');
     ensureDataDirs(paths);
-    const result = await ingestFile({
+    const result = await withStoreLock(paths, io, () => ingestFile({
       dbPath: paths.usageDb,
       file,
       source,
       extractors: loadConfiguredExtractors(paths.configJson, io.cwd),
-    });
+    }));
     writeOutput(io.stdout, json ? result : [
       `Imported ${result.raw_records} raw ${source} records into ${result.dbPath}`,
       `Normalized usage records: ${result.usage_records}`,
@@ -329,46 +448,50 @@ async function main(args, io) {
 
   if (command === 'report') {
     ensureDataDirs(paths);
-    const imports = await autoImportConfiguredSources(paths, {
-      cwd: io.cwd,
-      extractors: loadConfiguredExtractors(paths.configJson, io.cwd),
-    });
-    const diagnostics = telemetryDiagnostics(imports);
+    const progress = createImportProgress(io, !json);
+    const reportPayload = await withStoreLock(paths, io, async () => {
+      const imports = await autoImportConfiguredSources(paths, {
+        cwd: io.cwd,
+        extractors: loadConfiguredExtractors(paths.configJson, io.cwd),
+        onProgress: progress,
+      });
+      const diagnostics = telemetryDiagnostics(imports);
 
-    if (subcommand === 'labels') {
-      const rows = await labelOverview(paths.usageDb);
-      writeOutput(io.stdout, json ? { labels: rows, diagnostics } : appendDiagnostics(formatLabels(rows), diagnostics), json);
-      return;
-    }
-    if (subcommand === 'label') {
-      const label = rest[2];
-      if (!label) throw new Error('report label requires <id>');
-      const summary = await labelSummary(paths.usageDb, label);
-      const models = await labelModelBreakdown(paths.usageDb, label);
-      if (flags.detail === true) {
-        const details = await labelDetails(paths.usageDb, label);
-        writeOutput(io.stdout, json ? { label: summary, models, details, diagnostics } : appendDiagnostics(formatLabelReport(summary, models, details), diagnostics), json);
-        return;
+      if (subcommand === 'labels') {
+        const rows = await labelOverview(paths.usageDb);
+        return json ? { value: { labels: rows, diagnostics }, asJson: true } : { value: appendDiagnostics(formatLabels(rows), diagnostics), asJson: false };
       }
-      writeOutput(io.stdout, json ? { label: summary, models, diagnostics } : appendDiagnostics(formatLabelReport(summary, models), diagnostics), json);
-      return;
-    }
-    if (subcommand === 'models') {
-      const rows = await modelReport(paths.usageDb);
-      writeOutput(io.stdout, json ? { models: rows } : formatModels(rows), json);
-      return;
-    }
-    if (subcommand === 'repos') {
-      const rows = await repoReport(paths.usageDb);
-      writeOutput(io.stdout, json ? { repos: rows } : formatRepos(rows), json);
-      return;
-    }
-    if (subcommand === 'unattributed') {
-      const rows = await unattributedReport(paths.usageDb);
-      writeOutput(io.stdout, json ? { unattributed: rows } : formatUnattributed(rows), json);
-      return;
-    }
-    throw new Error(`Unknown report "${subcommand}". Use labels, label, models, repos, or unattributed.`);
+      if (subcommand === 'label') {
+        const label = rest[2];
+        if (!label) throw new Error('report label requires <id>');
+        const summary = await labelSummary(paths.usageDb, label);
+        const models = await labelModelBreakdown(paths.usageDb, label);
+        if (flags.detail === true) {
+          const details = await labelDetails(paths.usageDb, label);
+          return json
+            ? { value: { label: summary, models, details, diagnostics }, asJson: true }
+            : { value: appendDiagnostics(formatLabelReport(summary, models, details), diagnostics), asJson: false };
+        }
+        return json
+          ? { value: { label: summary, models, diagnostics }, asJson: true }
+          : { value: appendDiagnostics(formatLabelReport(summary, models), diagnostics), asJson: false };
+      }
+      if (subcommand === 'models') {
+        const rows = await modelReport(paths.usageDb);
+        return json ? { value: { models: rows, diagnostics }, asJson: true } : { value: appendDiagnostics(formatModels(rows), diagnostics), asJson: false };
+      }
+      if (subcommand === 'repos') {
+        const rows = await repoReport(paths.usageDb);
+        return json ? { value: { repos: rows, diagnostics }, asJson: true } : { value: appendDiagnostics(formatRepos(rows), diagnostics), asJson: false };
+      }
+      if (subcommand === 'unattributed') {
+        const rows = await unattributedReport(paths.usageDb);
+        return json ? { value: { unattributed: rows, diagnostics }, asJson: true } : { value: appendDiagnostics(formatUnattributed(rows), diagnostics), asJson: false };
+      }
+      throw new Error(`Unknown report "${subcommand}". Use labels, label, models, repos, or unattributed.`);
+    });
+    writeOutput(io.stdout, reportPayload.value, reportPayload.asJson);
+    return;
   }
 
   if (command === 'pricing') {

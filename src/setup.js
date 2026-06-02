@@ -71,11 +71,14 @@ function ensureDataDirs(paths) {
       vscode: {
         telemetry: paths.vscodeOtelJsonl,
         hooks: paths.hookEventsJsonl,
+        chatSessions: paths.vscodeChatSessionDirs,
+        additionalChatSessions: [],
       },
       copilotCli: {
         telemetry: paths.copilotCliOtelJsonl,
         hooks: paths.hookEventsJsonl,
         sessions: paths.copilotSessionStateDir,
+        additionalSessions: [],
       },
     },
     labelExtractors: [],
@@ -92,12 +95,29 @@ function ensureDataDirs(paths) {
     ...current,
     telemetry: { ...defaultConfig.telemetry, ...(current.telemetry || {}) },
     sources: {
-      vscode: { ...defaultConfig.sources.vscode, ...(current.sources?.vscode || {}) },
-      copilotCli: { ...defaultConfig.sources.copilotCli, ...(current.sources?.copilotCli || {}) },
+      vscode: {
+        ...defaultConfig.sources.vscode,
+        ...(current.sources?.vscode || {}),
+        chatSessions: Array.from(new Set([
+          ...defaultConfig.sources.vscode.chatSessions,
+          ...asArray(current.sources?.vscode?.chatSessions),
+        ])),
+        additionalChatSessions: asArray(current.sources?.vscode?.additionalChatSessions),
+      },
+      copilotCli: {
+        ...defaultConfig.sources.copilotCli,
+        ...(current.sources?.copilotCli || {}),
+        additionalSessions: asArray(current.sources?.copilotCli?.additionalSessions),
+      },
     },
     labelExtractors: current.labelExtractors || defaultConfig.labelExtractors,
   };
   writePrivateFile(paths.configJson, `${JSON.stringify(next, null, 2)}\n`);
+}
+
+function asArray(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return value ? [value] : [];
 }
 
 function vscodeSettings(paths) {

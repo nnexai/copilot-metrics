@@ -11,26 +11,26 @@ This milestone assumes Copilot hooks and OpenTelemetry do not work reliably enou
 
 ### Fallback Discovery
 
-- [ ] **FALLBACK-01**: User can run setup once and have default source discovery include VS Code stable, VS Code Insiders, and Copilot CLI session-log fallback locations without manual environment exports.
-- [ ] **FALLBACK-02**: User can configure additional fallback session directories or files for VS Code, VS Code Insiders, and Copilot CLI while retaining the built-in default discovery paths.
-- [ ] **FALLBACK-03**: User can see fallback source diagnostics that distinguish missing paths, unreadable files, unsupported formats, content-only sessions, and sessions without token metrics.
+- [x] **FALLBACK-01**: User can run setup once and have default source discovery include VS Code stable, VS Code Insiders, and Copilot CLI session-log fallback locations without manual environment exports.
+- [x] **FALLBACK-02**: User can configure additional fallback session directories or files for VS Code, VS Code Insiders, and Copilot CLI while retaining the built-in default discovery paths.
+- [x] **FALLBACK-03**: User can see fallback source diagnostics that distinguish missing paths, unreadable files, unsupported formats, content-only sessions, and sessions without token metrics.
 
 ### Fallback Import
 
-- [ ] **FALLBACK-04**: User can run any report command with missing hooks and missing OpenTelemetry files and still auto-import token-bearing records from discovered fallback session logs.
-- [ ] **FALLBACK-05**: User can re-run report commands after fallback imports without double-counting previously imported session-log records.
-- [ ] **FALLBACK-06**: User can import VS Code and VS Code Insiders chat session logs from both `.jsonl` and `.json` session files when the file shape is supported.
-- [ ] **FALLBACK-07**: User can import Copilot CLI `session-state/*/events.jsonl` logs from `~/.copilot` or `COPILOT_HOME` and map shutdown model metrics into usage records.
+- [x] **FALLBACK-04**: User can run any report command with missing hooks and missing OpenTelemetry files and still auto-import token-bearing records from discovered fallback session logs.
+- [x] **FALLBACK-05**: User can re-run report commands after fallback imports without double-counting previously imported session-log records.
+- [x] **FALLBACK-06**: User can import VS Code and VS Code Insiders chat session logs from both `.jsonl` and `.json` session files when the file shape is supported.
+- [x] **FALLBACK-07**: User can import Copilot CLI `session-state/*/events.jsonl` logs from `~/.copilot` or `COPILOT_HOME` and map shutdown model metrics into usage records.
 
 ### Label Attribution
 
-- [ ] **FALLBACK-08**: User can rely on the same configured label extractor callback for fallback-derived labels from prompt text, directories, branches, repos, task hints, explicit labels, and session metadata.
-- [ ] **FALLBACK-09**: User can inspect fallback-derived label evidence in reports with source type, source field, source value, confidence, session ID, and usage record linkage preserved.
+- [x] **FALLBACK-08**: User can rely on the same configured label extractor callback for fallback-derived labels from prompt text, directories, branches, repos, task hints, explicit labels, and session metadata.
+- [x] **FALLBACK-09**: User can inspect fallback-derived label evidence in reports with source type, source field, source value, confidence, session ID, and usage record linkage preserved.
 
 ### Privacy and Reporting
 
-- [ ] **FALLBACK-10**: User can keep content capture disabled by default; fallback parsing stores only normalized usage fields and redacted label evidence values unless explicit content capture is enabled.
-- [ ] **FALLBACK-11**: User can see human-readable and JSON report diagnostics explaining that fallback estimates are advisory and may be incomplete when session logs omit token fields.
+- [x] **FALLBACK-10**: User can keep content capture disabled by default; fallback parsing stores only normalized usage fields and redacted label evidence values unless explicit content capture is enabled.
+- [x] **FALLBACK-11**: User can see human-readable and JSON report diagnostics explaining that fallback estimates are advisory and may be incomplete when session logs omit token fields.
 
 ## Future Requirements
 

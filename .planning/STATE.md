@@ -2,28 +2,28 @@
 gsd_state_version: 1.0
 milestone: v0.1.8
 milestone_name: Session log fallback ingestion
-status: planning
-last_updated: "2026-06-02T06:36:11.415Z"
+status: complete
+last_updated: "2026-06-02T08:40:00.000Z"
 last_activity: 2026-06-02
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 1
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 100
 ---
 
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** v0.1.8 milestone planning
+**Status:** v0.1.8 milestone complete
 
 ## Project Reference
 
 See: `.planning/PROJECT.md` (updated 2026-06-02)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Milestone v0.1.8 session log fallback ingestion
+**Current focus:** Milestone v0.1.8 session log fallback ingestion complete
 
 ## Workflow Settings
 
@@ -45,8 +45,8 @@ Phase 7: 0.1.8 Session log fallback ingestion
 
 Phase: 7 - 0.1.8 Session log fallback ingestion
 Plan: —
-Status: Roadmap ready; phase planning next
-Last activity: 2026-06-02 — Milestone v0.1.8 requirements and roadmap created
+Status: Complete; verification passed
+Last activity: 2026-06-02 — Phase 7 implemented fallback session-log ingestion with checkpoints, cross-source usage dedupe, diagnostics, tests, and release docs
 
 ## Notes
 
@@ -74,6 +74,7 @@ Last activity: 2026-06-02 — Milestone v0.1.8 requirements and roadmap created
 
 - Phase 6 added: `copilot-metrics@0.1.1` patch release for setup-once behavior, automatic hook/source imports before reports, complete token reporting including cache/reasoning tokens, and clear hook-only attribution semantics.
 - Phase 7 added: `copilot-metrics@0.1.8` fallback release for default VS Code, VS Code Insiders, and Copilot CLI session-log parsing when hooks and OTel are unavailable.
+- Phase 7 completed: fallback session-log ingestion now includes setup defaults, additive custom sources, VS Code `.jsonl`/`.json` token-bearing parsing, Copilot CLI session-state checkpoints, cross-source usage dedupe, fallback diagnostics, privacy-preserving raw/checkpoint storage, and `0.1.8` release docs.
 
 ## Quick Tasks Completed
 
@@ -85,4 +86,4 @@ Last activity: 2026-06-02 — Milestone v0.1.8 requirements and roadmap created
 
 ## Operator Next Steps
 
-- Start phase planning with `$gsd-plan-phase 7`
+- Publish `copilot-metrics@0.1.8` through the existing GitHub Actions/npm release flow, then validate from outside the checkout with `npx -y copilot-metrics@0.1.8 --help`.

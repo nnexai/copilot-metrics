@@ -1,6 +1,6 @@
 {
   "name": "copilot-metrics",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Local-first Copilot usage telemetry setup and reporting tools.",
   "type": "commonjs",
   "homepage": "https://github.com/nnexai/copilot-metrics#readme",
@@ -19,6 +19,7 @@
     "src/",
     "skills/",
     "scripts/manual-copilot-cli-flow.js",
+    "scripts/sync-readme-version.js",
     "README.md",
     "CHANGELOG.md",
     "RELEASE.md",
@@ -27,6 +28,10 @@
   "scripts": {
     "cli": "node bin/copilot-metrics.js",
     "check": "node --check bin/copilot-metrics.js && node --check src/*.js",
+    "check:readme-version": "node scripts/sync-readme-version.js --check",
+    "sync:readme-version": "node scripts/sync-readme-version.js --write",
+    "version": "node scripts/sync-readme-version.js --write && git add README.md",
+    "prepack": "node scripts/sync-readme-version.js --check",
     "smoke": "node scripts/smoke.js",
     "verify:package": "node scripts/verify-package.js",
     "test": "node --test"

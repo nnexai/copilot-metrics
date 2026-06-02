@@ -1,6 +1,6 @@
 # Copilot Metrics
 
-`copilot-metrics` is a local-first CLI for estimating GitHub Copilot usage from local OpenTelemetry and hook metadata. It helps answer which Jira-style labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
+`copilot-metrics` is a local-first CLI for estimating GitHub Copilot usage from local OpenTelemetry, session logs, and hook metadata. It helps answer which Jira-style labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
 
 Costs are estimates, not official billing records. GitHub billing remains the source of truth.
 
@@ -9,8 +9,8 @@ Costs are estimates, not official billing records. GitHub billing remains the so
 From npm:
 
 ```bash
-npx copilot-metrics@0.1.6 --help
-npx copilot-metrics@0.1.6 init
+npx copilot-metrics@0.1.8 --help
+npx copilot-metrics@0.1.8 init
 ```
 
 From this checkout:
@@ -38,32 +38,32 @@ export COPILOT_METRICS_HOME=/path/to/copilot-metrics-data
 Useful commands:
 
 ```bash
-npx copilot-metrics@0.1.6 init
-npx copilot-metrics@0.1.6 paths --json
+npx copilot-metrics@0.1.8 init
+npx copilot-metrics@0.1.8 paths --json
 ```
 
 `init` only creates the central data directory and local config. It does not modify editor or hook settings. `setup` performs integration setup for the current machine/workspace.
 
 ## Configure Telemetry
 
-For Copilot CLI, `init` plus hooks are enough for local token reporting. Reports import Copilot's local session-state `events.jsonl` files and extract shutdown usage totals without requiring telemetry environment variables.
+For Copilot CLI, `init` plus hooks are enough for local token reporting. Reports import Copilot's local session-state `events.jsonl` files and extract shutdown usage totals without requiring telemetry environment variables. VS Code stable and VS Code Insiders chat session logs are also configured as fallback sources by default.
 
 Install VS Code Copilot Chat OpenTelemetry settings:
 
 ```bash
-npx copilot-metrics@0.1.6 setup vscode
+npx copilot-metrics@0.1.8 setup vscode
 ```
 
 Install Copilot CLI hooks for the current workspace:
 
 ```bash
-npx copilot-metrics@0.1.6 setup copilot-cli
+npx copilot-metrics@0.1.8 setup copilot-cli
 ```
 
 Or set up both VS Code settings and workspace hooks in one command:
 
 ```bash
-npx copilot-metrics@0.1.6 setup
+npx copilot-metrics@0.1.8 setup
 ```
 
 Use `setup vscode --print` or `setup copilot-cli --print` to print the settings/optional environment exports without writing files. Copilot CLI OTel exports are optional because CLI token usage is read from local session-state files.
@@ -75,14 +75,14 @@ Content capture is disabled by default. Do not enable richer prompt capture unle
 Preview repo-local hook config. The default `--surface both` emits the Copilot CLI lower camel case hook format:
 
 ```bash
-npx copilot-metrics@0.1.6 hooks preview --scope local --surface both
+npx copilot-metrics@0.1.8 hooks preview --scope local --surface both
 ```
 
 Install repo-local or user-global hook config:
 
 ```bash
-npx copilot-metrics@0.1.6 hooks install --scope local --surface both
-npx copilot-metrics@0.1.6 hooks install --scope global --surface both
+npx copilot-metrics@0.1.8 hooks install --scope local --surface both
+npx copilot-metrics@0.1.8 hooks install --scope global --surface both
 ```
 
 Local install writes `.github/hooks/copilot-metrics.json`. Global install updates `~/.copilot/settings.json` idempotently, replacing prior `copilot-metrics` hook entries while preserving other settings and hooks. Use `--surface vscode` for VS Code-only PascalCase events or `--surface copilot-cli` for CLI-native lower camel case events. The hook logger writes redacted JSONL metadata to the central data directory. It extracts Jira-style labels such as `DEMO-12345` from safe metadata and does not store full prompt text by default.
@@ -92,36 +92,38 @@ Local install writes `.github/hooks/copilot-metrics.json`. Global install update
 Initialize the local SQLite store and import JSONL files manually:
 
 ```bash
-npx copilot-metrics@0.1.6 store init
-npx copilot-metrics@0.1.6 import --source vscode --file ~/.local/share/copilot-metrics/telemetry/vscode-copilot-otel.jsonl
-npx copilot-metrics@0.1.6 import --source copilot-cli --file ~/.local/share/copilot-metrics/telemetry/copilot-cli-otel.jsonl
-npx copilot-metrics@0.1.6 import --source copilot-session --file ~/.copilot/session-state/<session-id>/events.jsonl
-npx copilot-metrics@0.1.6 import --source vscode-chat --file ~/.config/Code\ -\ Insiders/User/workspaceStorage/<workspace-id>/chatSessions/<session-id>.jsonl
-npx copilot-metrics@0.1.6 import --source hooks --file ~/.local/share/copilot-metrics/hooks/copilot-hooks.jsonl
+npx copilot-metrics@0.1.8 store init
+npx copilot-metrics@0.1.8 import --source vscode --file ~/.local/share/copilot-metrics/telemetry/vscode-copilot-otel.jsonl
+npx copilot-metrics@0.1.8 import --source copilot-cli --file ~/.local/share/copilot-metrics/telemetry/copilot-cli-otel.jsonl
+npx copilot-metrics@0.1.8 import --source copilot-session --file ~/.copilot/session-state/<session-id>/events.jsonl
+npx copilot-metrics@0.1.8 import --source vscode-chat --file ~/.config/Code\ -\ Insiders/User/workspaceStorage/<workspace-id>/chatSessions/<session-id>.jsonl
+npx copilot-metrics@0.1.8 import --source hooks --file ~/.local/share/copilot-metrics/hooks/copilot-hooks.jsonl
 ```
 
-Imports persist raw records, normalized LLM usage records, hook events, label evidence, and import warnings. Re-importing the same JSONL rows is idempotent. For Copilot session-state files, only shutdown usage rows are persisted; prompt-bearing session events are used in memory for label extraction and context and are not stored as raw records. VS Code chat session files are also parsed only in memory, then reduced to label evidence linked to VS Code OTel usage by exact response ID.
+Imports persist raw records, normalized LLM usage records, hook events, label evidence, import checkpoints, and import warnings. Re-importing the same JSONL rows is idempotent. Session logs are checkpointed by source/file/line so appended logs only process new records on later reports. Usage rows also carry a cross-source exchange identity so the same response/session exchange is not added twice when OTel, VS Code fallback logs, or session-state data arrive at different times.
+
+For Copilot session-state files, prompt-bearing session events are used in memory for label extraction and bounded checkpoint context; raw prompt content is not persisted. VS Code chat session files can import token-bearing fallback records from supported `.jsonl` and `.json` shapes, or reduce content-only records to label evidence linked to VS Code OTel usage by exact response ID.
 
 ## Reports
 
 Run local reports from the SQLite store:
 
 ```bash
-npx copilot-metrics@0.1.6 report labels
-npx copilot-metrics@0.1.6 report label DEMO-12345
-npx copilot-metrics@0.1.6 report label DEMO-12345 --detail
-npx copilot-metrics@0.1.6 report models
-npx copilot-metrics@0.1.6 report repos
-npx copilot-metrics@0.1.6 report unattributed
+npx copilot-metrics@0.1.8 report labels
+npx copilot-metrics@0.1.8 report label DEMO-12345
+npx copilot-metrics@0.1.8 report label DEMO-12345 --detail
+npx copilot-metrics@0.1.8 report models
+npx copilot-metrics@0.1.8 report repos
+npx copilot-metrics@0.1.8 report unattributed
 ```
 
 Every report supports `--json`:
 
 ```bash
-npx copilot-metrics@0.1.6 report labels --json
+npx copilot-metrics@0.1.8 report labels --json
 ```
 
-Report commands automatically import newly appended configured VS Code OTel, VS Code chat session metadata, optional Copilot CLI OTel, Copilot CLI session-state, and hook JSONL files before querying. Repeated reports skip already imported session-state files and already imported JSONL lines.
+Report commands automatically import newly appended configured VS Code OTel, VS Code stable/Insiders chat session fallback logs, optional Copilot CLI OTel, Copilot CLI session-state, and hook JSONL files before querying. Repeated reports skip already imported lines and avoid adding duplicate usage for the same session exchange across sources.
 
 `report labels` shows accumulated totals per label. `report label <id>` shows the selected label summary plus a per-model breakdown by default. Label reports include input, output, cache read, cache creation, and reasoning token totals. Labels seen only in hooks remain visible as `evidence-only` with zero usage records, so attribution hints do not imply token-bearing usage.
 
@@ -135,7 +137,7 @@ Attribution is stored as evidence with source, field, session, repo, branch, cwd
 
 For VS Code Copilot Chat, token records from OTel are linked to chat labels by exact response ID. The OTel `gen_ai.response.id` value must match the VS Code chat session `responseId`; timestamp-only attribution is not used.
 
-Full prompt content is not stored by default. Prompt-like fields are only used to extract labels and the stored source value is reduced to the matched label.
+Full prompt content is not stored by default. Prompt-like fields from OTel, hooks, VS Code fallback logs, and Copilot CLI session logs are only used transiently to extract labels; stored source values are reduced to matched labels or bounded metadata.
 
 ## Custom Label Extractors
 
@@ -191,7 +193,7 @@ The manual prompt performs one harmless tool call so Copilot CLI hook execution 
 ## Current Limits
 
 - Costs are estimates, not official billing records.
-- Official GitHub usage report reconciliation is not included in `0.1.6`.
-- Local OTLP collector mode is not included in `0.1.6`.
-- Richer prompt/content capture and redaction controls are not included in `0.1.6`.
+- Official GitHub usage report reconciliation is not included in `0.1.8`.
+- Local OTLP collector mode is not included in `0.1.8`.
+- Richer prompt/content capture and redaction controls are not included in `0.1.8`.
 - Dashboard views are deferred until the CLI/query model proves useful.
