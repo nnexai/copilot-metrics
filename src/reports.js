@@ -26,6 +26,18 @@ function formatCredits(value) {
   return n(value).toFixed(2);
 }
 
+function selectedCredits(row) {
+  return row.selected_ai_credits === undefined || row.selected_ai_credits === null
+    ? row.estimated_ai_credits
+    : row.selected_ai_credits;
+}
+
+function selectedUsd(row) {
+  return row.selected_usd === undefined || row.selected_usd === null
+    ? row.estimated_usd
+    : row.selected_usd;
+}
+
 function formatDollars(value, fallbackCredits = 0) {
   const dollars = value === undefined || value === null ? n(fallbackCredits) * 0.01 : n(value);
   return `$${dollars.toFixed(2)}`;
@@ -43,6 +55,8 @@ function pricingBasis(row) {
   if (n(row.actual_usage_records) > 0) return 'actual';
   if (n(row.displayed_credit_usage_records) > 0) return 'display*';
   if (n(row.upper_bound_usage_records) > 0) return 'upper';
+  if (row.selected_pricing_basis === 'displayed_credit') return 'display*';
+  if (row.selected_pricing_basis) return row.selected_pricing_basis;
   if (row.pricing_basis === 'displayed_credit') return 'display*';
   return row.pricing_basis || 'est';
 }
@@ -80,6 +94,8 @@ SELECT
   COALESCE((SELECT SUM(COALESCE(inferred_cache_read_tokens, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS inferred_cache_read_tokens,
   COALESCE((SELECT SUM(COALESCE(upper_bound_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS upper_bound_ai_credits,
   COALESCE((SELECT SUM(COALESCE(upper_bound_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS upper_bound_usd,
+  COALESCE((SELECT SUM(COALESCE(selected_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS selected_ai_credits,
+  COALESCE((SELECT SUM(COALESCE(selected_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS selected_usd,
   (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'actual' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS actual_usage_records,
   (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'displayed_credit' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS displayed_credit_usage_records,
   (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'upper_bound' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS upper_bound_usage_records,
@@ -96,8 +112,11 @@ SELECT
   (SELECT MAX(estimate_label) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS estimate_label
   ,(SELECT MAX(pricing_basis) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS pricing_basis
   ,(SELECT MAX(estimate_confidence) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS estimate_confidence
+  ,(SELECT MAX(selected_pricing_basis) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS selected_pricing_basis
+  ,(SELECT MAX(selected_confidence) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS selected_confidence
+  ,(SELECT MAX(selected_source) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS selected_source
 FROM (SELECT DISTINCT label FROM label_evidence) labels
-ORDER BY estimated_ai_credits DESC, labels.label`);
+ORDER BY selected_ai_credits DESC, labels.label`);
 }
 
 async function labelSummary(dbPath, label) {
@@ -122,6 +141,8 @@ SELECT
   COALESCE((SELECT SUM(COALESCE(inferred_cache_read_tokens, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS inferred_cache_read_tokens,
   COALESCE((SELECT SUM(COALESCE(upper_bound_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS upper_bound_ai_credits,
   COALESCE((SELECT SUM(COALESCE(upper_bound_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS upper_bound_usd,
+  COALESCE((SELECT SUM(COALESCE(selected_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS selected_ai_credits,
+  COALESCE((SELECT SUM(COALESCE(selected_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS selected_usd,
   (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'actual' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS actual_usage_records,
   (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'displayed_credit' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS displayed_credit_usage_records,
   (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'upper_bound' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS upper_bound_usage_records,
@@ -138,6 +159,9 @@ SELECT
   (SELECT MAX(estimate_label) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS estimate_label
   ,(SELECT MAX(pricing_basis) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS pricing_basis
   ,(SELECT MAX(estimate_confidence) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS estimate_confidence
+  ,(SELECT MAX(selected_pricing_basis) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS selected_pricing_basis
+  ,(SELECT MAX(selected_confidence) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS selected_confidence
+  ,(SELECT MAX(selected_source) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS selected_source
 FROM (SELECT DISTINCT label FROM label_evidence WHERE label = ?) labels`, [canonicalLabel(label)]);
   return rows[0] || null;
 }
@@ -163,11 +187,16 @@ SELECT
   SUM(COALESCE(ur.inferred_cache_read_tokens, 0)) AS inferred_cache_read_tokens,
   SUM(COALESCE(ur.upper_bound_ai_credits, 0)) AS upper_bound_ai_credits,
   SUM(COALESCE(ur.upper_bound_usd, 0)) AS upper_bound_usd,
+  SUM(COALESCE(ur.selected_ai_credits, 0)) AS selected_ai_credits,
+  SUM(COALESCE(ur.selected_usd, 0)) AS selected_usd,
   SUM(CASE WHEN ur.pricing_basis = 'actual' THEN 1 ELSE 0 END) AS actual_usage_records,
   SUM(CASE WHEN ur.pricing_basis = 'displayed_credit' THEN 1 ELSE 0 END) AS displayed_credit_usage_records,
   SUM(CASE WHEN ur.pricing_basis = 'upper_bound' THEN 1 ELSE 0 END) AS upper_bound_usage_records,
   MAX(ur.pricing_basis) AS pricing_basis,
   MAX(ur.estimate_confidence) AS estimate_confidence,
+  MAX(ur.selected_pricing_basis) AS selected_pricing_basis,
+  MAX(ur.selected_confidence) AS selected_confidence,
+  MAX(ur.selected_source) AS selected_source,
   MAX(ur.estimate_label) AS estimate_label
 FROM usage_records ur
 WHERE ur.id IN (
@@ -176,7 +205,7 @@ WHERE ur.id IN (
   WHERE label = ? AND usage_record_id IS NOT NULL
 )
 GROUP BY COALESCE(ur.resolved_model, ur.requested_model, 'unknown')
-ORDER BY estimated_ai_credits DESC, model`, [canonicalLabel(label)]);
+ORDER BY selected_ai_credits DESC, model`, [canonicalLabel(label)]);
 }
 
 async function labelDetails(dbPath, label) {
@@ -214,6 +243,11 @@ SELECT
   ur.inferred_cache_read_reason,
   ur.upper_bound_ai_credits,
   ur.upper_bound_usd,
+  ur.selected_ai_credits,
+  ur.selected_usd,
+  ur.selected_pricing_basis,
+  ur.selected_confidence,
+  ur.selected_source,
   ur.pricing_basis,
   ur.estimate_confidence,
   ur.cache_read_status,
@@ -248,15 +282,20 @@ SELECT
   SUM(COALESCE(inferred_cache_read_tokens, 0)) AS inferred_cache_read_tokens,
   SUM(COALESCE(upper_bound_ai_credits, 0)) AS upper_bound_ai_credits,
   SUM(COALESCE(upper_bound_usd, 0)) AS upper_bound_usd,
+  SUM(COALESCE(selected_ai_credits, 0)) AS selected_ai_credits,
+  SUM(COALESCE(selected_usd, 0)) AS selected_usd,
   SUM(CASE WHEN pricing_basis = 'actual' THEN 1 ELSE 0 END) AS actual_usage_records,
   SUM(CASE WHEN pricing_basis = 'displayed_credit' THEN 1 ELSE 0 END) AS displayed_credit_usage_records,
   SUM(CASE WHEN pricing_basis = 'upper_bound' THEN 1 ELSE 0 END) AS upper_bound_usage_records,
   MAX(pricing_basis) AS pricing_basis,
   MAX(estimate_confidence) AS estimate_confidence,
+  MAX(selected_pricing_basis) AS selected_pricing_basis,
+  MAX(selected_confidence) AS selected_confidence,
+  MAX(selected_source) AS selected_source,
   MAX(estimate_label) AS estimate_label
 FROM usage_records
 GROUP BY COALESCE(resolved_model, requested_model, 'unknown')
-ORDER BY estimated_ai_credits DESC, model`);
+ORDER BY selected_ai_credits DESC, model`);
 }
 
 async function repoReport(dbPath) {
@@ -278,15 +317,20 @@ SELECT
   SUM(COALESCE(inferred_cache_read_tokens, 0)) AS inferred_cache_read_tokens,
   SUM(COALESCE(upper_bound_ai_credits, 0)) AS upper_bound_ai_credits,
   SUM(COALESCE(upper_bound_usd, 0)) AS upper_bound_usd,
+  SUM(COALESCE(selected_ai_credits, 0)) AS selected_ai_credits,
+  SUM(COALESCE(selected_usd, 0)) AS selected_usd,
   SUM(CASE WHEN pricing_basis = 'actual' THEN 1 ELSE 0 END) AS actual_usage_records,
   SUM(CASE WHEN pricing_basis = 'displayed_credit' THEN 1 ELSE 0 END) AS displayed_credit_usage_records,
   SUM(CASE WHEN pricing_basis = 'upper_bound' THEN 1 ELSE 0 END) AS upper_bound_usage_records,
   MAX(pricing_basis) AS pricing_basis,
   MAX(estimate_confidence) AS estimate_confidence,
+  MAX(selected_pricing_basis) AS selected_pricing_basis,
+  MAX(selected_confidence) AS selected_confidence,
+  MAX(selected_source) AS selected_source,
   MAX(estimate_label) AS estimate_label
 FROM usage_records
 GROUP BY COALESCE(repo, 'unknown'), COALESCE(cwd, '')
-ORDER BY estimated_ai_credits DESC, repo, cwd`);
+ORDER BY selected_ai_credits DESC, repo, cwd`);
 }
 
 async function unattributedReport(dbPath) {
@@ -316,6 +360,11 @@ SELECT
   ur.inferred_cache_read_reason,
   ur.upper_bound_ai_credits,
   ur.upper_bound_usd,
+  ur.selected_ai_credits,
+  ur.selected_usd,
+  ur.selected_pricing_basis,
+  ur.selected_confidence,
+  ur.selected_source,
   ur.pricing_basis,
   ur.estimate_confidence,
   ur.cache_read_status,
@@ -331,7 +380,7 @@ ORDER BY ur.timestamp, ur.id`);
 function formatLabels(rows) {
   return [
     table(
-      ['Label', 'Sess', 'Use', 'Input', 'Output', 'C read', 'C write', 'Think', 'Cr est.', '$ est.', 'Basis', 'Status', 'Ev', 'Last'],
+      ['Label', 'Sess', 'Use', 'Input', 'Output', 'C read', 'C write', 'Think', 'Cr sel.', '$ sel.', 'Basis', 'Status', 'Ev', 'Last'],
       rows.map((row) => [
         row.label,
         row.sessions,
@@ -341,8 +390,8 @@ function formatLabels(rows) {
         formatTokens(row.cache_read_tokens),
         formatTokens(row.cache_creation_tokens),
         formatTokens(row.reasoning_tokens),
-        formatCredits(row.estimated_ai_credits),
-        formatDollars(row.estimated_usd, row.estimated_ai_credits),
+        formatCredits(selectedCredits(row)),
+        formatDollars(selectedUsd(row), selectedCredits(row)),
         pricingBasis(row),
         usageStatus(row),
         row.evidence_count,
@@ -357,7 +406,7 @@ function formatLabels(rows) {
 function formatLabelSummary(summary) {
   if (!summary) return 'No usage found for label.';
   return table(
-    ['Label', 'Sess', 'Use', 'Input', 'Output', 'C read', 'C write', 'Think', 'Cr est.', '$ est.', 'Basis', 'Status', 'Ev'],
+      ['Label', 'Sess', 'Use', 'Input', 'Output', 'C read', 'C write', 'Think', 'Cr sel.', '$ sel.', 'Basis', 'Status', 'Ev'],
     [[
       summary.label,
       summary.sessions,
@@ -367,8 +416,8 @@ function formatLabelSummary(summary) {
       formatTokens(summary.cache_read_tokens),
       formatTokens(summary.cache_creation_tokens),
       formatTokens(summary.reasoning_tokens),
-      formatCredits(summary.estimated_ai_credits),
-      formatDollars(summary.estimated_usd, summary.estimated_ai_credits),
+      formatCredits(selectedCredits(summary)),
+      formatDollars(selectedUsd(summary), selectedCredits(summary)),
       pricingBasis(summary),
       usageStatus(summary),
       summary.evidence_count,
@@ -380,7 +429,7 @@ function formatLabelReport(summary, models, details = null) {
   const output = [formatLabelSummary(summary)];
   if (models && models.length > 0) {
     output.push('', table(
-      ['Model', 'Sess', 'Use', 'Input', 'Output', 'C read', 'C write', 'Think', 'Cr est.', '$ est.', 'Basis'],
+      ['Model', 'Sess', 'Use', 'Input', 'Output', 'C read', 'C write', 'Think', 'Cr sel.', '$ sel.', 'Basis'],
       models.map((row) => [
         row.model,
         row.sessions,
@@ -390,15 +439,15 @@ function formatLabelReport(summary, models, details = null) {
         formatTokens(row.cache_read_tokens),
         formatTokens(row.cache_creation_tokens),
         formatTokens(row.reasoning_tokens),
-        formatCredits(row.estimated_ai_credits),
-        formatDollars(row.estimated_usd, row.estimated_ai_credits),
+        formatCredits(selectedCredits(row)),
+        formatDollars(selectedUsd(row), selectedCredits(row)),
         pricingBasis(row),
       ]),
     ));
   }
   if (details) {
     output.push('', table(
-      ['Src', 'Field', 'Session', 'Model', 'Input', 'Output', 'C read', 'C write', 'Think', 'Cr est.', '$ est.', 'Basis', 'Value'],
+      ['Src', 'Field', 'Session', 'Model', 'Input', 'Output', 'C read', 'C write', 'Think', 'Cr sel.', '$ sel.', 'Basis', 'Value'],
       details.map((row) => [
         row.source_type,
         row.source_field,
@@ -409,9 +458,9 @@ function formatLabelReport(summary, models, details = null) {
         formatTokens(row.cache_read_tokens),
         formatTokens(row.cache_creation_tokens),
         formatTokens(row.reasoning_tokens),
-        formatCredits(row.estimated_ai_credits),
-        formatDollars(row.estimated_usd, row.estimated_ai_credits),
-        row.pricing_basis || '',
+        formatCredits(selectedCredits(row)),
+        formatDollars(selectedUsd(row), selectedCredits(row)),
+        row.selected_pricing_basis || row.pricing_basis || '',
         row.source_value || '',
       ]),
     ));
@@ -423,14 +472,14 @@ function formatLabelReport(summary, models, details = null) {
 function formatModels(rows) {
   return [
     table(
-      ['Model', 'Records', 'Input', 'Output', 'Cr est.', '$ est.', 'Basis'],
+      ['Model', 'Records', 'Input', 'Output', 'Cr sel.', '$ sel.', 'Basis'],
       rows.map((row) => [
         row.model,
         row.usage_records,
         formatTokens(row.input_tokens),
         formatTokens(row.output_tokens),
-        formatCredits(row.estimated_ai_credits),
-        formatDollars(row.estimated_usd, row.estimated_ai_credits),
+        formatCredits(selectedCredits(row)),
+        formatDollars(selectedUsd(row), selectedCredits(row)),
         pricingBasis(row),
       ]),
     ),
@@ -442,15 +491,15 @@ function formatModels(rows) {
 function formatRepos(rows) {
   return [
     table(
-      ['Repo', 'CWD', 'Sess', 'Input', 'Output', 'Cr est.', '$ est.', 'Basis'],
+      ['Repo', 'CWD', 'Sess', 'Input', 'Output', 'Cr sel.', '$ sel.', 'Basis'],
       rows.map((row) => [
         row.repo,
         row.cwd,
         row.sessions,
         formatTokens(row.input_tokens),
         formatTokens(row.output_tokens),
-        formatCredits(row.estimated_ai_credits),
-        formatDollars(row.estimated_usd, row.estimated_ai_credits),
+        formatCredits(selectedCredits(row)),
+        formatDollars(selectedUsd(row), selectedCredits(row)),
         pricingBasis(row),
       ]),
     ),
@@ -462,7 +511,7 @@ function formatRepos(rows) {
 function formatUnattributed(rows) {
   return [
     table(
-      ['ID', 'Src', 'Session', 'Repo', 'Branch', 'CWD', 'Model', 'Cr est.', '$ est.', 'Basis'],
+      ['ID', 'Src', 'Session', 'Repo', 'Branch', 'CWD', 'Model', 'Cr sel.', '$ sel.', 'Basis'],
       rows.map((row) => [
         row.id,
         row.source,
@@ -471,9 +520,9 @@ function formatUnattributed(rows) {
         row.branch || '',
         row.cwd || '',
         row.resolved_model || '',
-        formatCredits(row.estimated_ai_credits),
-        formatDollars(row.estimated_usd, row.estimated_ai_credits),
-        row.pricing_basis || '',
+        formatCredits(selectedCredits(row)),
+        formatDollars(selectedUsd(row), selectedCredits(row)),
+        row.selected_pricing_basis || row.pricing_basis || '',
       ]),
     ),
     '',

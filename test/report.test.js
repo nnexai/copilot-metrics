@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
-const { queryOne } = require('../src/sqlite-store');
+const { queryOne, upsertImportCheckpoint } = require('../src/sqlite-store');
 
 const root = path.join(__dirname, '..');
 const cli = path.join(root, 'bin', 'copilot-metrics.js');
@@ -194,13 +194,74 @@ test('report --refresh merges displayed-credit evidence without duplicate usage'
   assert.equal(refreshed.usage_records, 1);
   assert.equal(refreshed.displayed_credit_usage_records, 1);
   assert.equal(refreshed.displayed_ai_credits, 0.8);
+  assert.equal(refreshed.selected_ai_credits, 0.8);
+  assert.equal(refreshed.selected_pricing_basis, 'displayed_credit');
+  assert.ok(refreshed.estimated_ai_credits > refreshed.selected_ai_credits);
   assert.ok(refreshed.inferred_cache_read_tokens > 0);
   assert.equal(refreshed.upper_bound_usage_records, 0);
 
-  const rows = await queryOne(path.join(home, 'store', 'copilot-metrics.sqlite'), 'SELECT COUNT(*) AS count, pricing_basis, displayed_ai_credits FROM usage_records');
+  const rows = await queryOne(path.join(home, 'store', 'copilot-metrics.sqlite'), 'SELECT COUNT(*) AS count, pricing_basis, displayed_ai_credits, selected_ai_credits FROM usage_records');
   assert.equal(rows[0].count, 1);
   assert.equal(rows[0].pricing_basis, 'displayed_credit');
   assert.equal(rows[0].displayed_ai_credits, 0.8);
+  assert.equal(rows[0].selected_ai_credits, 0.8);
+
+  const third = JSON.parse(execFileSync(process.execPath, [cli, 'report', 'labels', '--refresh', '--home', home, '--json'], { cwd: root, encoding: 'utf8', env }));
+  assert.deepEqual(third.labels.find((row) => row.label === 'DEMO-886'), refreshed);
+});
+
+test('report --refresh skips unchanged historical VS Code chat files without stat checkpoints', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-stale-refresh-report-'));
+  const userHome = path.join(home, 'user-home');
+  const workspace = path.join(userHome, '.config', 'Code - Insiders', 'User', 'workspaceStorage', 'workspace-a');
+  const chatDir = path.join(workspace, 'chatSessions');
+  fs.mkdirSync(chatDir, { recursive: true });
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({
+    sources: {
+      vscode: {
+        additionalChatSessions: [chatDir],
+      },
+    },
+  }, null, 2));
+  const sessionFile = path.join(chatDir, 'session-stale-refresh.jsonl');
+  fs.writeFileSync(sessionFile, JSON.stringify({
+    kind: 0,
+    v: {
+      sessionId: 'session-stale-refresh',
+      requests: [{
+        message: { text: 'Historical DEMO-889 refresh evidence.' },
+        responseId: 'response-stale-refresh',
+        resolvedModel: 'gpt-5-mini',
+        usage: { inputTokens: 1000, outputTokens: 100 },
+      }],
+    },
+  }) + '\n');
+
+  const oldTime = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  fs.utimesSync(sessionFile, oldTime, oldTime);
+
+  const env = {
+    ...process.env,
+    COPILOT_HOME: path.join(home, 'copilot-home'),
+    HOME: userHome,
+    USERPROFILE: userHome,
+  };
+  const first = JSON.parse(execFileSync(process.execPath, [cli, 'report', 'labels', '--home', home, '--json'], { cwd: root, encoding: 'utf8', env }));
+  const original = first.labels.find((row) => row.label === 'DEMO-889');
+  assert.ok(original);
+
+  await upsertImportCheckpoint(path.join(home, 'store', 'copilot-metrics.sqlite'), 'vscode-chat', path.resolve(sessionFile), 1, {});
+
+  const second = JSON.parse(execFileSync(process.execPath, [cli, 'report', 'labels', '--refresh', '--home', home, '--json'], { cwd: root, encoding: 'utf8', env }));
+  assert.deepEqual(second.labels.find((row) => row.label === 'DEMO-889'), original);
+
+  const escapedFile = path.resolve(sessionFile).replace(/'/g, "''");
+  const rows = await queryOne(
+    path.join(home, 'store', 'copilot-metrics.sqlite'),
+    `SELECT COUNT(*) AS count FROM raw_records WHERE source = 'vscode-chat' AND source_file = '${escapedFile}'`,
+  );
+  assert.equal(rows[0].count, 1);
 });
 
 test('hook-only labels are visible without implying token usage', () => {
@@ -240,7 +301,7 @@ test('human report output is compact and labels costs as estimates', () => {
   assert.match(output, /DEMO-12345/);
   assert.match(output, /AI Credits are estimates/);
   assert.match(output, /Status/);
-  assert.match(output, /\$ est\./);
+  assert.match(output, /\$ sel\./);
 });
 
 test('human reports mark displayed-credit basis compactly', () => {
@@ -270,6 +331,6 @@ test('single label human report includes per-model breakdown by default', () => 
   const output = run(['report', 'label', 'DEMO-12345', '--home', home]);
   assert.match(output, /Model\s+Sess\s+Use/);
   assert.match(output, /gpt-5\.4/);
-  assert.match(output, /Cr est\./);
-  assert.match(output, /\$ est\./);
+  assert.match(output, /Cr sel\./);
+  assert.match(output, /\$ sel\./);
 });

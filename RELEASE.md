@@ -23,7 +23,8 @@ npm test
 npm run check
 npm run smoke
 npm run verify:package
-npm pack --dry-run --json
+npm run check:readme-version
+npm pack --silent --dry-run --json
 ```
 
 The package must not include `.planning/`, `.codex/`, `test/`, fixture data, local telemetry, or generated SQLite stores.
@@ -64,7 +65,10 @@ npm view copilot-metrics@$VERSION version
 npm view copilot-metrics@$VERSION dist.tarball
 npx copilot-metrics@$VERSION --help
 npx copilot-metrics@$VERSION paths --json
+npx copilot-metrics@$VERSION report labels --json
 ```
+
+Run post-publish `npx` commands from an isolated directory outside this checkout so the published package is not shadowed by the local workspace.
 
 ## Do Not Publish
 

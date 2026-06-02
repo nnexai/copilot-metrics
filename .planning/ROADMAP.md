@@ -6,7 +6,7 @@
 
 ## Overview
 
-Build a local-first Copilot usage tracker in incremental CLI-first slices. The initial milestone delivered setup, ingestion, attribution, reports, hardening, publishing, and setup-once behavior. The completed v0.1.9 milestone improves pricing by separating actual local charge evidence, high-confidence estimates, and upper-bound fallback estimates. The active v0.2.0 milestone adds VS Code displayed-credit evidence before falling back to token-price estimation.
+Build a local-first Copilot usage tracker in incremental CLI-first slices. The initial milestone delivered setup, ingestion, attribution, reports, hardening, publishing, and setup-once behavior. The completed v0.2.0 milestone added VS Code displayed-credit evidence before falling back to token-price estimation. The completed v0.2.1 milestone makes reports count exactly one selected price per session/request and repairs VS Code duplicate identity paths.
 
 ## Phases
 
@@ -25,6 +25,7 @@ Build a local-first Copilot usage tracker in incremental CLI-first slices. The i
 - [x] **Phase 7: 0.1.8 Session log fallback ingestion** - Make local VS Code, VS Code Insiders, and Copilot CLI session logs the default fallback path when hooks and OTel are unavailable.
 - [x] **Phase 8: 0.1.9 Better pricing estimates** - Use the strongest available local pricing evidence and report actual, estimated, and upper-bound values distinctly.
 - [x] **Phase 9: 0.2.0 VS Code displayed credits** - Treat VS Code displayed credit lines as observed local evidence before token-price estimates when stronger actual charge fields are absent, and infer effective cache-read tokens only as marked derived values. (completed 2026-06-02)
+- [x] **Phase 10: 0.2.1 selected session pricing and VS Code dedupe** - Count one confidence-selected price per session/request, merge VS Code OTel/chat/display aliases, repair existing duplicate rows, and make refresh targeted enough for current-session validation. (completed 2026-06-02)
 
 ## Phase Details
 
@@ -360,10 +361,50 @@ Plans:
 - Report tests for JSON fields and compact human basis markers on label, model, repo, and detail reports.
 - `npm test`, `npm run check`, `npm run smoke`, `npm run verify:package`, and isolated `npx -y copilot-metrics@0.2.0` validation after publish.
 
+### Phase 10: 0.2.1 selected session pricing and VS Code dedupe
+
+**Goal:** Ship `copilot-metrics@0.2.1` with one selected price per Copilot session/request, chosen by the highest-confidence evidence, and with VS Code duplicate rows repaired instead of counted as separate usage.
+
+**Requirements**: SEL-01, SEL-02, SEL-03, SEL-04, SEL-05, SEL-06, SEL-07, SEL-08, SEL-09, SEL-10, SEL-11
+**Depends on:** Phase 9
+**Plans:** 1 plan
+
+Plans:
+
+- [x] Selected-price aggregation, VS Code canonical identity repair, and release
+
+**Expected deliverables:**
+
+- Store/report fields for selected AI Credits, selected USD, selected pricing basis, selected confidence, and selected evidence source.
+- Report aggregation that sums selected prices only, while retaining displayed credits, token estimates, upper bounds, inferred cache reads, and conflicts as audit evidence.
+- Canonical VS Code session/request identity logic that merges OTel rows, chat-session fallback rows, displayed-credit rows, and response ID aliases into a single priced usage record.
+- Existing-store repair that collapses duplicate VS Code rows produced by old identity formats or fallback/OTel alias mismatches without losing source/session evidence.
+- Targeted refresh behavior for changed VS Code session evidence, or clear progress output when a broad refresh is required.
+- Release documentation, changelog/package version updates, and npm/GitHub release verification for `0.2.1`.
+
+**Success Criteria** (what must be TRUE):
+
+  1. A session/request with displayed credits and token estimates contributes the displayed-credit selected price once, not the displayed value plus the comparable estimate.
+  2. A `0x` displayed session/request contributes zero selected credits while retaining token estimates as diagnostics only.
+  3. A session/request with actual charge evidence still selects actual charge evidence over displayed credits and estimates.
+  4. VS Code OTel and chat-session fallback rows for the same model response merge into one priced usage record even when their response ID aliases differ.
+  5. Existing local stores with old duplicate identity rows can be repaired idempotently.
+  6. Re-running report refreshes does not increase totals for unchanged VS Code sessions.
+  7. Current-day VS Code sessions can be refreshed and reported without a long silent full scan.
+
+**Verification focus:**
+
+- Report tests proving label, model, repo, and detail reports aggregate selected prices rather than comparable estimates.
+- Pricing tests for actual > displayed > complete estimate > upper bound > included/zero > unknown.
+- Store merge and repair tests for old identity formats, duplicate `source + span_id + model` groups, and OTel/chat response ID aliases.
+- Fixture tests for `0x` rows that keep token diagnostics but contribute zero selected price.
+- Refresh idempotence and targeted-refresh tests using changed and unchanged VS Code session files.
+- `npm test`, `npm run check`, `npm run smoke`, `npm run verify:package`, `npm run check:readme-version`, and isolated `npx -y copilot-metrics@0.2.1` validation after publish.
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -377,6 +418,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 7. 0.1.8 Session log fallback ingestion | 1/1 | Complete | 2026-06-02 |
 | 8. 0.1.9 Better pricing estimates | 1/1 | Complete | 2026-06-02 |
 | 9. 0.2.0 VS Code displayed credits | 1/1 | Complete    | 2026-06-02 |
+| 10. 0.2.1 selected session pricing and VS Code dedupe | 1/1 | Complete | 2026-06-02 |
 
 ## Deferred
 

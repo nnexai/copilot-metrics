@@ -8,16 +8,17 @@ Copilot Metrics is a local Node.js/npm-based toolkit for estimating GitHub Copil
 
 Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
 
-## Current Milestone: v0.2.0 VS Code displayed credits
+## Current Milestone: v0.2.1 selected session pricing
 
-**Goal:** Make `copilot-metrics@0.2.0` trust VS Code's displayed per-request credit line, such as `0.8 credits`, when stronger actual charge evidence is unavailable and before falling back to token-price estimation.
+**Goal:** Make `copilot-metrics@0.2.1` report exactly one selected price per Copilot session/request, chosen by the strongest available pricing evidence, while keeping alternate estimates as audit diagnostics instead of double-counting them.
 
 **Target features:**
-- Parse VS Code and VS Code Insiders chat-session display details such as `GPT-5 mini - 0.8 credits`, `0.8 credit`, and `0x`.
-- Preserve displayed credits as observed local display evidence, distinct from Copilot CLI `totalNanoAiu`, request cost, and token-price estimates.
-- Update pricing precedence so actual charge evidence wins first, displayed credits win next, complete token estimates follow, and upper-bound estimates remain the fallback when cache-read tokens are missing.
-- When displayed credits, token counts, and model pricing are available, infer effective cache-read tokens as a derived diagnostic without overwriting observed cache-read fields.
-- Surface displayed-credit basis, confidence, diagnostics, and source/session evidence in human-readable and JSON reports.
+- Add explicit selected pricing fields for the confidence-ordered winner: actual charge, displayed credit, complete estimate, upper bound, included/zero, then unknown.
+- Make label, model, repo, and detail reports aggregate selected prices, not every comparable estimate stored on a row.
+- Keep displayed credits, token estimates, upper bounds, inferred cache reads, and conflicts as separate audit evidence.
+- Canonicalize VS Code session/request identities so OTel rows, chat-session rows, and response ID aliases merge into one priced usage record.
+- Repair existing local stores that already contain duplicate VS Code rows from old identity formats or fallback/OTel alias mismatches.
+- Make refresh focused enough to update changed VS Code session evidence without long silent full scans.
 
 ## Requirements
 
@@ -56,6 +57,7 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 ### Active
 
 - User can import VS Code displayed credit lines from chat session details, use them before upper-bound token estimation when no stronger actual charge evidence exists, and optionally derive effective cache-read estimates from displayed price deltas - v0.2.0
+- User can report one selected price per Copilot session/request, chosen by confidence, while retaining non-selected evidence only for diagnostics and repairable audit trails - v0.2.1
 
 ### Out of Scope
 
@@ -124,4 +126,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-02 starting v0.2.0 VS Code displayed credits*
+*Last updated: 2026-06-02 starting v0.2.1 selected session pricing*

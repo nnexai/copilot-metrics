@@ -1,41 +1,39 @@
-# Requirements: v0.2.0 VS Code displayed credits
+# Requirements: v0.2.1 selected session pricing
 
 **Created:** 2026-06-02
-**Milestone:** v0.2.0 VS Code displayed credits
+**Milestone:** v0.2.1 selected session pricing
 
 ## Overview
 
-This milestone adds a new evidence tier for VS Code and VS Code Insiders chat sessions. Some local `chatSessions/*.jsonl` records expose a human display line in `result.details`, such as `GPT-5 mini - 0.8 credits` or `GPT-5 mini - 0x`. When no stronger actual charge evidence is available, that displayed credit value is more trustworthy than reconstructing cost from incomplete token buckets, especially when cache-read tokens are missing. If displayed credits, token counts, and model pricing are all available, the tool can also infer effective cache-read tokens from the delta between full-input pricing and displayed cost, but those inferred tokens must stay separate from observed cache-read fields. Reports must preserve displayed credits and inferred cache reads as local evidence, not official billing.
+This milestone fixes the practical reporting gap found after the v0.2.0 release. A Copilot session/request can have multiple local evidence sources: VS Code OTel rows, VS Code chat-session fallback rows, displayed credit strings, token-price estimates, upper-bound estimates, and `0x` included evidence. The user-facing total must count exactly one selected price per session/request: the price with the highest confidence according to the pricing precedence. Other prices remain useful, but only as comparable diagnostics. The release also repairs duplicate VS Code rows created by old identity formats and by response ID aliases such as top-level `response_*` IDs versus metadata response IDs.
 
 ## Active Requirements
 
-### Display Credit Import
+### Selected Pricing
 
-- [x] **DISP-01**: User can import VS Code and VS Code Insiders chat-session `result.details` display strings that contain numeric credits, including singular and plural forms such as `0.8 credit` and `0.8 credits`.
-- [x] **DISP-02**: User can import `0x` / zero-display details as plan-included or zero-display evidence without treating the record as an unknown-price failure.
-- [x] **DISP-03**: User can preserve displayed credits, displayed-credit text, source type, source file, session ID, request ID, response ID, model, and import timestamp as distinct store/report fields.
+- [ ] **SEL-01**: User gets one selected price per Copilot session/request, chosen by confidence order: actual charge evidence, displayed credit evidence, complete token estimate, upper-bound estimate, included/zero evidence, then unknown.
+- [ ] **SEL-02**: User can inspect non-selected pricing evidence as diagnostics without those values contributing to label, model, repo, or session totals.
+- [ ] **SEL-03**: User can see selected price fields in JSON reports, including selected AI Credits, selected USD, selected pricing basis, selected confidence, and the evidence source that won.
+- [ ] **SEL-04**: User-facing human reports aggregate and display selected prices by default, while preserving compact markers for displayed, actual, estimate, upper-bound, included/zero, and conflict cases.
 
-### Pricing Precedence
+### VS Code Session Deduplication
 
-- [x] **DISP-04**: User gets actual local charge evidence first when fields such as `totalNanoAiu`, observed request cost, or future explicit AI Credit debit fields are present.
-- [x] **DISP-05**: User gets displayed VS Code credits as the selected pricing basis when no stronger actual charge evidence exists, before complete token estimates or upper-bound token estimates are used.
-- [x] **DISP-06**: User still gets high-confidence token estimates when complete token buckets and price data exist but no actual or displayed-credit evidence exists.
-- [x] **DISP-07**: User still gets upper-bound token estimates when prompt/output tokens exist but cache-read token counts are unknown and no actual or displayed-credit evidence exists.
-- [x] **DISP-08**: User can see a diagnostic when displayed credits conflict materially with a token estimate, while keeping displayed credits as observed evidence rather than silently overwriting either value.
-- [x] **DISP-09**: User can see inferred effective cache-read tokens when displayed credits, token buckets, and model input/output/cache prices allow a bounded back-solve; inferred values stay separate from observed `cache_read_tokens`.
+- [ ] **SEL-05**: User can merge VS Code OTel, VS Code chat-session fallback, and displayed-credit evidence into one usage record when they refer to the same session/request.
+- [ ] **SEL-06**: User can preserve response ID aliases such as top-level `response_*`, `result.metadata.responseId`, `modelMessageId`, request ID, session ID, model, and timestamp proximity as evidence for canonical matching.
+- [ ] **SEL-07**: User does not get duplicate usage totals when old stored identities differ only by token bucket inclusion or by fallback versus OTel source identity.
+- [ ] **SEL-08**: User can repair an existing local store so already-ingested duplicate VS Code rows collapse to one selected-price record without deleting source evidence needed for audit.
 
-### Reports and Verification
+### Refresh and Verification
 
-- [x] **DISP-10**: User can inspect label, model, repo, and detail report JSON with displayed-credit fields, inferred-cache fields, selected pricing basis, estimate confidence, and source/session evidence.
-- [x] **DISP-11**: User can read human reports that compactly distinguish actual, displayed-credit, estimated, upper-bound, included/zero, and unknown pricing bases, and mark inferred credit/cache values with an asterisk or equivalent marker.
-- [x] **DISP-12**: User can refresh reports and re-import existing VS Code session files so newly supported displayed-credit evidence upgrades prior upper-bound rows without double-counting usage.
-- [x] **DISP-13**: User can verify the behavior with fixture tests for numeric credits, `0x`, absent details, conflicting estimate/display values, inferred cache-read math, duplicate-source merges, and privacy-preserving parsing.
+- [ ] **SEL-09**: User can refresh changed VS Code session evidence without a long silent full scan; refresh should be targeted by source file change state or expose progress when broad scanning is unavoidable.
+- [ ] **SEL-10**: User can verify the behavior with fixtures covering selected-price aggregation, displayed-over-estimate precedence in reports, `0x` included rows contributing zero selected price, OTel/chat alias merging, old identity repair, and repeated refresh idempotence.
+- [ ] **SEL-11**: User can run release verification for `copilot-metrics@0.2.1` through npm scripts and isolated `npx` validation after publish.
 
 ## Future Requirements
 
-- Chronicle/session-store metadata discovery as an optional attribution source.
 - Official GitHub billing/usage API reconciliation when accessible.
 - Historical price-table sync or refresh automation.
+- Richer dashboard views after selected-price CLI semantics are stable.
 
 ## Out of Scope
 
@@ -48,16 +46,14 @@ This milestone adds a new evidence tier for VS Code and VS Code Insiders chat se
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DISP-01 | Phase 9 | Complete |
-| DISP-02 | Phase 9 | Complete |
-| DISP-03 | Phase 9 | Complete |
-| DISP-04 | Phase 9 | Complete |
-| DISP-05 | Phase 9 | Complete |
-| DISP-06 | Phase 9 | Complete |
-| DISP-07 | Phase 9 | Complete |
-| DISP-08 | Phase 9 | Complete |
-| DISP-09 | Phase 9 | Complete |
-| DISP-10 | Phase 9 | Complete |
-| DISP-11 | Phase 9 | Complete |
-| DISP-12 | Phase 9 | Complete |
-| DISP-13 | Phase 9 | Complete |
+| SEL-01 | Phase 10 | Planned |
+| SEL-02 | Phase 10 | Planned |
+| SEL-03 | Phase 10 | Planned |
+| SEL-04 | Phase 10 | Planned |
+| SEL-05 | Phase 10 | Planned |
+| SEL-06 | Phase 10 | Planned |
+| SEL-07 | Phase 10 | Planned |
+| SEL-08 | Phase 10 | Planned |
+| SEL-09 | Phase 10 | Planned |
+| SEL-10 | Phase 10 | Planned |
+| SEL-11 | Phase 10 | Planned |

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.1 - 2026-06-02
+
+### Added
+
+- Reports now expose selected pricing fields for each usage row and aggregate: selected AI Credits, selected USD, selected pricing basis, selected confidence, and selected source.
+- VS Code usage repair now collapses duplicate OTel/chat-session rows that refer to the same response or session/model/timestamp identity, including dated model aliases.
+- Import/report refresh results include duplicate-repair counts when existing VS Code rows are collapsed.
+
+### Changed
+
+- Human report cost columns now show selected totals (`Cr sel.` / `$ sel.`) instead of comparable token estimates.
+- Label, model, repo, detail, and unattributed report totals now sum one selected price per Copilot session/request.
+- Displayed `0x` rows contribute zero selected credits while retaining token estimates as diagnostics.
+- VS Code request identities no longer include token buckets, so cache-read upgrades and fallback/OTel merges do not create duplicate usage rows.
+
 ## 0.2.0 - 2026-06-02
 
 ### Added

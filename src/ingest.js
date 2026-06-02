@@ -15,6 +15,7 @@ const {
   initStore,
   insertImport,
   loadImportState,
+  repairDuplicateVscodeUsageRecords,
   queryRows,
   upsertImportCheckpoint,
   updateUsageCostEstimates,
@@ -45,6 +46,11 @@ function enrichCosts(records) {
       estimated_ai_credits: pricing.estimated_ai_credits,
       upper_bound_usd: pricing.upper_bound_usd,
       upper_bound_ai_credits: pricing.upper_bound_ai_credits,
+      selected_ai_credits: pricing.selected_ai_credits,
+      selected_usd: pricing.selected_usd,
+      selected_pricing_basis: pricing.selected_pricing_basis,
+      selected_confidence: pricing.selected_confidence,
+      selected_source: pricing.selected_source,
       pricing_basis: pricing.pricing_basis,
       estimate_confidence: pricing.estimate_confidence,
       cache_read_status: pricing.cache_read_status,
@@ -59,6 +65,12 @@ function enrichCosts(records) {
 
 function usageIdentity(record) {
   const model = record.resolved_model || record.requested_model || '';
+  if (record.source === 'vscode' || record.source === 'vscode-chat' || record.surface === 'vscode-chat-session') {
+    if (record.span_id) return `vscode-response:${record.span_id}|model:${model}`;
+    const session = record.session_id || record.trace_id || '';
+    const timestamp = record.timestamp || '';
+    if (session || timestamp) return `vscode-session:${session}|time:${timestamp}|model:${model}`;
+  }
   const tokens = [
     record.input_tokens || 0,
     record.output_tokens || 0,
@@ -201,6 +213,66 @@ function readSessionRecords(file, options = {}) {
       warnings: [{ code: 'malformed_json', line: null, message: `Malformed JSON session file: ${error.message}` }],
     };
   }
+}
+
+function fileStatContext(file) {
+  const stat = fs.statSync(file);
+  return {
+    size: stat.size,
+    mtimeMs: Math.trunc(stat.mtimeMs),
+  };
+}
+
+function vscodeDebugFileForSession(sessionFile, sessionId) {
+  if (!sessionId) return null;
+  const sessionDir = path.dirname(sessionFile);
+  if (path.basename(sessionDir) !== 'chatSessions') return null;
+  const workspaceDir = path.dirname(sessionDir);
+  const candidates = [
+    path.join(workspaceDir, 'GitHub.copilot-chat', 'debug-logs', sessionId, 'main.jsonl'),
+    path.join(workspaceDir, 'debug-logs', sessionId, 'main.jsonl'),
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+}
+
+function vscodeChatRefreshStatContext(file) {
+  const sessionId = path.basename(file, path.extname(file));
+  const chat = fileStatContext(file);
+  const debugFile = vscodeDebugFileForSession(file, sessionId);
+  if (!debugFile) return chat;
+  const debug = fileStatContext(debugFile);
+  return {
+    ...chat,
+    debugSize: debug.size,
+    debugMtimeMs: debug.mtimeMs,
+  };
+}
+
+function checkpointFileStat(checkpoint) {
+  const value = checkpoint?.context?.file_stat;
+  if (!value || typeof value !== 'object') return null;
+  return {
+    size: Number(value.size || 0),
+    mtimeMs: Math.trunc(Number(value.mtimeMs || 0)),
+  };
+}
+
+function sameFileStat(left, right) {
+  return Boolean(left && right
+    && left.size === right.size
+    && left.mtimeMs === right.mtimeMs
+    && Number(left.debugSize || 0) === Number(right.debugSize || 0)
+    && Number(left.debugMtimeMs || 0) === Number(right.debugMtimeMs || 0));
+}
+
+function shouldForceRefreshFile(options, checkpoint, statContext) {
+  if (options.forceRefresh !== true) return false;
+  if (sameFileStat(checkpointFileStat(checkpoint), statContext)) return false;
+  if (Number(checkpoint?.checkpoint_line || 0) <= 0) return true;
+
+  const recentWindowMs = Number(options.refreshChangedSinceMs || 24 * 60 * 60 * 1000);
+  if (recentWindowMs <= 0) return false;
+  return Date.now() - Number(statContext.mtimeMs || 0) <= recentWindowMs;
 }
 
 function pickValue(object, keys) {
@@ -494,12 +566,7 @@ function readVscodeDebugCachedTokens(sessionFile, sessionId) {
   if (!sessionId) return null;
   const sessionDir = path.dirname(sessionFile);
   if (path.basename(sessionDir) !== 'chatSessions') return null;
-  const workspaceDir = path.dirname(sessionDir);
-  const candidates = [
-    path.join(workspaceDir, 'GitHub.copilot-chat', 'debug-logs', sessionId, 'main.jsonl'),
-    path.join(workspaceDir, 'debug-logs', sessionId, 'main.jsonl'),
-  ];
-  const debugFile = candidates.find((candidate) => fs.existsSync(candidate));
+  const debugFile = vscodeDebugFileForSession(sessionFile, sessionId);
   if (!debugFile) return null;
   const parsed = readJsonl(debugFile);
   let cachedTokens = 0;
@@ -704,11 +771,16 @@ async function ingestVscodeChatSessionFile(options) {
   const { dbPath, file } = options;
   const sourceFile = path.resolve(file);
   const checkpoint = await sourceCheckpoint(options, 'vscode-chat', sourceFile);
-  const highWaterLine = options.forceRefresh
+  const statContext = vscodeChatRefreshStatContext(sourceFile);
+  const forceRead = shouldForceRefreshFile(options, checkpoint, statContext);
+  const highWaterLine = forceRead
     ? 0
     : Math.max(Number(checkpoint.checkpoint_line || 0), await sourceHighWater(options, 'vscode-chat', sourceFile));
   const parsed = readSessionRecords(sourceFile, { afterLine: highWaterLine });
   if (parsed.records.length === 0 && parsed.warnings.length === 0) {
+    if (!sameFileStat(checkpointFileStat(checkpoint), statContext)) {
+      await upsertImportCheckpoint(dbPath, 'vscode-chat', sourceFile, highWaterLine, { file_stat: statContext });
+    }
     return {
       source: 'vscode-chat',
       file,
@@ -718,6 +790,7 @@ async function ingestVscodeChatSessionFile(options) {
       skipped_existing_records: highWaterLine,
       usage_records: 0,
       duplicate_usage_records: 0,
+      repaired_duplicate_usage_records: 0,
       hook_events: 0,
       label_evidence: 0,
       warnings: [],
@@ -734,7 +807,7 @@ async function ingestVscodeChatSessionFile(options) {
     sourceFile,
     allRecords.map((record) => record.raw_fingerprint),
   );
-  const newRecords = options.forceRefresh
+  const newRecords = forceRead
     ? allRecords
     : allRecords.filter((record) => !existing.has(record.raw_fingerprint));
   const fallbackUsage = attachUsageLabelEvidence(
@@ -768,8 +841,9 @@ async function ingestVscodeChatSessionFile(options) {
     }));
     importResult = await insertImport(dbPath, 'vscode-chat', sourceFile, redactedRawRecords, fallbackUsage, [], warnings);
     const nextLine = newRecords.reduce((max, record) => Math.max(max, Number(record.line || 0)), highWaterLine);
-    await upsertImportCheckpoint(dbPath, 'vscode-chat', sourceFile, nextLine, {});
+    await upsertImportCheckpoint(dbPath, 'vscode-chat', sourceFile, nextLine, { file_stat: statContext });
   }
+  const repairedDuplicateUsageRecords = await repairDuplicateVscodeUsageRecords(dbPath);
   return {
     source: 'vscode-chat',
     file,
@@ -777,8 +851,9 @@ async function ingestVscodeChatSessionFile(options) {
     raw_records: allRecords.length,
     new_raw_records: newRecords.length,
     skipped_existing_records: highWaterLine,
-    usage_records: (importResult?.inserted_usage_records || 0) + attached.matched_usage_records,
+    usage_records: Math.max(0, (importResult?.inserted_usage_records || 0) + attached.matched_usage_records - repairedDuplicateUsageRecords),
     duplicate_usage_records: importResult?.duplicate_usage_records || 0,
+    repaired_duplicate_usage_records: repairedDuplicateUsageRecords,
     hook_events: 0,
     label_evidence: fallbackUsage.reduce((sum, usage) => sum + (usage.label_evidence || []).length, 0) + attached.label_evidence,
     warnings,
@@ -835,6 +910,7 @@ async function repairUsageCostEstimates(dbPath) {
     FROM usage_records
     WHERE estimated_ai_credits IS NULL
       OR estimated_ai_credits = 0
+      OR selected_pricing_basis IS NULL
       OR warnings_json LIKE '%unknown_model:%'
       OR warnings_json LIKE '%missing_model%'
   `);
@@ -873,6 +949,11 @@ async function repairUsageCostEstimates(dbPath) {
       displayed_credit_basis: estimate.displayed_credit_basis,
       inferred_cache_read_tokens: estimate.inferred_cache_read_tokens,
       inferred_cache_read_reason: estimate.inferred_cache_read_reason,
+      selected_ai_credits: estimate.selected_ai_credits,
+      selected_usd: estimate.selected_usd,
+      selected_pricing_basis: estimate.selected_pricing_basis,
+      selected_confidence: estimate.selected_confidence,
+      selected_source: estimate.selected_source,
       pricing_basis: estimate.pricing_basis,
       estimate_confidence: estimate.estimate_confidence,
       cache_read_status: estimate.cache_read_status,
@@ -908,6 +989,7 @@ async function ingestFile(options) {
       skipped_existing_records: checkpointLine,
       usage_records: 0,
       duplicate_usage_records: 0,
+      repaired_duplicate_usage_records: 0,
       hook_events: 0,
       backfilled_usage_records: backfilledUsageRecords,
       repaired_cost_records: 0,
@@ -976,6 +1058,7 @@ async function ingestFile(options) {
     }
   }
   const repairedCostRecords = options.repairCostEstimates === false ? 0 : await repairUsageCostEstimates(dbPath);
+  const repairedDuplicateUsageRecords = source === 'vscode' ? await repairDuplicateVscodeUsageRecords(dbPath) : 0;
 
   return {
     source,
@@ -986,6 +1069,7 @@ async function ingestFile(options) {
     skipped_existing_records: checkpointLine,
     usage_records: importResult.inserted_usage_records,
     duplicate_usage_records: importResult.duplicate_usage_records,
+    repaired_duplicate_usage_records: repairedDuplicateUsageRecords,
     hook_events: enrichedHooks.length,
     backfilled_usage_records: backfilledUsageRecords,
     repaired_cost_records: repairedCostRecords,
@@ -1193,6 +1277,7 @@ async function autoImportConfiguredSources(paths, options = {}) {
     options.onProgress({ phase: 'finish', total: sourceEntries.files.length });
   }
   const repairedCostRecords = await repairUsageCostEstimates(paths.usageDb);
+  const repairedDuplicateUsageRecords = await repairDuplicateVscodeUsageRecords(paths.usageDb);
   if (repairedCostRecords > 0) {
     results.push({
       source: 'store',
@@ -1203,8 +1288,27 @@ async function autoImportConfiguredSources(paths, options = {}) {
       skipped_existing_records: 0,
       usage_records: 0,
       duplicate_usage_records: 0,
+      repaired_duplicate_usage_records: 0,
       hook_events: 0,
       repaired_cost_records: repairedCostRecords,
+      label_evidence: 0,
+      warnings: [],
+      estimate_label: `estimate:${PRICING_VERSION}`,
+    });
+  }
+  if (repairedDuplicateUsageRecords > 0) {
+    results.push({
+      source: 'store',
+      file: paths.usageDb,
+      dbPath: paths.usageDb,
+      raw_records: 0,
+      new_raw_records: 0,
+      skipped_existing_records: 0,
+      usage_records: 0,
+      duplicate_usage_records: 0,
+      repaired_duplicate_usage_records: repairedDuplicateUsageRecords,
+      hook_events: 0,
+      repaired_cost_records: 0,
       label_evidence: 0,
       warnings: [],
       estimate_label: `estimate:${PRICING_VERSION}`,
@@ -1225,4 +1329,5 @@ module.exports = {
   normalizeVscodeFallbackUsage,
   normalizeVscodeChatSession,
   repairUsageCostEstimates,
+  repairDuplicateVscodeUsageRecords,
 };

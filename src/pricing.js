@@ -229,7 +229,7 @@ function classifyPricing(record) {
     confidence = 'plan_included';
   }
 
-  return {
+  const result = {
     ...actual,
     ...displayed,
     inferred_cache_read_tokens: inferred?.inferred_cache_read_tokens ?? null,
@@ -245,6 +245,68 @@ function classifyPricing(record) {
     pricing_diagnostics: Array.from(new Set(diagnostics)),
     warnings,
   };
+  return {
+    ...result,
+    ...selectPrice(result),
+  };
+}
+
+function selectPrice(record) {
+  if (record.actual_ai_credits !== null && record.actual_ai_credits !== undefined) {
+    return {
+      selected_ai_credits: Number(record.actual_ai_credits),
+      selected_usd: Number(record.actual_usd ?? (Number(record.actual_ai_credits) * 0.01).toFixed(8)),
+      selected_pricing_basis: 'actual',
+      selected_confidence: 'actual',
+      selected_source: record.actual_basis || 'actual_charge',
+    };
+  }
+  if (record.displayed_ai_credits !== null && record.displayed_ai_credits !== undefined) {
+    const credits = Number(record.displayed_ai_credits);
+    if (Number.isFinite(credits)) {
+      return {
+        selected_ai_credits: Number(credits.toFixed(9)),
+        selected_usd: Number((credits * 0.01).toFixed(8)),
+        selected_pricing_basis: credits === 0 ? 'included_or_zero' : 'displayed_credit',
+        selected_confidence: credits === 0 ? 'plan_included' : 'displayed',
+        selected_source: record.displayed_credit_basis || 'vscode_result_details',
+      };
+    }
+  }
+  if (record.pricing_basis === 'estimated' && record.estimated_ai_credits !== null && record.estimated_ai_credits !== undefined) {
+    return {
+      selected_ai_credits: Number(record.estimated_ai_credits),
+      selected_usd: Number(record.estimated_usd ?? (Number(record.estimated_ai_credits) * 0.01).toFixed(8)),
+      selected_pricing_basis: 'estimated',
+      selected_confidence: record.estimate_confidence || 'high',
+      selected_source: record.pricing_source || 'estimate',
+    };
+  }
+  if (record.pricing_basis === 'upper_bound' && record.upper_bound_ai_credits !== null && record.upper_bound_ai_credits !== undefined) {
+    return {
+      selected_ai_credits: Number(record.upper_bound_ai_credits),
+      selected_usd: Number(record.upper_bound_usd ?? (Number(record.upper_bound_ai_credits) * 0.01).toFixed(8)),
+      selected_pricing_basis: 'upper_bound',
+      selected_confidence: 'upper_bound',
+      selected_source: record.pricing_source || 'estimate',
+    };
+  }
+  if (record.pricing_basis === 'included_or_zero' || record.included_or_zero) {
+    return {
+      selected_ai_credits: 0,
+      selected_usd: 0,
+      selected_pricing_basis: 'included_or_zero',
+      selected_confidence: 'plan_included',
+      selected_source: record.displayed_credit_basis || 'included_or_zero',
+    };
+  }
+  return {
+    selected_ai_credits: null,
+    selected_usd: null,
+    selected_pricing_basis: 'unknown_price',
+    selected_confidence: 'unknown',
+    selected_source: null,
+  };
 }
 
 module.exports = {
@@ -253,4 +315,5 @@ module.exports = {
   classifyPricing,
   estimateCost,
   modelPriceKey,
+  selectPrice,
 };

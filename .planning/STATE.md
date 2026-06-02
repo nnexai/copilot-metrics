@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.2.0
-milestone_name: VS Code displayed credits
+milestone: v0.2.1
+milestone_name: selected session pricing
 status: completed
-last_updated: "2026-06-02T11:23:13.108Z"
+last_updated: "2026-06-02T14:45:00.000Z"
 last_activity: 2026-06-02
 progress:
   total_phases: 1
@@ -16,14 +16,14 @@ progress:
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** Milestone complete
+**Status:** Completed
 
 ## Project Reference
 
 See: `.planning/PROJECT.md` (updated 2026-06-02)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Milestone v0.2.0 VS Code displayed credits
+**Current focus:** Milestone v0.2.1 selected session pricing complete; publish gate pending
 
 ## Workflow Settings
 
@@ -39,14 +39,14 @@ See: `.planning/PROJECT.md` (updated 2026-06-02)
 
 ## Current Phase
 
-Phase 9: 0.2.0 VS Code displayed credits
+Phase 10: 0.2.1 selected session pricing and VS Code dedupe (complete)
 
 ## Current Position
 
-Phase: 9 complete
-Plan: 09-01 complete
-Status: Phase complete; release publish gate remains
-Last activity: 2026-06-02 — Phase 9 implemented and verified for `copilot-metrics@0.2.0`
+Phase: 10 complete
+Plan: 10-01 complete
+Status: Local release verification complete; human-gated publish remains
+Last activity: 2026-06-02 — Phase 10 completed for `copilot-metrics@0.2.1`
 
 ## Notes
 
@@ -76,6 +76,8 @@ Last activity: 2026-06-02 — Phase 9 implemented and verified for `copilot-metr
 - Phase 9 added for `copilot-metrics@0.2.0`: displayed-credit evidence should be selected after stronger actual charge evidence and before complete/upper-bound token estimates; displayed credits can also back-solve effective cache-read estimates when model pricing and token buckets make the inference bounded.
 - Phase 9 completed `copilot-metrics@0.2.0`: VS Code displayed-credit parsing, displayed-over-estimate pricing precedence, `0x` display evidence, inferred cache-read diagnostics, refresh merge upgrades, JSON report fields, compact human `display*` markers, and release docs.
 - Phase 9 automated verification passed: `npm test`, `npm run check`, `npm run smoke`, `npm run verify:package`, and `npm run check:readme-version`.
+- Phase 10 added for `copilot-metrics@0.2.1`: reports must count exactly one selected price per session/request by confidence, keep non-selected price evidence as diagnostics, merge VS Code OTel/chat/display aliases, repair old duplicate rows, and avoid long silent refresh scans.
+- Phase 10 completed `copilot-metrics@0.2.1`: selected local pricing fields now drive report totals, non-selected evidence remains diagnostic, VS Code duplicate OTel/chat/display aliases are repairable, existing stores backfill selected pricing metadata, docs and release files are updated, and local package verification passed.
 
 ## Accumulated Context
 
@@ -87,6 +89,8 @@ Last activity: 2026-06-02 — Phase 9 implemented and verified for `copilot-metr
 - Phase 8 added: `copilot-metrics@0.1.9` pricing evidence release for actual local charge signals, session-local price metadata, cache-read availability, upper-bound estimates, and clearer report semantics.
 - Phase 8 completed: `copilot-metrics@0.1.9` now separates actual local charge evidence, high-confidence estimates, upper-bound estimates, cache diagnostics, and pricing provenance across import, store, and reports.
 - Phase 9 completed: `copilot-metrics@0.2.0` parses VS Code displayed-credit details, uses them before token-price estimation when no stronger actual charge evidence exists, and marks inferred cache/credit values separately from observed fields.
+- Phase 10 added: `copilot-metrics@0.2.1` will make selected-price aggregation the user-facing total and repair VS Code duplicate identity paths found during current-day session analysis.
+- Phase 10 completed: `copilot-metrics@0.2.1` selects one price per usage row by confidence, repairs duplicate VS Code identity paths, and prepares the package for human-gated publication.
 
 ## Quick Tasks Completed
 
@@ -98,5 +102,5 @@ Last activity: 2026-06-02 — Phase 9 implemented and verified for `copilot-metr
 
 ## Operator Next Steps
 
-- Publish `copilot-metrics@0.2.0` through the existing human-gated GitHub Actions/npm release flow.
-- After publish, validate from an isolated directory with `npx -y copilot-metrics@0.2.0 --help` and a focused report/import smoke.
+- Publish `copilot-metrics@0.2.1` through the human-gated GitHub/npm release path.
+- After publish, validate from an isolated directory with `npx -y copilot-metrics@0.2.1 --help` and a focused selected-pricing report smoke.

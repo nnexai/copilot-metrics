@@ -16,6 +16,7 @@ const {
   ingestFile,
   normalizeVscodeFallbackUsage,
   normalizeVscodeChatSession,
+  repairDuplicateVscodeUsageRecords,
   repairUsageCostEstimates,
 } = require('../src/ingest');
 const { queryOne } = require('../src/sqlite-store');
@@ -196,15 +197,18 @@ test('repairUsageCostEstimates updates existing zero-cost dated model rows', asy
 
   const SQL = await initSqlJs();
   const db = new SQL.Database(fs.readFileSync(paths.usageDb));
-  db.run("UPDATE usage_records SET estimated_usd = 0, estimated_ai_credits = 0, warnings_json = '[\"unknown_model:gpt-5-mini-2025-08-07\"]'");
+  db.run("UPDATE usage_records SET estimated_usd = 0, estimated_ai_credits = 0, selected_ai_credits = NULL, selected_usd = NULL, selected_pricing_basis = NULL, selected_confidence = NULL, selected_source = NULL, warnings_json = '[\"unknown_model:gpt-5-mini-2025-08-07\"]'");
   fs.writeFileSync(paths.usageDb, Buffer.from(db.export()));
 
   const updated = await repairUsageCostEstimates(paths.usageDb);
   assert.equal(updated, 1);
 
-  const usage = await queryOne(paths.usageDb, 'SELECT estimated_usd, estimated_ai_credits, warnings_json FROM usage_records');
+  const usage = await queryOne(paths.usageDb, 'SELECT estimated_usd, estimated_ai_credits, selected_ai_credits, selected_usd, selected_pricing_basis, warnings_json FROM usage_records');
   assert.equal(usage[0].estimated_usd, 0.0099);
   assert.equal(usage[0].estimated_ai_credits, 0.99);
+  assert.equal(usage[0].selected_ai_credits, 0.99);
+  assert.equal(usage[0].selected_usd, 0.0099);
+  assert.equal(usage[0].selected_pricing_basis, 'estimated');
   assert.equal(usage[0].warnings_json, '[]');
 });
 
@@ -298,12 +302,14 @@ test('same session exchange is not duplicated across OTel and fallback sources',
   });
 
   assert.equal(fallback.usage_records, 1);
+  assert.equal(fallback.repaired_duplicate_usage_records, 1);
   const rows = await queryOne(paths.usageDb, 'SELECT COUNT(*) AS count, SUM(input_tokens) AS input FROM usage_records');
   assert.equal(rows[0].count, 1);
   assert.equal(rows[0].input, 30000);
   const evidence = await queryOne(paths.usageDb, "SELECT label, usage_record_id FROM label_evidence WHERE label = 'HDASPF-321'");
   assert.ok(evidence.length >= 1);
   assert.equal(new Set(evidence.map((row) => row.usage_record_id)).size, 1);
+  assert.equal(await repairDuplicateVscodeUsageRecords(paths.usageDb), 0);
 });
 
 test('ingestFile stores VS Code fallback token usage from json files', async () => {
@@ -396,7 +402,9 @@ test('VS Code displayed credits select displayed-credit basis before upper-bound
     SELECT pricing_basis, estimate_confidence, displayed_ai_credits, displayed_usd,
       displayed_credit_text, estimated_ai_credits, upper_bound_ai_credits,
       cache_read_tokens, cache_read_status, inferred_cache_read_tokens,
-      inferred_cache_read_reason, pricing_diagnostics_json
+      inferred_cache_read_reason, selected_ai_credits, selected_usd,
+      selected_pricing_basis, selected_confidence, selected_source,
+      pricing_diagnostics_json
     FROM usage_records
   `);
   assert.equal(usage[0].pricing_basis, 'displayed_credit');
@@ -404,6 +412,11 @@ test('VS Code displayed credits select displayed-credit basis before upper-bound
   assert.equal(usage[0].displayed_ai_credits, 0.8);
   assert.equal(usage[0].displayed_usd, 0.008);
   assert.equal(usage[0].displayed_credit_text, 'GPT-5 mini - 0.8 credits');
+  assert.equal(usage[0].selected_ai_credits, 0.8);
+  assert.equal(usage[0].selected_usd, 0.008);
+  assert.equal(usage[0].selected_pricing_basis, 'displayed_credit');
+  assert.equal(usage[0].selected_confidence, 'displayed');
+  assert.equal(usage[0].selected_source, 'vscode_result_details');
   assert.ok(usage[0].estimated_ai_credits > usage[0].displayed_ai_credits);
   assert.equal(usage[0].upper_bound_ai_credits, usage[0].estimated_ai_credits);
   assert.equal(usage[0].cache_read_tokens, 0);
@@ -433,10 +446,14 @@ test('VS Code displayed 0x imports included display evidence', async () => {
   const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
   await ingestFile({ dbPath: paths.usageDb, file: sessionFile, source: 'vscode-chat' });
 
-  const usage = await queryOne(paths.usageDb, 'SELECT pricing_basis, estimate_confidence, displayed_ai_credits, displayed_credit_text, pricing_diagnostics_json FROM usage_records');
+  const usage = await queryOne(paths.usageDb, 'SELECT pricing_basis, estimate_confidence, displayed_ai_credits, displayed_credit_text, estimated_ai_credits, selected_ai_credits, selected_usd, selected_pricing_basis, pricing_diagnostics_json FROM usage_records');
   assert.equal(usage[0].pricing_basis, 'included_or_zero');
   assert.equal(usage[0].estimate_confidence, 'plan_included');
   assert.equal(usage[0].displayed_ai_credits, 0);
+  assert.ok(usage[0].estimated_ai_credits > 0);
+  assert.equal(usage[0].selected_ai_credits, 0);
+  assert.equal(usage[0].selected_usd, 0);
+  assert.equal(usage[0].selected_pricing_basis, 'included_or_zero');
   assert.equal(usage[0].displayed_credit_text, 'GPT-5 mini - 0x');
   assert.match(usage[0].pricing_diagnostics_json, /included_or_zero/);
 });
@@ -455,6 +472,9 @@ test('actual charge evidence remains stronger than displayed credits', async () 
   assert.equal(pricing.pricing_basis, 'actual');
   assert.equal(pricing.actual_ai_credits, 0.5);
   assert.equal(pricing.displayed_ai_credits, 0.8);
+  assert.equal(pricing.selected_ai_credits, 0.5);
+  assert.equal(pricing.selected_pricing_basis, 'actual');
+  assert.equal(pricing.selected_source, 'totalNanoAiu');
 });
 
 test('VS Code debug log cachedTokens upgrades fallback cache-read evidence', async () => {

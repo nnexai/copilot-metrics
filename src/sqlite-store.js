@@ -131,6 +131,11 @@ CREATE TABLE IF NOT EXISTS usage_records (
   estimated_ai_credits REAL,
   upper_bound_usd REAL,
   upper_bound_ai_credits REAL,
+  selected_ai_credits REAL,
+  selected_usd REAL,
+  selected_pricing_basis TEXT,
+  selected_confidence TEXT,
+  selected_source TEXT,
   pricing_basis TEXT NOT NULL DEFAULT 'estimated',
   estimate_confidence TEXT NOT NULL DEFAULT 'high',
   cache_read_status TEXT NOT NULL DEFAULT 'explicit_zero',
@@ -202,6 +207,11 @@ CREATE TABLE IF NOT EXISTS import_checkpoints (
     changed = addColumnIfMissing(db, 'usage_records', 'inferred_cache_read_reason', 'TEXT') || changed;
     changed = addColumnIfMissing(db, 'usage_records', 'upper_bound_usd', 'REAL') || changed;
     changed = addColumnIfMissing(db, 'usage_records', 'upper_bound_ai_credits', 'REAL') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'selected_ai_credits', 'REAL') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'selected_usd', 'REAL') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'selected_pricing_basis', 'TEXT') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'selected_confidence', 'TEXT') || changed;
+    changed = addColumnIfMissing(db, 'usage_records', 'selected_source', 'TEXT') || changed;
     changed = addColumnIfMissing(db, 'usage_records', 'pricing_basis', "TEXT NOT NULL DEFAULT 'estimated'") || changed;
     changed = addColumnIfMissing(db, 'usage_records', 'estimate_confidence', "TEXT NOT NULL DEFAULT 'high'") || changed;
     changed = addColumnIfMissing(db, 'usage_records', 'cache_read_status', "TEXT NOT NULL DEFAULT 'explicit_zero'") || changed;
@@ -321,6 +331,11 @@ function mergeUsageEvidence(existing, usage) {
     inferred_cache_read_reason: existing.inferred_cache_read_reason ?? usage.inferred_cache_read_reason ?? null,
     upper_bound_usd: basisRank(incomingBasis) > basisRank(existingBasis) ? usage.upper_bound_usd ?? null : existing.upper_bound_usd ?? usage.upper_bound_usd ?? null,
     upper_bound_ai_credits: basisRank(incomingBasis) > basisRank(existingBasis) ? usage.upper_bound_ai_credits ?? null : existing.upper_bound_ai_credits ?? usage.upper_bound_ai_credits ?? null,
+    selected_ai_credits: basisRank(incomingBasis) > basisRank(existingBasis) ? usage.selected_ai_credits ?? null : existing.selected_ai_credits ?? usage.selected_ai_credits ?? null,
+    selected_usd: basisRank(incomingBasis) > basisRank(existingBasis) ? usage.selected_usd ?? null : existing.selected_usd ?? usage.selected_usd ?? null,
+    selected_pricing_basis: basisRank(incomingBasis) > basisRank(existingBasis) ? usage.selected_pricing_basis ?? incomingBasis : existing.selected_pricing_basis ?? usage.selected_pricing_basis ?? strongestBasis,
+    selected_confidence: basisRank(incomingBasis) > basisRank(existingBasis) ? usage.selected_confidence || usage.estimate_confidence || 'high' : existing.selected_confidence || usage.selected_confidence || existing.estimate_confidence || 'high',
+    selected_source: basisRank(incomingBasis) > basisRank(existingBasis) ? usage.selected_source ?? null : existing.selected_source ?? usage.selected_source ?? null,
     pricing_basis: strongestBasis,
     estimate_confidence: basisRank(incomingBasis) > basisRank(existingBasis)
       ? usage.estimate_confidence || existing.estimate_confidence || 'high'
@@ -496,14 +511,16 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
         displayed_ai_credits, displayed_usd, displayed_credit_text, displayed_credit_basis,
         inferred_cache_read_tokens, inferred_cache_read_reason,
         estimated_usd, estimated_ai_credits, upper_bound_usd, upper_bound_ai_credits,
+        selected_ai_credits, selected_usd, selected_pricing_basis, selected_confidence, selected_source,
         pricing_basis, estimate_confidence, cache_read_status, pricing_source,
         estimate_label, pricing_metadata_json, pricing_diagnostics_json, warnings_json, usage_identity
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     const existingUsageStatement = db.prepare(`
       SELECT id, session_id, repo, branch, cwd, timestamp, actual_charge_nano_aiu, actual_ai_credits,
         actual_usd, actual_basis, displayed_ai_credits, displayed_usd, displayed_credit_text,
         displayed_credit_basis, inferred_cache_read_tokens, inferred_cache_read_reason,
-        upper_bound_usd, upper_bound_ai_credits, pricing_basis,
+        upper_bound_usd, upper_bound_ai_credits, selected_ai_credits, selected_usd,
+        selected_pricing_basis, selected_confidence, selected_source, pricing_basis,
         estimate_confidence, cache_read_status, pricing_source, pricing_metadata_json,
         pricing_diagnostics_json, warnings_json
       FROM usage_records
@@ -527,6 +544,11 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
           inferred_cache_read_reason = COALESCE(inferred_cache_read_reason, ?),
           upper_bound_usd = ?,
           upper_bound_ai_credits = ?,
+          selected_ai_credits = ?,
+          selected_usd = ?,
+          selected_pricing_basis = ?,
+          selected_confidence = ?,
+          selected_source = ?,
           pricing_basis = ?,
           estimate_confidence = ?,
           cache_read_status = ?,
@@ -566,6 +588,11 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
             merged.inferred_cache_read_reason,
             merged.upper_bound_usd,
             merged.upper_bound_ai_credits,
+            merged.selected_ai_credits,
+            merged.selected_usd,
+            merged.selected_pricing_basis,
+            merged.selected_confidence,
+            merged.selected_source,
             merged.pricing_basis,
             merged.estimate_confidence,
             merged.cache_read_status,
@@ -612,6 +639,11 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
             usage.estimated_ai_credits,
             usage.upper_bound_usd,
             usage.upper_bound_ai_credits,
+            usage.selected_ai_credits,
+            usage.selected_usd,
+            usage.selected_pricing_basis,
+            usage.selected_confidence,
+            usage.selected_source,
             usage.pricing_basis || 'estimated',
             usage.estimate_confidence || 'high',
             usage.cache_read_status || 'explicit_zero',
@@ -863,6 +895,11 @@ async function updateUsageCostEstimates(dbPath, updates) {
         displayed_credit_basis = ?,
         inferred_cache_read_tokens = ?,
         inferred_cache_read_reason = ?,
+        selected_ai_credits = ?,
+        selected_usd = ?,
+        selected_pricing_basis = ?,
+        selected_confidence = ?,
+        selected_source = ?,
         pricing_basis = ?,
         estimate_confidence = ?,
         cache_read_status = ?,
@@ -887,6 +924,11 @@ async function updateUsageCostEstimates(dbPath, updates) {
         update.displayed_credit_basis ?? null,
         update.inferred_cache_read_tokens ?? null,
         update.inferred_cache_read_reason ?? null,
+        update.selected_ai_credits ?? null,
+        update.selected_usd ?? null,
+        update.selected_pricing_basis || update.pricing_basis || 'estimated',
+        update.selected_confidence || update.estimate_confidence || 'high',
+        update.selected_source || update.pricing_source || null,
         update.pricing_basis || 'estimated',
         update.estimate_confidence || 'high',
         update.cache_read_status || 'explicit_zero',
@@ -909,6 +951,148 @@ async function updateUsageCostEstimates(dbPath, updates) {
   }
 
   return updated;
+}
+
+function vscodeRepairKey(row) {
+  const model = String(row.resolved_model || row.requested_model || '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
+  if (row.span_id) return `response:${row.span_id}|model:${model}`;
+  if (row.usage_identity && row.usage_identity.startsWith('span:')) {
+    const span = row.usage_identity.slice(5).split('|')[0];
+    if (span) return `response:${span}|model:${model}`;
+  }
+  const session = row.session_id || row.trace_id || '';
+  const timestamp = row.timestamp || '';
+  if (session || timestamp) return `session:${session}|time:${timestamp}|model:${model}`;
+  return null;
+}
+
+function strongerUsageRow(left, right) {
+  const leftRank = basisRank(left.pricing_basis || left.selected_pricing_basis);
+  const rightRank = basisRank(right.pricing_basis || right.selected_pricing_basis);
+  if (leftRank !== rightRank) return leftRank > rightRank ? left : right;
+  return Number(left.id) <= Number(right.id) ? left : right;
+}
+
+async function repairDuplicateVscodeUsageRecords(dbPath) {
+  await initStore(dbPath);
+  const rows = await queryRows(dbPath, `
+    SELECT id, source, surface, span_id, trace_id, timestamp, session_id,
+      requested_model, resolved_model, actual_charge_nano_aiu, actual_ai_credits,
+      actual_usd, actual_basis, displayed_ai_credits, displayed_usd,
+      displayed_credit_text, displayed_credit_basis, inferred_cache_read_tokens,
+      inferred_cache_read_reason, estimated_usd, estimated_ai_credits,
+      upper_bound_usd, upper_bound_ai_credits, selected_ai_credits,
+      selected_usd, selected_pricing_basis, selected_confidence, selected_source,
+      pricing_basis, estimate_confidence, cache_read_status, pricing_source,
+      pricing_metadata_json, pricing_diagnostics_json, warnings_json, usage_identity
+    FROM usage_records
+    WHERE source IN ('vscode', 'vscode-chat')
+       OR surface = 'vscode-chat-session'
+  `);
+  const groups = new Map();
+  for (const row of rows) {
+    const key = vscodeRepairKey(row);
+    if (!key) continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  const duplicateGroups = Array.from(groups.values()).filter((group) => group.length > 1);
+  if (!duplicateGroups.length) return 0;
+
+  const db = await openDatabase(dbPath);
+  let repaired = 0;
+  try {
+    db.run('BEGIN');
+    for (const group of duplicateGroups) {
+      const survivor = group.reduce((best, row) => strongerUsageRow(best, row));
+      const duplicates = group.filter((row) => Number(row.id) !== Number(survivor.id));
+      let merged = survivor;
+      for (const duplicate of duplicates) {
+        merged = {
+          ...merged,
+          ...mergeUsageEvidence(merged, {
+            ...duplicate,
+            pricing_metadata: parseJsonObject(duplicate.pricing_metadata_json),
+            pricing_diagnostics: parseJsonArray(duplicate.pricing_diagnostics_json),
+            warnings: parseJsonArray(duplicate.warnings_json),
+          }),
+        };
+      }
+
+      db.run(`
+        UPDATE usage_records
+        SET actual_charge_nano_aiu = COALESCE(actual_charge_nano_aiu, ?),
+            actual_ai_credits = COALESCE(actual_ai_credits, ?),
+            actual_usd = COALESCE(actual_usd, ?),
+            actual_basis = COALESCE(actual_basis, ?),
+            displayed_ai_credits = COALESCE(displayed_ai_credits, ?),
+            displayed_usd = COALESCE(displayed_usd, ?),
+            displayed_credit_text = COALESCE(displayed_credit_text, ?),
+            displayed_credit_basis = COALESCE(displayed_credit_basis, ?),
+            inferred_cache_read_tokens = COALESCE(inferred_cache_read_tokens, ?),
+            inferred_cache_read_reason = COALESCE(inferred_cache_read_reason, ?),
+            estimated_usd = COALESCE(?, estimated_usd),
+            estimated_ai_credits = COALESCE(?, estimated_ai_credits),
+            upper_bound_usd = COALESCE(?, upper_bound_usd),
+            upper_bound_ai_credits = COALESCE(?, upper_bound_ai_credits),
+            selected_ai_credits = ?,
+            selected_usd = ?,
+            selected_pricing_basis = ?,
+            selected_confidence = ?,
+            selected_source = ?,
+            pricing_basis = ?,
+            estimate_confidence = ?,
+            cache_read_status = ?,
+            pricing_source = COALESCE(pricing_source, ?),
+            pricing_metadata_json = ?,
+            pricing_diagnostics_json = ?,
+            warnings_json = ?
+        WHERE id = ?
+      `, [
+        merged.actual_charge_nano_aiu,
+        merged.actual_ai_credits,
+        merged.actual_usd,
+        merged.actual_basis,
+        merged.displayed_ai_credits,
+        merged.displayed_usd,
+        merged.displayed_credit_text,
+        merged.displayed_credit_basis,
+        merged.inferred_cache_read_tokens,
+        merged.inferred_cache_read_reason,
+        merged.estimated_usd,
+        merged.estimated_ai_credits,
+        merged.upper_bound_usd,
+        merged.upper_bound_ai_credits,
+        merged.selected_ai_credits,
+        merged.selected_usd,
+        merged.selected_pricing_basis || merged.pricing_basis,
+        merged.selected_confidence || merged.estimate_confidence,
+        merged.selected_source || merged.pricing_source,
+        merged.pricing_basis,
+        merged.estimate_confidence,
+        merged.cache_read_status,
+        merged.pricing_source,
+        JSON.stringify(merged.pricing_metadata || parseJsonObject(merged.pricing_metadata_json)),
+        JSON.stringify(merged.pricing_diagnostics || parseJsonArray(merged.pricing_diagnostics_json)),
+        JSON.stringify(merged.warnings || parseJsonArray(merged.warnings_json)),
+        survivor.id,
+      ]);
+
+      for (const duplicate of duplicates) {
+        db.run('UPDATE label_evidence SET usage_record_id = ? WHERE usage_record_id = ?', [survivor.id, duplicate.id]);
+        db.run('DELETE FROM usage_records WHERE id = ?', [duplicate.id]);
+        repaired += 1;
+      }
+    }
+    db.run('COMMIT');
+    persistDatabase(dbPath, db);
+  } catch (error) {
+    rollbackDatabase(db);
+    throw error;
+  } finally {
+    closeDatabase(db);
+  }
+  return repaired;
 }
 
 async function queryOne(dbPath, sql) {
@@ -948,6 +1132,7 @@ module.exports = {
   loadImportState,
   queryOne,
   queryRows,
+  repairDuplicateVscodeUsageRecords,
   upsertImportCheckpoint,
   updateUsageCostEstimates,
   updateVscodeUsageResponseIds,
