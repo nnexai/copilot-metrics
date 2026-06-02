@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.3.0
 milestone_name: configurable label patterns
 status: completed
-last_updated: "2026-06-02T15:30:00.000Z"
-last_activity: 2026-06-02
+last_updated: "2026-06-02T17:52:07.617Z"
+last_activity: 2026-06-02 — Milestone v0.3.0 completed and archived
 progress:
   total_phases: 1
   completed_phases: 1
@@ -16,14 +16,14 @@ progress:
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** Completed
+**Status:** v0.3.0 milestone complete
 
 ## Project Reference
 
 See: `.planning/PROJECT.md` (updated 2026-06-02)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Milestone v0.3.0 configurable label patterns complete; publish gate pending
+**Current focus:** Milestone v0.3.0 configurable label patterns shipped and archived; awaiting next milestone
 
 ## Workflow Settings
 
@@ -39,14 +39,14 @@ See: `.planning/PROJECT.md` (updated 2026-06-02)
 
 ## Current Phase
 
-Phase 11: 0.3.0 configurable label patterns (complete)
+None — between milestones
 
 ## Current Position
 
-Phase: 11 complete
-Plan: quick release complete
-Status: Local release verification complete; human-gated publish remains
-Last activity: 2026-06-02 — Phase 11 completed for `copilot-metrics@0.3.0`
+Phase: Milestone v0.3.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-02 — Milestone v0.3.0 completed and archived
 
 ## Notes
 
@@ -105,5 +105,4 @@ Last activity: 2026-06-02 — Phase 11 completed for `copilot-metrics@0.3.0`
 
 ## Operator Next Steps
 
-- Publish `copilot-metrics@0.3.0` through the human-gated GitHub/npm release path.
-- After publish, validate from an isolated directory with `npx -y copilot-metrics@0.3.0 --help` and a focused label-pattern config smoke.
+- Start the next milestone with /gsd-new-milestone

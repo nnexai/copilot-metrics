@@ -1,5 +1,19 @@
 # Milestones
 
+## v0.3.0 configurable label patterns (Shipped: 2026-06-02)
+
+**Phases completed:** Phase 11 quick release plus archived Phase 9-10 execution history
+
+**Key accomplishments:**
+
+- `labelPatterns` config supports one or more regex-driven internal extraction patterns.
+- `labelPattern` and `labelRegex` provide single-pattern aliases for simple configs.
+- Configured patterns preserve built-in field scanning, source evidence, source values, confidence scoring, and de-duplication.
+- JavaScript `labelExtractors` remain replacement-only for advanced custom extraction.
+- README, changelog, package version, and local release verification were updated for `copilot-metrics@0.3.0`.
+
+---
+
 ## v0.1.1 Local Copilot Usage Tracker (Shipped: 2026-05-30)
 
 **Phases completed:** 7 phases, 6 plans, 0 tasks

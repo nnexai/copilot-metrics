@@ -8,15 +8,13 @@ Copilot Metrics is a local Node.js/npm-based toolkit for estimating GitHub Copil
 
 Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
 
-## Current Milestone: v0.3.0 configurable label patterns
+## Current State
 
-**Goal:** Make `copilot-metrics@0.3.0` support a middle-ground label configuration where users keep the internal metadata extractor but provide their own regex pattern in config.
+`copilot-metrics@0.3.0` has shipped and the milestone is archived. The CLI supports local Copilot usage import, attribution, selected pricing evidence, and configurable regex patterns for the built-in label extractor.
 
-**Target features:**
-- Add `labelPatterns` config for regex-driven internal extraction.
-- Preserve built-in field scanning, source metadata, source values, and confidence scoring for configured regex matches.
-- Keep JavaScript `labelExtractors` as full replacement extractors when configured.
-- Document the default, pattern-configured, and JavaScript replacement paths.
+## Next Milestone Goals
+
+No active milestone is defined. Run `$gsd-new-milestone` to choose the next requirements and roadmap.
 
 ## Requirements
 
@@ -55,7 +53,7 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 
 ### Active
 
-No active requirements. `v0.3.0` local release verification is complete; publish remains human-gated.
+No active requirements. `v0.3.0` is released and archived.
 
 ### Out of Scope
 
@@ -105,6 +103,7 @@ The most important attribution convention is Jira ticket IDs such as `DEMO-12345
 | Use cheap models for Copilot CLI verification | Integration tests can call Copilot CLI, but the goal is validating output/telemetry, not paying for high-quality answers. | Validated in v0.1.1 |
 | Avoid full content capture by default | Work prompts, code, tool args, and outputs can be sensitive. | Validated in v0.1.1 |
 | Treat official GitHub metrics as reconciliation only | Non-admins may not have access, and official reports are not designed for local task-level attribution. | Validated in v0.1.1 |
+| Keep JavaScript label extractors as replacement-only | Advanced users need full control when callbacks are configured, while regex patterns provide the lighter-weight internal-extractor customization path. | Validated in v0.3.0 |
 
 ## Evolution
 
@@ -124,4 +123,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-02 starting v0.2.1 selected session pricing*
+*Last updated: 2026-06-02 after v0.3.0 configurable label patterns*
