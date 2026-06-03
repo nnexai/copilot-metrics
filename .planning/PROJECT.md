@@ -10,18 +10,11 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 
 ## Current State
 
-`copilot-metrics@0.3.0` has shipped and the milestone is archived. The CLI supports local Copilot usage import, attribution, selected pricing evidence, and configurable regex patterns for the built-in label extractor.
+`copilot-metrics@0.4.0` has shipped and the milestone is archived. The CLI supports local Copilot usage import, attribution, selected pricing evidence, configurable regex patterns for the built-in label extractor, granular label association confidence ranking, top-label default reports, explicit top-k/all-match inclusion, and per-session label detail.
 
-## Current Milestone: v0.4.0 label association confidence
+## Next Milestone
 
-**Goal:** Store all discovered label associations, score confidence by evidence source and repeated mentions, and make reports count each session once by its highest-confidence label by default.
-
-**Target features:**
-- Configure `labelPattern` during init/setup so first-run configuration can match the user's ticket format.
-- Preserve all label associations and evidence per session while deriving deterministic confidence scores and rankings.
-- Make overview reports assign each session to exactly one highest-confidence label by default.
-- Make label-specific reports default to sessions where the requested label is top-ranked, with a top-k option for broader inclusion.
-- Add a middle-detail label report view with per-session aggregate tokens, estimated costs, credits, confidence, and evidence summary.
+No active milestone is defined. Start the next milestone with `$gsd-new-milestone`.
 
 ## Requirements
 
@@ -57,15 +50,13 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 - Validated: Treat VS Code cache keys/cache types and context-utilization logs as diagnostics, not numeric billing inputs - v0.1.9
 - Validated: Redact auth-like values from VS Code extension, AHP, agenthost, and hook log diagnostics - v0.1.9
 - Validated: Configure the internal label extractor with user-provided regex patterns while preserving built-in metadata evidence behavior - v0.3.0
+- Validated: Configure one or more internal label extractor patterns during init/setup using repeatable `--label-patterns`, persisted as `labelPatterns` - v0.4.0 Phase 12
+- Validated: Preserve granular label association evidence and derive deterministic per-session confidence rankings from it - v0.4.0 Phase 13
+- Validated: Use top-label report semantics by default, explicit top-k/all-match inclusion, and per-session label detail rows - v0.4.0 Phase 14
 
 ### Active
 
-- [ ] User can configure `labelPattern` during init/setup without hand-editing the stored config.
-- [ ] User can preserve multiple discovered labels per session with source, source value, usage linkage, and confidence evidence.
-- [ ] User can rely on deterministic confidence ranking where cwd and branch evidence are very strong, metadata/context evidence is strong, and prompt/response/tool-call mentions accumulate as smaller evidence.
-- [ ] User can view label overview reports that count each session exactly once under the highest-confidence label by default.
-- [ ] User can query a specific label using top-label default semantics or a top-k inclusion mode.
-- [ ] User can request a per-session middle-detail label report with aggregate tokens, costs, credits, confidence, and evidence summary.
+No active milestone requirements are currently defined.
 
 ### Out of Scope
 
@@ -117,6 +108,9 @@ The most important attribution convention is Jira ticket IDs such as `DEMO-12345
 | Treat official GitHub metrics as reconciliation only | Non-admins may not have access, and official reports are not designed for local task-level attribution. | Validated in v0.1.1 |
 | Keep JavaScript label extractors as replacement-only | Advanced users need full control when callbacks are configured, while regex patterns provide the lighter-weight internal-extractor customization path. | Validated in v0.3.0 |
 | Treat label assignment as ranked evidence, not a single extraction result | Sessions often contain multiple ticket-like labels, but report totals should avoid overlapping counts unless the user opts into broader inclusion. | Pending v0.4.0 |
+| Persist setup-configured regexes under `labelPatterns` | Repeatable CLI flags need a canonical array target while older single-pattern aliases remain readable. | Validated in v0.4.0 Phase 12 |
+| Compute label confidence from granular evidence at query/report time | Scoring algorithms can evolve later without losing per-entry evidence detail. | Validated in v0.4.0 Phase 13 |
+| Make top-label reports the default and top-k explicit | Default reports should avoid overlapping session counts; broader inclusion is useful but must be opt-in and identified. | Validated in v0.4.0 Phase 14 |
 
 ## Evolution
 
@@ -136,4 +130,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-03 after starting v0.4.0 label association confidence*
+*Last updated: 2026-06-03 after v0.4.0 milestone completion*

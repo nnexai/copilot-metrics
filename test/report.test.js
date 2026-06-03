@@ -46,6 +46,10 @@ test('report labels returns stable JSON with evidence and estimates', () => {
   assert.ok(label.estimated_ai_credits > 0);
   assert.ok(label.estimated_usd > 0);
   assert.match(label.estimate_label, /^estimate:/);
+  assert.equal(label.confidence.scoring_version, 'label-confidence:v1');
+  assert.ok(label.confidence.ranked_sessions >= 1);
+  assert.ok(label.confidence.distinct_evidence_count >= 1);
+  assert.ok(label.confidence.source_summary.length >= 1);
 });
 
 test('report labels initializes an empty store instead of exposing sqlite errors', () => {
@@ -66,6 +70,8 @@ test('report label detail preserves source and session context', () => {
   assert.ok(payload.details.some((row) => row.source_field === 'branch'));
   assert.ok(payload.details.some((row) => row.session_id === 's1'));
   assert.ok(payload.details.some((row) => row.cache_read_tokens === 200));
+  assert.equal(payload.label.confidence.scoring_version, 'label-confidence:v1');
+  assert.ok(payload.label.confidence.best_rank >= 1);
 });
 
 test('reports auto-import configured JSONL sources idempotently', async () => {
@@ -268,15 +274,60 @@ test('hook-only labels are visible without implying token usage', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-hook-only-'));
   run(['import', '--source', 'hooks', '--file', path.join(fixtures, 'hook-events.jsonl'), '--home', home, '--json']);
   const payload = JSON.parse(run(['report', 'labels', '--home', home, '--json']));
-  const label = payload.labels.find((row) => row.label === 'DEMO-54321');
+  assert.equal(payload.inclusion.mode, 'top-label');
+  assert.equal(payload.inclusion.overlap, false);
+  assert.equal(payload.labels.some((row) => row.label === 'DEMO-54321'), false);
+  const specific = JSON.parse(run(['report', 'label', 'DEMO-54321', '--all-matches', '--home', home, '--json']));
+  const label = specific.label;
   assert.ok(label);
   assert.equal(label.usage_records, 0);
   assert.equal(label.input_tokens, 0);
   assert.equal(label.output_tokens, 0);
   assert.equal(label.token_status, 'hook-only');
   assert.equal(label.usage_status, 'evidence-only');
-  const output = run(['report', 'labels', '--home', home]);
+  assert.equal(specific.inclusion.mode, 'all-matches');
+  assert.equal(specific.inclusion.overlap, true);
+  const output = run(['report', 'label', 'DEMO-54321', '--all-matches', '--home', home]);
   assert.match(output, /evidence-only/);
+});
+
+test('specific label reports default to rank-1 and broaden with top-k', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-top-k-'));
+  run(['import', '--source', 'hooks', '--file', path.join(fixtures, 'hook-events.jsonl'), '--home', home, '--json']);
+
+  const topOnly = JSON.parse(run(['report', 'label', 'DEMO-54321', '--home', home, '--json']));
+  assert.equal(topOnly.inclusion.mode, 'top-label');
+  assert.equal(topOnly.inclusion.overlap, false);
+  assert.equal(topOnly.label.usage_records, 0);
+  assert.equal(topOnly.label.sessions, 0);
+  assert.equal(topOnly.label.confidence.best_rank, 2);
+
+  const topK = JSON.parse(run(['report', 'label', 'DEMO-54321', '--top-k', '2', '--home', home, '--json']));
+  assert.equal(topK.inclusion.mode, 'top-k');
+  assert.equal(topK.inclusion.top_k, 2);
+  assert.equal(topK.inclusion.overlap, true);
+  assert.equal(topK.label.sessions, 1);
+  assert.equal(topK.label.usage_status, 'evidence-only');
+});
+
+test('specific label session-detail returns one aggregate row per included session', () => {
+  const home = seedStore();
+  const payload = JSON.parse(run(['report', 'label', 'DEMO-12345', '--session-detail', '--home', home, '--json']));
+  assert.equal(payload.inclusion.mode, 'top-label');
+  assert.ok(payload.session_details.length >= 1);
+  const row = payload.session_details.find((item) => item.session_id === 's1');
+  assert.ok(row);
+  assert.equal(row.top_label, 'DEMO-12345');
+  assert.equal(row.requested_label_rank, 1);
+  const tokenRow = payload.session_details.find((item) => item.input_tokens > 0);
+  assert.ok(tokenRow);
+  assert.ok(tokenRow.model_count >= 1);
+  assert.ok(Array.isArray(row.models));
+  assert.ok(row.confidence_score > 0);
+  assert.ok(row.evidence_summary.length >= 1);
+
+  const output = run(['report', 'label', 'DEMO-12345', '--session-detail', '--home', home]);
+  assert.match(output, /Session\s+Top\s+Rank/);
 });
 
 test('model, repo, and unattributed reports expose local usage only', () => {

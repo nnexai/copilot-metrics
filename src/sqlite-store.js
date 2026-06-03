@@ -250,28 +250,58 @@ function lastInsertId(db) {
 
 function insertLabelEvidence(db, importedAt, evidenceRows) {
   if (!evidenceRows.length) return;
-  runPrepared(
-    db,
-    `INSERT INTO label_evidence (
+  const exists = db.prepare(`
+    SELECT 1
+    FROM label_evidence
+    WHERE label = ?
+      AND source_type = ?
+      AND source_field = ?
+      AND COALESCE(source_value, '') = COALESCE(?, '')
+      AND COALESCE(usage_record_id, 0) = COALESCE(?, 0)
+      AND COALESCE(hook_event_id, 0) = COALESCE(?, 0)
+      AND COALESCE(session_id, '') = COALESCE(?, '')
+    LIMIT 1
+  `);
+  const insert = db.prepare(`
+    INSERT INTO label_evidence (
       imported_at, label, source_type, source_field, source_value, confidence,
       usage_record_id, hook_event_id, session_id, repo, branch, cwd, timestamp
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    evidenceRows.map((evidence) => [
-      importedAt,
-      evidence.label,
-      evidence.source_type,
-      evidence.source_field,
-      evidence.source_value || null,
-      evidence.confidence || 0,
-      evidence.usage_record_id || null,
-      evidence.hook_event_id || null,
-      evidence.session_id || null,
-      evidence.repo || null,
-      evidence.branch || null,
-      evidence.cwd || null,
-      evidence.timestamp || null,
-    ]),
-  );
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  try {
+    for (const evidence of evidenceRows) {
+      exists.bind([
+        evidence.label,
+        evidence.source_type,
+        evidence.source_field,
+        evidence.source_value || null,
+        evidence.usage_record_id || null,
+        evidence.hook_event_id || null,
+        evidence.session_id || null,
+      ]);
+      const duplicate = exists.step();
+      exists.reset();
+      if (duplicate) continue;
+      insert.run([
+        importedAt,
+        evidence.label,
+        evidence.source_type,
+        evidence.source_field,
+        evidence.source_value || null,
+        evidence.confidence || 0,
+        evidence.usage_record_id || null,
+        evidence.hook_event_id || null,
+        evidence.session_id || null,
+        evidence.repo || null,
+        evidence.branch || null,
+        evidence.cwd || null,
+        evidence.timestamp || null,
+      ]);
+    }
+  } finally {
+    exists.free();
+    insert.free();
+  }
 }
 
 function parseJsonArray(value) {

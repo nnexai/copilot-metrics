@@ -8,6 +8,8 @@ const { test } = require('node:test');
 const { resolvePaths } = require('../src/paths');
 const { vscodeSettings, installVscodeSettings, copilotCliEnvironment, hookConfig, installHook, mergeGlobalSettingsHooks, setupSnapshot } = require('../src/setup');
 const { appendHookEvent, redactHookPayload } = require('../src/hook-logger');
+const { parseFlags } = require('../src/cli');
+const { loadConfiguredExtractors, runLabelExtractors } = require('../src/label-extractors');
 const { version } = require('../package.json');
 
 test('resolvePaths uses COPILOT_METRICS_HOME override', () => {
@@ -59,6 +61,59 @@ test('setup snapshot persists central config for setup-once flow', () => {
   assert.deepEqual(config.sources.copilotCli.additionalSessions, []);
   assert.deepEqual(config.labelPatterns, []);
   assert.deepEqual(config.labelExtractors, []);
+});
+
+test('setup snapshot persists one configured label pattern', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-setup-label-pattern-'));
+  const snapshot = setupSnapshot({
+    env: { COPILOT_METRICS_HOME: tmp },
+    cwd: '/tmp/work',
+    command: '/usr/bin/copilot-metrics',
+    labelPatterns: ['\\b(TEAM-\\d+)\\b'],
+  });
+  const config = JSON.parse(fs.readFileSync(snapshot.paths.configJson, 'utf8'));
+  assert.deepEqual(config.labelPatterns, ['\\b(TEAM-\\d+)\\b']);
+});
+
+test('setup snapshot persists multiple configured label patterns', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-setup-label-patterns-'));
+  const snapshot = setupSnapshot({
+    env: { COPILOT_METRICS_HOME: tmp },
+    cwd: '/tmp/work',
+    command: '/usr/bin/copilot-metrics',
+    labelPatterns: ['\\b(TEAM-\\d+)\\b', '\\b(PROJ_\\d+)\\b'],
+  });
+  const config = JSON.parse(fs.readFileSync(snapshot.paths.configJson, 'utf8'));
+  assert.deepEqual(config.labelPatterns, ['\\b(TEAM-\\d+)\\b', '\\b(PROJ_\\d+)\\b']);
+});
+
+test('setup snapshot rejects invalid configured label patterns', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-setup-bad-label-pattern-'));
+  assert.throws(() => setupSnapshot({
+    env: { COPILOT_METRICS_HOME: tmp },
+    cwd: '/tmp/work',
+    command: '/usr/bin/copilot-metrics',
+    labelPatterns: ['['],
+  }), /Invalid --label-patterns regex/);
+});
+
+test('parseFlags preserves repeated label-patterns values', () => {
+  const parsed = parseFlags(['init', '--label-patterns', '\\b(TEAM-\\d+)\\b', '--label-patterns=/\\b(PROJ_\\d+)\\b/i']);
+  assert.deepEqual(parsed.rest, ['init']);
+  assert.deepEqual(parsed.flags.labelPatterns, ['\\b(TEAM-\\d+)\\b', '/\\b(PROJ_\\d+)\\b/i']);
+});
+
+test('persisted labelPatterns are consumed by configured extractors', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-setup-label-pattern-consume-'));
+  const snapshot = setupSnapshot({
+    env: { COPILOT_METRICS_HOME: tmp },
+    cwd: '/tmp/work',
+    command: '/usr/bin/copilot-metrics',
+    labelPatterns: ['\\b(TEAM_\\d+)\\b'],
+  });
+  const extractors = loadConfiguredExtractors(snapshot.paths.configJson, '/tmp/work');
+  const evidence = runLabelExtractors('hook', { cwd: '/repo/TEAM_123' }, extractors);
+  assert.deepEqual(evidence.map((item) => item.label), ['TEAM_123']);
 });
 
 test('setup snapshot upgrades existing central config with session source', () => {

@@ -21,6 +21,8 @@ const {
   labelSummary,
   labelModelBreakdown,
   labelDetails,
+  labelSessionDetails,
+  inclusionForOptions,
   modelReport,
   repoReport,
   unattributedReport,
@@ -36,6 +38,15 @@ const path = require('node:path');
 function parseFlags(args) {
   const flags = {};
   const rest = [];
+  const setFlag = (key, value) => {
+    if (flags[key] === undefined) {
+      flags[key] = value;
+    } else if (Array.isArray(flags[key])) {
+      flags[key].push(value);
+    } else {
+      flags[key] = [flags[key], value];
+    }
+  };
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg === '--') {
@@ -49,15 +60,23 @@ function parseFlags(args) {
     const [rawKey, inlineValue] = arg.slice(2).split('=', 2);
     const key = rawKey.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
     if (inlineValue !== undefined) {
-      flags[key] = inlineValue;
+      setFlag(key, inlineValue);
     } else if (args[i + 1] && !args[i + 1].startsWith('--')) {
-      flags[key] = args[i + 1];
+      setFlag(key, args[i + 1]);
       i += 1;
     } else {
-      flags[key] = true;
+      setFlag(key, true);
     }
   }
   return { flags, rest };
+}
+
+function labelPatternFlagValues(value) {
+  const values = Array.isArray(value) ? value : [value];
+  if (values.some((item) => item === true || item === undefined || item === null || item === '')) {
+    throw new Error('--label-patterns requires a regex value.');
+  }
+  return values;
 }
 
 function writeOutput(stdout, value, asJson = false) {
@@ -72,9 +91,9 @@ function helpText() {
   return `copilot-metrics
 
 Usage:
-  copilot-metrics init [--json]
+  copilot-metrics init [--label-patterns <regex> ...] [--json]
   copilot-metrics paths [--json]
-  copilot-metrics setup [all] [--scope local|global] [--json]
+  copilot-metrics setup [all] [--label-patterns <regex> ...] [--scope local|global] [--json]
   copilot-metrics setup vscode [--settings-file <path>] [--json]
   copilot-metrics setup copilot-cli [--scope local|global] [--json]
   copilot-metrics hooks preview [--scope local|global] [--surface both|vscode|copilot-cli] [--json]
@@ -83,7 +102,7 @@ Usage:
   copilot-metrics store init [--json]
   copilot-metrics import --source vscode|vscode-chat|copilot-cli|copilot-session|hooks --file <path> [--json]
   copilot-metrics report labels [--refresh] [--json]
-  copilot-metrics report label <id> [--detail] [--refresh] [--json]
+  copilot-metrics report label <id> [--detail] [--session-detail] [--top-k <n>|all] [--all-matches] [--refresh] [--json]
   copilot-metrics report models [--refresh] [--json]
   copilot-metrics report repos [--refresh] [--json]
   copilot-metrics report unattributed [--refresh] [--json]
@@ -91,6 +110,10 @@ Usage:
 
 Environment:
   COPILOT_METRICS_HOME  Override the central data directory.
+
+Label patterns:
+  Repeat --label-patterns to persist one or more internal extractor regexes.
+  Patterns define what labels can be found; confidence ranking is reported separately.
 `;
 }
 
@@ -305,6 +328,7 @@ async function main(args, io) {
   const { flags, rest } = parseFlags(args);
   const json = flags.json === true;
   const paths = resolvePaths({ env: io.env, cwd: io.cwd, home: flags.home });
+  const setupOptions = flags.labelPatterns === undefined ? {} : { labelPatterns: labelPatternFlagValues(flags.labelPatterns) };
   const [command, subcommand] = rest;
 
   if (!command || command === 'help' || command === '--help' || command === '-h') {
@@ -313,7 +337,7 @@ async function main(args, io) {
   }
 
   if (command === 'init') {
-    ensureDataDirs(paths);
+    ensureDataDirs(paths, setupOptions);
     writeOutput(io.stdout, json ? paths : `Initialized Copilot Metrics data directory:\n${formatPaths(paths)}`, json);
     return;
   }
@@ -325,7 +349,7 @@ async function main(args, io) {
 
   if (command === 'setup') {
     if (subcommand === 'vscode') {
-      ensureDataDirs(paths);
+      ensureDataDirs(paths, setupOptions);
       if (flags.print === true || flags.dryRun === true) {
         const settings = vscodeSettings(paths);
         writeOutput(io.stdout, json ? settings : formatVscode(settings), json);
@@ -336,7 +360,7 @@ async function main(args, io) {
       return;
     }
     if (subcommand === 'copilot-cli') {
-      ensureDataDirs(paths);
+      ensureDataDirs(paths, setupOptions);
       if (flags.print === true || flags.dryRun === true) {
         const env = copilotCliEnvironment(paths);
         writeOutput(io.stdout, json ? env : formatCopilotCli(env), json);
@@ -361,6 +385,7 @@ async function main(args, io) {
         scope: flags.scope || 'local',
         surface: flags.surface || 'both',
         target: flags.settingsFile,
+        ...setupOptions,
       });
       writeOutput(io.stdout, json ? snapshot : [
         formatPaths(snapshot.paths),
@@ -460,22 +485,27 @@ async function main(args, io) {
 
       if (subcommand === 'labels') {
         const rows = await labelOverview(paths.usageDb);
-        return json ? { value: { labels: rows, diagnostics }, asJson: true } : { value: appendDiagnostics(formatLabels(rows), diagnostics), asJson: false };
+        return json
+          ? { value: { inclusion: inclusionForOptions(), labels: rows, diagnostics }, asJson: true }
+          : { value: appendDiagnostics(formatLabels(rows), diagnostics), asJson: false };
       }
       if (subcommand === 'label') {
         const label = rest[2];
         if (!label) throw new Error('report label requires <id>');
-        const summary = await labelSummary(paths.usageDb, label);
-        const models = await labelModelBreakdown(paths.usageDb, label);
+        const reportOptions = { topK: flags.topK, allMatches: flags.allMatches === true };
+        const inclusion = inclusionForOptions(reportOptions);
+        const summary = await labelSummary(paths.usageDb, label, reportOptions);
+        const models = await labelModelBreakdown(paths.usageDb, label, reportOptions);
+        const sessionDetails = flags.sessionDetail === true ? await labelSessionDetails(paths.usageDb, label, reportOptions) : null;
         if (flags.detail === true) {
-          const details = await labelDetails(paths.usageDb, label);
+          const details = await labelDetails(paths.usageDb, label, reportOptions);
           return json
-            ? { value: { label: summary, models, details, diagnostics }, asJson: true }
+            ? { value: { inclusion, label: summary, models, details, session_details: sessionDetails, diagnostics }, asJson: true }
             : { value: appendDiagnostics(formatLabelReport(summary, models, details), diagnostics), asJson: false };
         }
         return json
-          ? { value: { label: summary, models, diagnostics }, asJson: true }
-          : { value: appendDiagnostics(formatLabelReport(summary, models), diagnostics), asJson: false };
+          ? { value: { inclusion, label: summary, models, session_details: sessionDetails, diagnostics }, asJson: true }
+          : { value: appendDiagnostics(formatLabelReport(summary, models, null, sessionDetails), diagnostics), asJson: false };
       }
       if (subcommand === 'models') {
         const rows = await modelReport(paths.usageDb);

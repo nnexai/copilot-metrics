@@ -2,6 +2,12 @@
 
 const { initStore, queryRows } = require('./sqlite-store');
 const { canonicalLabel } = require('./label-extractors');
+const {
+  SCORING_VERSION,
+  evidenceSessionKey,
+  rankSessionEvidence,
+  labelConfidenceSummaries,
+} = require('./label-confidence');
 
 function n(value) {
   return Number(value || 0);
@@ -61,6 +67,109 @@ function pricingBasis(row) {
   return row.pricing_basis || 'est';
 }
 
+function inclusionTopLabel() {
+  return { mode: 'top-label', top_k: 1, overlap: false };
+}
+
+function inclusionForOptions(options = {}) {
+  if (options.allMatches === true || options.topK === 'all') return { mode: 'all-matches', top_k: 'all', overlap: true };
+  const topK = Number(options.topK || 1);
+  if (Number.isFinite(topK) && topK > 1) return { mode: 'top-k', top_k: Math.trunc(topK), overlap: true };
+  return inclusionTopLabel();
+}
+
+function emptyAggregate(label, confidence = null, inclusion = inclusionTopLabel()) {
+  return {
+    label,
+    sessions: 0,
+    evidence_count: 0,
+    usage_records: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_read_tokens: 0,
+    cache_creation_tokens: 0,
+    reasoning_tokens: 0,
+    estimated_ai_credits: 0,
+    estimated_usd: 0,
+    actual_ai_credits: 0,
+    actual_usd: 0,
+    displayed_ai_credits: 0,
+    displayed_usd: 0,
+    inferred_cache_read_tokens: 0,
+    upper_bound_ai_credits: 0,
+    upper_bound_usd: 0,
+    selected_ai_credits: 0,
+    selected_usd: 0,
+    actual_usage_records: 0,
+    displayed_credit_usage_records: 0,
+    upper_bound_usage_records: 0,
+    token_status: 'hook-only',
+    usage_status: 'evidence-only',
+    first_seen: null,
+    last_seen: null,
+    estimate_label: null,
+    pricing_basis: null,
+    estimate_confidence: null,
+    selected_pricing_basis: null,
+    selected_confidence: null,
+    selected_source: null,
+    inclusion_mode: inclusion.mode,
+    overlap: inclusion.overlap,
+    confidence: confidence || {
+      label,
+      scoring_version: SCORING_VERSION,
+      top_ranked_sessions: 0,
+      ranked_sessions: 0,
+      best_rank: null,
+      best_score: 0,
+      evidence_count: 0,
+      distinct_evidence_count: 0,
+      source_summary: [],
+    },
+  };
+}
+
+function addUsageToAggregate(aggregate, usage, seenUsage) {
+  if (!usage || !usage.usage_record_id || seenUsage.has(usage.usage_record_id)) return;
+  seenUsage.add(usage.usage_record_id);
+  aggregate.usage_records += 1;
+  for (const field of [
+    'input_tokens',
+    'output_tokens',
+    'cache_read_tokens',
+    'cache_creation_tokens',
+    'reasoning_tokens',
+    'estimated_ai_credits',
+    'estimated_usd',
+    'actual_ai_credits',
+    'actual_usd',
+    'displayed_ai_credits',
+    'displayed_usd',
+    'inferred_cache_read_tokens',
+    'upper_bound_ai_credits',
+    'upper_bound_usd',
+    'selected_ai_credits',
+    'selected_usd',
+  ]) {
+    aggregate[field] += n(usage[field]);
+  }
+  if (usage.pricing_basis === 'actual') aggregate.actual_usage_records += 1;
+  if (usage.pricing_basis === 'displayed_credit') aggregate.displayed_credit_usage_records += 1;
+  if (usage.pricing_basis === 'upper_bound') aggregate.upper_bound_usage_records += 1;
+  aggregate.estimate_label = aggregate.estimate_label || usage.estimate_label || null;
+  aggregate.pricing_basis = aggregate.pricing_basis || usage.pricing_basis || null;
+  aggregate.estimate_confidence = aggregate.estimate_confidence || usage.estimate_confidence || null;
+  aggregate.selected_pricing_basis = aggregate.selected_pricing_basis || usage.selected_pricing_basis || null;
+  aggregate.selected_confidence = aggregate.selected_confidence || usage.selected_confidence || null;
+  aggregate.selected_source = aggregate.selected_source || usage.selected_source || null;
+}
+
+function addSeenDate(aggregate, value) {
+  if (!value) return;
+  aggregate.first_seen = aggregate.first_seen && aggregate.first_seen < value ? aggregate.first_seen : value;
+  aggregate.last_seen = aggregate.last_seen && aggregate.last_seen > value ? aggregate.last_seen : value;
+}
+
 function table(headers, rows) {
   const widths = headers.map((header, index) => Math.max(
     header.length,
@@ -74,143 +183,44 @@ function table(headers, rows) {
 
 async function labelOverview(dbPath) {
   await initStore(dbPath);
-  return queryRows(dbPath, `
-SELECT
-  labels.label,
-  (SELECT COUNT(DISTINCT session_id) FROM label_evidence WHERE label = labels.label) AS sessions,
-  (SELECT COUNT(*) FROM label_evidence WHERE label = labels.label) AS evidence_count,
-  (SELECT COUNT(DISTINCT usage_record_id) FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL) AS usage_records,
-  COALESCE((SELECT SUM(input_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS input_tokens,
-  COALESCE((SELECT SUM(output_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS output_tokens,
-  COALESCE((SELECT SUM(cache_read_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS cache_read_tokens,
-  COALESCE((SELECT SUM(cache_creation_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS cache_creation_tokens,
-  COALESCE((SELECT SUM(reasoning_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS reasoning_tokens,
-  COALESCE((SELECT SUM(COALESCE(estimated_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS estimated_ai_credits,
-  COALESCE((SELECT SUM(COALESCE(estimated_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS estimated_usd,
-  COALESCE((SELECT SUM(COALESCE(actual_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS actual_ai_credits,
-  COALESCE((SELECT SUM(COALESCE(actual_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS actual_usd,
-  COALESCE((SELECT SUM(COALESCE(displayed_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS displayed_ai_credits,
-  COALESCE((SELECT SUM(COALESCE(displayed_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS displayed_usd,
-  COALESCE((SELECT SUM(COALESCE(inferred_cache_read_tokens, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS inferred_cache_read_tokens,
-  COALESCE((SELECT SUM(COALESCE(upper_bound_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS upper_bound_ai_credits,
-  COALESCE((SELECT SUM(COALESCE(upper_bound_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS upper_bound_usd,
-  COALESCE((SELECT SUM(COALESCE(selected_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS selected_ai_credits,
-  COALESCE((SELECT SUM(COALESCE(selected_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS selected_usd,
-  (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'actual' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS actual_usage_records,
-  (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'displayed_credit' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS displayed_credit_usage_records,
-  (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'upper_bound' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS upper_bound_usage_records,
-  CASE
-    WHEN (SELECT COUNT(DISTINCT usage_record_id) FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL) = 0 THEN 'hook-only'
-    ELSE 'token-bearing'
-  END AS token_status,
-  CASE
-    WHEN (SELECT COUNT(DISTINCT usage_record_id) FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL) = 0 THEN 'evidence-only'
-    ELSE 'usage'
-  END AS usage_status,
-  (SELECT MIN(COALESCE(ur.timestamp, le.timestamp, le.imported_at)) FROM label_evidence le LEFT JOIN usage_records ur ON ur.id = le.usage_record_id WHERE le.label = labels.label) AS first_seen,
-  (SELECT MAX(COALESCE(ur.timestamp, le.timestamp, le.imported_at)) FROM label_evidence le LEFT JOIN usage_records ur ON ur.id = le.usage_record_id WHERE le.label = labels.label) AS last_seen,
-  (SELECT MAX(estimate_label) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS estimate_label
-  ,(SELECT MAX(pricing_basis) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS pricing_basis
-  ,(SELECT MAX(estimate_confidence) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS estimate_confidence
-  ,(SELECT MAX(selected_pricing_basis) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS selected_pricing_basis
-  ,(SELECT MAX(selected_confidence) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS selected_confidence
-  ,(SELECT MAX(selected_source) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS selected_source
-FROM (SELECT DISTINCT label FROM label_evidence) labels
-ORDER BY selected_ai_credits DESC, labels.label`);
+  const rows = await aggregateLabelRows(dbPath, { overview: true });
+  return rows.sort((left, right) => n(right.selected_ai_credits) - n(left.selected_ai_credits) || left.label.localeCompare(right.label));
 }
 
-async function labelSummary(dbPath, label) {
+async function labelSummary(dbPath, label, options = {}) {
   await initStore(dbPath);
-  const rows = await queryRows(dbPath, `
-SELECT
-  labels.label,
-  (SELECT COUNT(DISTINCT session_id) FROM label_evidence WHERE label = labels.label) AS sessions,
-  (SELECT COUNT(*) FROM label_evidence WHERE label = labels.label) AS evidence_count,
-  (SELECT COUNT(DISTINCT usage_record_id) FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL) AS usage_records,
-  COALESCE((SELECT SUM(input_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS input_tokens,
-  COALESCE((SELECT SUM(output_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS output_tokens,
-  COALESCE((SELECT SUM(cache_read_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS cache_read_tokens,
-  COALESCE((SELECT SUM(cache_creation_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS cache_creation_tokens,
-  COALESCE((SELECT SUM(reasoning_tokens) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS reasoning_tokens,
-  COALESCE((SELECT SUM(COALESCE(estimated_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS estimated_ai_credits,
-  COALESCE((SELECT SUM(COALESCE(estimated_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS estimated_usd,
-  COALESCE((SELECT SUM(COALESCE(actual_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS actual_ai_credits,
-  COALESCE((SELECT SUM(COALESCE(actual_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS actual_usd,
-  COALESCE((SELECT SUM(COALESCE(displayed_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS displayed_ai_credits,
-  COALESCE((SELECT SUM(COALESCE(displayed_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS displayed_usd,
-  COALESCE((SELECT SUM(COALESCE(inferred_cache_read_tokens, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS inferred_cache_read_tokens,
-  COALESCE((SELECT SUM(COALESCE(upper_bound_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS upper_bound_ai_credits,
-  COALESCE((SELECT SUM(COALESCE(upper_bound_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS upper_bound_usd,
-  COALESCE((SELECT SUM(COALESCE(selected_ai_credits, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS selected_ai_credits,
-  COALESCE((SELECT SUM(COALESCE(selected_usd, 0)) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)), 0) AS selected_usd,
-  (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'actual' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS actual_usage_records,
-  (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'displayed_credit' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS displayed_credit_usage_records,
-  (SELECT COUNT(*) FROM usage_records WHERE pricing_basis = 'upper_bound' AND id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS upper_bound_usage_records,
-  CASE
-    WHEN (SELECT COUNT(DISTINCT usage_record_id) FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL) = 0 THEN 'hook-only'
-    ELSE 'token-bearing'
-  END AS token_status,
-  CASE
-    WHEN (SELECT COUNT(DISTINCT usage_record_id) FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL) = 0 THEN 'evidence-only'
-    ELSE 'usage'
-  END AS usage_status,
-  (SELECT MIN(COALESCE(ur.timestamp, le.timestamp, le.imported_at)) FROM label_evidence le LEFT JOIN usage_records ur ON ur.id = le.usage_record_id WHERE le.label = labels.label) AS first_seen,
-  (SELECT MAX(COALESCE(ur.timestamp, le.timestamp, le.imported_at)) FROM label_evidence le LEFT JOIN usage_records ur ON ur.id = le.usage_record_id WHERE le.label = labels.label) AS last_seen,
-  (SELECT MAX(estimate_label) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS estimate_label
-  ,(SELECT MAX(pricing_basis) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS pricing_basis
-  ,(SELECT MAX(estimate_confidence) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS estimate_confidence
-  ,(SELECT MAX(selected_pricing_basis) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS selected_pricing_basis
-  ,(SELECT MAX(selected_confidence) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS selected_confidence
-  ,(SELECT MAX(selected_source) FROM usage_records WHERE id IN (SELECT DISTINCT usage_record_id FROM label_evidence WHERE label = labels.label AND usage_record_id IS NOT NULL)) AS selected_source
-FROM (SELECT DISTINCT label FROM label_evidence WHERE label = ?) labels`, [canonicalLabel(label)]);
+  const rows = await aggregateLabelRows(dbPath, { label: canonicalLabel(label), inclusion: inclusionForOptions(options) });
   return rows[0] || null;
 }
 
-async function labelModelBreakdown(dbPath, label) {
+async function labelModelBreakdown(dbPath, label, options = {}) {
   await initStore(dbPath);
-  return queryRows(dbPath, `
-SELECT
-  COALESCE(ur.resolved_model, ur.requested_model, 'unknown') AS model,
-  COUNT(DISTINCT ur.id) AS usage_records,
-  COUNT(DISTINCT ur.session_id) AS sessions,
-  SUM(ur.input_tokens) AS input_tokens,
-  SUM(ur.output_tokens) AS output_tokens,
-  SUM(ur.cache_read_tokens) AS cache_read_tokens,
-  SUM(ur.cache_creation_tokens) AS cache_creation_tokens,
-  SUM(ur.reasoning_tokens) AS reasoning_tokens,
-  SUM(COALESCE(ur.estimated_ai_credits, 0)) AS estimated_ai_credits,
-  SUM(COALESCE(ur.estimated_usd, 0)) AS estimated_usd,
-  SUM(COALESCE(ur.actual_ai_credits, 0)) AS actual_ai_credits,
-  SUM(COALESCE(ur.actual_usd, 0)) AS actual_usd,
-  SUM(COALESCE(ur.displayed_ai_credits, 0)) AS displayed_ai_credits,
-  SUM(COALESCE(ur.displayed_usd, 0)) AS displayed_usd,
-  SUM(COALESCE(ur.inferred_cache_read_tokens, 0)) AS inferred_cache_read_tokens,
-  SUM(COALESCE(ur.upper_bound_ai_credits, 0)) AS upper_bound_ai_credits,
-  SUM(COALESCE(ur.upper_bound_usd, 0)) AS upper_bound_usd,
-  SUM(COALESCE(ur.selected_ai_credits, 0)) AS selected_ai_credits,
-  SUM(COALESCE(ur.selected_usd, 0)) AS selected_usd,
-  SUM(CASE WHEN ur.pricing_basis = 'actual' THEN 1 ELSE 0 END) AS actual_usage_records,
-  SUM(CASE WHEN ur.pricing_basis = 'displayed_credit' THEN 1 ELSE 0 END) AS displayed_credit_usage_records,
-  SUM(CASE WHEN ur.pricing_basis = 'upper_bound' THEN 1 ELSE 0 END) AS upper_bound_usage_records,
-  MAX(ur.pricing_basis) AS pricing_basis,
-  MAX(ur.estimate_confidence) AS estimate_confidence,
-  MAX(ur.selected_pricing_basis) AS selected_pricing_basis,
-  MAX(ur.selected_confidence) AS selected_confidence,
-  MAX(ur.selected_source) AS selected_source,
-  MAX(ur.estimate_label) AS estimate_label
-FROM usage_records ur
-WHERE ur.id IN (
-  SELECT DISTINCT usage_record_id
-  FROM label_evidence
-  WHERE label = ? AND usage_record_id IS NOT NULL
-)
-GROUP BY COALESCE(ur.resolved_model, ur.requested_model, 'unknown')
-ORDER BY selected_ai_credits DESC, model`, [canonicalLabel(label)]);
+  const rows = await includedEvidenceRows(dbPath, canonicalLabel(label), inclusionForOptions(options));
+  const byModel = new Map();
+  const seenUsage = new Map();
+  const seenSessions = new Map();
+  for (const row of rows) {
+    if (!row.usage_record_id) continue;
+    const model = row.resolved_model || row.requested_model || 'unknown';
+    if (!byModel.has(model)) {
+      byModel.set(model, { ...emptyAggregate(model), model, sessions: 0 });
+      seenUsage.set(model, new Set());
+      seenSessions.set(model, new Set());
+    }
+    const aggregate = byModel.get(model);
+    const sessionKey = evidenceSessionKey(row);
+    if (!seenSessions.get(model).has(sessionKey)) {
+      seenSessions.get(model).add(sessionKey);
+      aggregate.sessions += 1;
+    }
+    addUsageToAggregate(aggregate, row, seenUsage.get(model));
+  }
+  return Array.from(byModel.values()).sort((left, right) => n(right.selected_ai_credits) - n(left.selected_ai_credits) || left.model.localeCompare(right.model));
 }
 
-async function labelDetails(dbPath, label) {
+async function labelDetails(dbPath, label, options = {}) {
   await initStore(dbPath);
-  return queryRows(dbPath, `
+  const rows = await queryRows(dbPath, `
 SELECT
   le.label,
   le.source_type,
@@ -260,6 +270,252 @@ FROM label_evidence le
 LEFT JOIN usage_records ur ON ur.id = le.usage_record_id
 WHERE le.label = ?
 ORDER BY timestamp, le.source_type, le.source_field`, [canonicalLabel(label)]);
+  return filterRowsByInclusion(dbPath, rows, canonicalLabel(label), inclusionForOptions(options));
+}
+
+async function labelEvidenceUsageRows(dbPath) {
+  return queryRows(dbPath, `
+SELECT
+  le.id,
+  le.imported_at,
+  le.label,
+  le.source_type,
+  le.source_field,
+  le.source_value,
+  le.confidence,
+  le.usage_record_id,
+  le.hook_event_id,
+  le.session_id,
+  le.repo,
+  le.branch,
+  le.cwd,
+  le.timestamp,
+  ur.surface,
+  ur.resolved_model,
+  ur.requested_model,
+  ur.input_tokens,
+  ur.output_tokens,
+  ur.cache_read_tokens,
+  ur.cache_creation_tokens,
+  ur.reasoning_tokens,
+  ur.estimated_ai_credits,
+  ur.estimated_usd,
+  ur.actual_ai_credits,
+  ur.actual_usd,
+  ur.displayed_ai_credits,
+  ur.displayed_usd,
+  ur.inferred_cache_read_tokens,
+  ur.upper_bound_ai_credits,
+  ur.upper_bound_usd,
+  ur.selected_ai_credits,
+  ur.selected_usd,
+  ur.pricing_basis,
+  ur.estimate_confidence,
+  ur.selected_pricing_basis,
+  ur.selected_confidence,
+  ur.selected_source,
+  ur.estimate_label,
+  COALESCE(ur.timestamp, le.timestamp, le.imported_at) AS seen_at
+FROM label_evidence le
+LEFT JOIN usage_records ur ON ur.id = le.usage_record_id
+ORDER BY le.session_id, le.usage_record_id, le.hook_event_id, le.label, le.source_type, le.source_field`);
+}
+
+function rankingBySession(sessionRankings) {
+  return new Map(sessionRankings.map((session) => [session.session_key, session]));
+}
+
+function rankingForLabel(session, label) {
+  return session?.rankings.find((ranking) => ranking.label === label) || null;
+}
+
+function includeRanking(ranking, inclusion) {
+  if (!ranking) return false;
+  if (inclusion.mode === 'all-matches') return true;
+  if (inclusion.mode === 'top-k') return ranking.rank <= inclusion.top_k;
+  return ranking.rank === 1;
+}
+
+async function aggregateLabelRows(dbPath, options = {}) {
+  const inclusion = options.inclusion || inclusionTopLabel();
+  const labelFilter = options.label ? canonicalLabel(options.label) : null;
+  const evidenceRows = await labelEvidenceUsageRows(dbPath);
+  const sessionRankings = await labelConfidenceRankings(dbPath);
+  const sessions = rankingBySession(sessionRankings);
+  const confidenceSummaries = new Map(labelConfidenceSummaries(sessionRankings).map((summary) => [summary.label, summary]));
+  const aggregates = new Map();
+  const seenSessions = new Map();
+  const seenUsage = new Map();
+
+  for (const row of evidenceRows) {
+    const sessionKey = evidenceSessionKey(row);
+    const session = sessions.get(sessionKey);
+    const label = labelFilter || session?.top_label || canonicalLabel(row.label);
+    const ranking = rankingForLabel(session, label);
+    if (labelFilter && !includeRanking(ranking, inclusion)) continue;
+    if (!labelFilter && canonicalLabel(row.label) !== label) continue;
+
+    if (!aggregates.has(label)) {
+      aggregates.set(label, emptyAggregate(label, confidenceSummaries.get(label), inclusion));
+      seenSessions.set(label, new Set());
+      seenUsage.set(label, new Set());
+    }
+    const aggregate = aggregates.get(label);
+    const sessionSeen = seenSessions.get(label);
+    if (!sessionSeen.has(sessionKey)) {
+      sessionSeen.add(sessionKey);
+      aggregate.sessions += 1;
+    }
+    if (canonicalLabel(row.label) === label) aggregate.evidence_count += 1;
+    addUsageToAggregate(aggregate, row, seenUsage.get(label));
+    addSeenDate(aggregate, row.seen_at || row.timestamp || row.imported_at);
+  }
+
+  for (const aggregate of aggregates.values()) {
+    aggregate.token_status = aggregate.usage_records > 0 ? 'token-bearing' : 'hook-only';
+    aggregate.usage_status = aggregate.usage_records > 0 ? 'usage' : 'evidence-only';
+  }
+
+  if (labelFilter && !aggregates.has(labelFilter) && confidenceSummaries.has(labelFilter)) {
+    aggregates.set(labelFilter, emptyAggregate(labelFilter, confidenceSummaries.get(labelFilter), inclusion));
+  }
+
+  return Array.from(aggregates.values());
+}
+
+async function includedEvidenceRows(dbPath, label, inclusion) {
+  const rows = await labelEvidenceUsageRows(dbPath);
+  return filterRowsByInclusion(dbPath, rows, canonicalLabel(label), inclusion);
+}
+
+async function filterRowsByInclusion(dbPath, rows, label, inclusion) {
+  const sessions = rankingBySession(await labelConfidenceRankings(dbPath));
+  return rows.filter((row) => {
+    const session = sessions.get(evidenceSessionKey(row));
+    return includeRanking(rankingForLabel(session, label), inclusion);
+  });
+}
+
+async function labelSessionDetails(dbPath, label, options = {}) {
+  await initStore(dbPath);
+  const inclusion = inclusionForOptions(options);
+  const labelId = canonicalLabel(label);
+  const rows = await includedEvidenceRows(dbPath, labelId, inclusion);
+  const sessions = rankingBySession(await labelConfidenceRankings(dbPath));
+  const bySession = new Map();
+
+  for (const row of rows) {
+    const sessionKey = evidenceSessionKey(row);
+    const session = sessions.get(sessionKey);
+    const ranking = rankingForLabel(session, labelId);
+    if (!bySession.has(sessionKey)) {
+      bySession.set(sessionKey, {
+        session_key: sessionKey,
+        session_id: row.session_id || session?.session_id || null,
+        top_label: session?.top_label || null,
+        requested_label: labelId,
+        requested_label_rank: ranking?.rank || null,
+        confidence_score: ranking?.score || 0,
+        confidence: ranking || null,
+        evidence_count: 0,
+        distinct_evidence_count: ranking?.distinct_evidence_count || 0,
+        evidence_summary: ranking?.source_summary || [],
+        usage_records: 0,
+        model_count: 0,
+        models: [],
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        reasoning_tokens: 0,
+        selected_ai_credits: 0,
+        selected_usd: 0,
+        selected_pricing_basis: null,
+        selected_confidence: null,
+        pricing_basis: null,
+        first_seen: null,
+        last_seen: null,
+        inclusion_mode: inclusion.mode,
+        overlap: inclusion.overlap,
+      });
+    }
+    const detail = bySession.get(sessionKey);
+    if (canonicalLabel(row.label) === labelId) detail.evidence_count += 1;
+    addSeenDate(detail, row.seen_at || row.timestamp || row.imported_at);
+  }
+
+  const seenUsageBySession = new Map();
+  for (const row of rows) {
+    const sessionKey = evidenceSessionKey(row);
+    const detail = bySession.get(sessionKey);
+    if (!detail || !row.usage_record_id) continue;
+    if (!seenUsageBySession.has(sessionKey)) seenUsageBySession.set(sessionKey, new Set());
+    const seenUsage = seenUsageBySession.get(sessionKey);
+    if (seenUsage.has(row.usage_record_id)) continue;
+    seenUsage.add(row.usage_record_id);
+    detail.usage_records += 1;
+    for (const field of ['input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_creation_tokens', 'reasoning_tokens', 'selected_ai_credits', 'selected_usd']) {
+      detail[field] += n(row[field]);
+    }
+    const model = row.resolved_model || row.requested_model || 'unknown';
+    if (!detail.models.includes(model)) detail.models.push(model);
+    detail.selected_pricing_basis = detail.selected_pricing_basis || row.selected_pricing_basis || null;
+    detail.selected_confidence = detail.selected_confidence || row.selected_confidence || null;
+    detail.pricing_basis = detail.pricing_basis || row.pricing_basis || null;
+  }
+
+  return Array.from(bySession.values())
+    .map((detail) => ({
+      ...detail,
+      model_count: detail.models.length,
+      models: detail.models.sort(),
+    }))
+    .sort((left, right) => String(right.last_seen || '').localeCompare(String(left.last_seen || '')) || left.session_key.localeCompare(right.session_key));
+}
+
+async function labelEvidenceRows(dbPath) {
+  return queryRows(dbPath, `
+SELECT
+  id,
+  imported_at,
+  label,
+  source_type,
+  source_field,
+  source_value,
+  confidence,
+  usage_record_id,
+  hook_event_id,
+  session_id,
+  repo,
+  branch,
+  cwd,
+  timestamp
+FROM label_evidence
+ORDER BY session_id, usage_record_id, hook_event_id, label, source_type, source_field, source_value`);
+}
+
+async function labelConfidenceRankings(dbPath) {
+  await initStore(dbPath);
+  return rankSessionEvidence(await labelEvidenceRows(dbPath));
+}
+
+async function withConfidenceSummaries(dbPath, rows) {
+  if (!rows.length) return rows;
+  const summaries = new Map(labelConfidenceSummaries(await labelConfidenceRankings(dbPath)).map((summary) => [summary.label, summary]));
+  return rows.map((row) => ({
+    ...row,
+    confidence: summaries.get(row.label) || {
+      label: row.label,
+      scoring_version: SCORING_VERSION,
+      top_ranked_sessions: 0,
+      ranked_sessions: 0,
+      best_rank: null,
+      best_score: 0,
+      evidence_count: 0,
+      distinct_evidence_count: 0,
+      source_summary: [],
+    },
+  }));
 }
 
 async function modelReport(dbPath) {
@@ -425,7 +681,7 @@ function formatLabelSummary(summary) {
   );
 }
 
-function formatLabelReport(summary, models, details = null) {
+function formatLabelReport(summary, models, details = null, sessionDetails = null) {
   const output = [formatLabelSummary(summary)];
   if (models && models.length > 0) {
     output.push('', table(
@@ -462,6 +718,24 @@ function formatLabelReport(summary, models, details = null) {
         formatDollars(selectedUsd(row), selectedCredits(row)),
         row.selected_pricing_basis || row.pricing_basis || '',
         row.source_value || '',
+      ]),
+    ));
+  }
+  if (sessionDetails && sessionDetails.length > 0) {
+    output.push('', table(
+      ['Session', 'Top', 'Rank', 'Models', 'Use', 'Input', 'Output', 'Cr sel.', '$ sel.', 'Basis', 'Evidence'],
+      sessionDetails.map((row) => [
+        row.session_id || row.session_key,
+        row.top_label || '',
+        row.requested_label_rank || '',
+        row.models.join(','),
+        row.usage_records,
+        formatTokens(row.input_tokens),
+        formatTokens(row.output_tokens),
+        formatCredits(row.selected_ai_credits),
+        formatDollars(row.selected_usd, row.selected_ai_credits),
+        row.selected_pricing_basis || row.pricing_basis || '',
+        (row.evidence_summary || []).map((item) => `${item.source}:${item.count}`).join(','),
       ]),
     ));
   }
@@ -535,6 +809,9 @@ module.exports = {
   labelSummary,
   labelModelBreakdown,
   labelDetails,
+  labelConfidenceRankings,
+  labelSessionDetails,
+  inclusionForOptions,
   modelReport,
   repoReport,
   unattributedReport,

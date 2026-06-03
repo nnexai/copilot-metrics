@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0 - 2026-06-03
+
+### Added
+
+- `init` and `setup` now accept repeatable `--label-patterns` flags and persist them as canonical `labelPatterns`.
+- Label confidence ranking now derives deterministic per-session rankings from granular evidence rows using `label-confidence:v1`.
+- JSON label reports now expose confidence metadata, inclusion mode, overlap status, and evidence summaries.
+- `report label <id>` supports `--top-k <n>`, `--top-k all`, `--all-matches`, and `--session-detail`.
+
+### Changed
+
+- Label overview reports now assign each ranked session to exactly one top-confidence label by default.
+- Specific-label reports now default to sessions where the requested label is rank 1.
+- Broad label inclusion is now explicit and marked as overlapping in JSON output.
+
 ## 0.3.0 - 2026-06-02
 
 ### Added

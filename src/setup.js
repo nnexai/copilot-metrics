@@ -54,10 +54,11 @@ function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
 
-function ensureDataDirs(paths) {
+function ensureDataDirs(paths, options = {}) {
   for (const dir of [paths.home, paths.telemetryDir, paths.hooksDir, paths.storeDir, paths.skillsDir]) {
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
+  const configuredLabelPatterns = options.labelPatterns === undefined ? undefined : validateLabelPatterns(options.labelPatterns);
 
   const defaultConfig = {
     version: 1,
@@ -81,7 +82,7 @@ function ensureDataDirs(paths) {
         additionalSessions: [],
       },
     },
-    labelPatterns: [],
+    labelPatterns: configuredLabelPatterns || [],
     labelExtractors: [],
   };
 
@@ -111,10 +112,31 @@ function ensureDataDirs(paths) {
         additionalSessions: asArray(current.sources?.copilotCli?.additionalSessions),
       },
     },
-    labelPatterns: current.labelPatterns || asArray(current.labelPattern || current.labelRegex) || defaultConfig.labelPatterns,
+    labelPatterns: configuredLabelPatterns || current.labelPatterns || asArray(current.labelPattern || current.labelRegex) || defaultConfig.labelPatterns,
     labelExtractors: current.labelExtractors || defaultConfig.labelExtractors,
   };
   writePrivateFile(paths.configJson, `${JSON.stringify(next, null, 2)}\n`);
+}
+
+function validateLabelPatterns(patterns) {
+  const values = asArray(patterns);
+  for (const pattern of values) {
+    try {
+      compilePatternForValidation(pattern);
+    } catch (error) {
+      throw new Error(`Invalid --label-patterns regex "${pattern}": ${error.message}`);
+    }
+  }
+  return values;
+}
+
+function compilePatternForValidation(pattern) {
+  const match = String(pattern).match(/^\/(.+)\/([a-z]*)$/i);
+  if (match) {
+    new RegExp(match[1], match[2]);
+    return;
+  }
+  new RegExp(pattern);
 }
 
 function asArray(value) {
@@ -280,7 +302,7 @@ function installHook(paths, options = {}) {
 
 function setupSnapshot(options = {}) {
   const paths = resolvePaths(options);
-  ensureDataDirs(paths);
+  ensureDataDirs(paths, { labelPatterns: options.labelPatterns });
   const vscodeInstalled = options.install === true ? installVscodeSettings(paths, options) : [];
   const hooksInstalled = options.install === true ? installHook(paths, {
     cwd: options.cwd,
@@ -303,6 +325,7 @@ module.exports = {
   COPILOT_CLI_HOOK_EVENTS,
   VSCODE_HOOK_EVENTS,
   ensureDataDirs,
+  validateLabelPatterns,
   defaultVscodeSettingsTargets,
   vscodeSettings,
   installVscodeSettings,

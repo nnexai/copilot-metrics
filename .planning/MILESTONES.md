@@ -1,5 +1,22 @@
 # Milestones
 
+## v0.4.0 label association confidence (Shipped: 2026-06-03)
+
+**Phases completed:** Phases 12-14, 3 plans
+
+**Key accomplishments:**
+
+- Setup/init accepts repeatable `--label-patterns` and persists canonical `labelPatterns`.
+- Granular label evidence remains stored per entry while `label-confidence:v1` derives deterministic confidence rankings at query/report time.
+- JSON label reports expose confidence metadata, scoring basis, inclusion mode, overlap flags, and evidence summaries.
+- Label overview reports default to top-label semantics so each ranked session contributes once.
+- Specific-label reports default to rank-1 sessions and support explicit `--top-k`, `--top-k all`, `--all-matches`, and `--session-detail`.
+- `copilot-metrics@0.4.0` package metadata, README examples, and changelog were updated and verified.
+
+**Known deferred items at close:** 3 Nyquist validation artifacts accepted as process debt; see `.planning/STATE.md`.
+
+---
+
 ## v0.3.0 configurable label patterns (Shipped: 2026-06-02)
 
 **Phases completed:** Phase 11 quick release plus archived Phase 9-10 execution history
