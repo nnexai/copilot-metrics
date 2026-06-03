@@ -1,29 +1,29 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.3.0
-milestone_name: configurable label patterns
-status: completed
-last_updated: "2026-06-02T17:52:07.617Z"
-last_activity: 2026-06-02 — Milestone v0.3.0 completed and archived
+milestone: v0.4.0
+milestone_name: label association confidence
+status: planning
+last_updated: "2026-06-03T06:33:54.767Z"
+last_activity: 2026-06-03
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
-  percent: 100
+  total_phases: 3
+  completed_phases: 0
+  total_plans: 3
+  completed_plans: 0
+  percent: 0
 ---
 
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** v0.3.0 milestone complete
+**Status:** v0.4.0 milestone planning
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-06-02)
+See: `.planning/PROJECT.md` (updated 2026-06-03)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Milestone v0.3.0 configurable label patterns shipped and archived; awaiting next milestone
+**Current focus:** Milestone v0.4.0 label association confidence is ready for Phase 12 planning
 
 ## Workflow Settings
 
@@ -39,14 +39,14 @@ See: `.planning/PROJECT.md` (updated 2026-06-02)
 
 ## Current Phase
 
-None — between milestones
+Not started - Phase 12 is next
 
 ## Current Position
 
-Phase: Milestone v0.3.0 complete
+Phase: 12 - v0.4.0 setup labelPattern init
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-02 — Milestone v0.3.0 completed and archived
+Status: Ready for phase planning
+Last activity: 2026-06-03 — Milestone v0.4.0 roadmap created
 
 ## Notes
 
@@ -79,6 +79,7 @@ Last activity: 2026-06-02 — Milestone v0.3.0 completed and archived
 - Phase 10 added for `copilot-metrics@0.2.1`: reports must count exactly one selected price per session/request by confidence, keep non-selected price evidence as diagnostics, merge VS Code OTel/chat/display aliases, repair old duplicate rows, and avoid long silent refresh scans.
 - Phase 10 completed `copilot-metrics@0.2.1`: selected local pricing fields now drive report totals, non-selected evidence remains diagnostic, VS Code duplicate OTel/chat/display aliases are repairable, existing stores backfill selected pricing metadata, docs and release files are updated, and local package verification passed.
 - Phase 11 completed `copilot-metrics@0.3.0`: local config now supports `labelPatterns`, `labelPattern`, and `labelRegex` for regex-driven internal label extraction while JavaScript `labelExtractors` remain replacement-only; docs, tests, package version, and local release verification are updated.
+- Phase 12-14 planned for `copilot-metrics@0.4.0`: setup-time `labelPattern`, stored label association confidence, top-label default report semantics, top-k label inclusion, and per-session middle-detail reports.
 
 ## Accumulated Context
 
@@ -93,6 +94,9 @@ Last activity: 2026-06-02 — Milestone v0.3.0 completed and archived
 - Phase 10 added: `copilot-metrics@0.2.1` will make selected-price aggregation the user-facing total and repair VS Code duplicate identity paths found during current-day session analysis.
 - Phase 10 completed: `copilot-metrics@0.2.1` selects one price per usage row by confidence, repairs duplicate VS Code identity paths, and prepares the package for human-gated publication.
 - Phase 11 completed: `copilot-metrics@0.3.0` adds configurable regex patterns for the internal label extractor and prepares the package for human-gated publication.
+- Phase 12 added: `copilot-metrics@0.4.0` setup/init support for configuring `labelPattern`.
+- Phase 13 added: `copilot-metrics@0.4.0` label association storage and confidence ranking.
+- Phase 14 added: `copilot-metrics@0.4.0` confidence-aware overview, label top-k, and middle-detail reports.
 
 ## Quick Tasks Completed
 
@@ -105,4 +109,4 @@ Last activity: 2026-06-02 — Milestone v0.3.0 completed and archived
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Start Phase 12 with /gsd-plan-phase 12

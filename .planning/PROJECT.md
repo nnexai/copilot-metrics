@@ -12,9 +12,16 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 
 `copilot-metrics@0.3.0` has shipped and the milestone is archived. The CLI supports local Copilot usage import, attribution, selected pricing evidence, and configurable regex patterns for the built-in label extractor.
 
-## Next Milestone Goals
+## Current Milestone: v0.4.0 label association confidence
 
-No active milestone is defined. Run `$gsd-new-milestone` to choose the next requirements and roadmap.
+**Goal:** Store all discovered label associations, score confidence by evidence source and repeated mentions, and make reports count each session once by its highest-confidence label by default.
+
+**Target features:**
+- Configure `labelPattern` during init/setup so first-run configuration can match the user's ticket format.
+- Preserve all label associations and evidence per session while deriving deterministic confidence scores and rankings.
+- Make overview reports assign each session to exactly one highest-confidence label by default.
+- Make label-specific reports default to sessions where the requested label is top-ranked, with a top-k option for broader inclusion.
+- Add a middle-detail label report view with per-session aggregate tokens, estimated costs, credits, confidence, and evidence summary.
 
 ## Requirements
 
@@ -53,7 +60,12 @@ No active milestone is defined. Run `$gsd-new-milestone` to choose the next requ
 
 ### Active
 
-No active requirements. `v0.3.0` is released and archived.
+- [ ] User can configure `labelPattern` during init/setup without hand-editing the stored config.
+- [ ] User can preserve multiple discovered labels per session with source, source value, usage linkage, and confidence evidence.
+- [ ] User can rely on deterministic confidence ranking where cwd and branch evidence are very strong, metadata/context evidence is strong, and prompt/response/tool-call mentions accumulate as smaller evidence.
+- [ ] User can view label overview reports that count each session exactly once under the highest-confidence label by default.
+- [ ] User can query a specific label using top-label default semantics or a top-k inclusion mode.
+- [ ] User can request a per-session middle-detail label report with aggregate tokens, costs, credits, confidence, and evidence summary.
 
 ### Out of Scope
 
@@ -104,6 +116,7 @@ The most important attribution convention is Jira ticket IDs such as `DEMO-12345
 | Avoid full content capture by default | Work prompts, code, tool args, and outputs can be sensitive. | Validated in v0.1.1 |
 | Treat official GitHub metrics as reconciliation only | Non-admins may not have access, and official reports are not designed for local task-level attribution. | Validated in v0.1.1 |
 | Keep JavaScript label extractors as replacement-only | Advanced users need full control when callbacks are configured, while regex patterns provide the lighter-weight internal-extractor customization path. | Validated in v0.3.0 |
+| Treat label assignment as ranked evidence, not a single extraction result | Sessions often contain multiple ticket-like labels, but report totals should avoid overlapping counts unless the user opts into broader inclusion. | Pending v0.4.0 |
 
 ## Evolution
 
@@ -123,4 +136,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-02 after v0.3.0 configurable label patterns*
+*Last updated: 2026-06-03 after starting v0.4.0 label association confidence*
