@@ -1,0 +1,66 @@
+# Requirements: Copilot Metrics v0.5.0
+
+**Defined:** 2026-06-09
+**Core Value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
+
+## v0.5.0 Requirements
+
+### Manual Label Assignment
+
+- [ ] **MLAB-01**: User can assign one or more Jira-style labels to a known session from the CLI.
+- [ ] **MLAB-02**: User can list manual label assignments for a session and distinguish them from auto-detected evidence.
+- [ ] **MLAB-03**: User can replace manual labels on a session without leaving stale manual labels in default report totals.
+- [ ] **MLAB-04**: User can remove manual labels from a session and return that session to automatic confidence ranking.
+
+### Ranking and Reports
+
+- [ ] **MLAB-05**: Manual label assignments outrank all auto-detected label evidence in default top-label ranking.
+- [ ] **MLAB-06**: Auto-detected label evidence remains stored and visible in detail/audit output after manual assignment.
+- [ ] **MLAB-07**: Human-readable label reports identify when a session or aggregate is driven by manual assignment.
+- [ ] **MLAB-08**: JSON label reports include machine-readable manual assignment provenance and inclusion metadata.
+
+### Verification and Safety
+
+- [ ] **MLAB-09**: Invalid label inputs are rejected before storage using the same configurable label-pattern rules as normal extraction where practical.
+- [ ] **MLAB-10**: Fixture-based tests cover assignment, replacement, removal, ranking precedence, and report output.
+
+## Deferred Requirements
+
+### Future Attribution UX
+
+- **MLAB-F01**: Interactive fuzzy session picker for selecting sessions by prompt preview or timestamp.
+- **MLAB-F02**: Bulk import/export of manual assignment rules.
+- **MLAB-F03**: Dashboard or TUI editing of manual labels.
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Storing full prompts to aid manual selection | Content capture remains disabled by default for privacy. |
+| Replacing automatic evidence rows with manual labels | Auditability depends on preserving auto-detected evidence. |
+| Official billing reconciliation | v0.5.0 is label correction, not official billing import. |
+| Network services or shared label assignment sync | The product remains local-first and CLI-first. |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| MLAB-01 | Phase 15 | Pending |
+| MLAB-02 | Phase 15 | Pending |
+| MLAB-03 | Phase 15 | Pending |
+| MLAB-04 | Phase 15 | Pending |
+| MLAB-05 | Phase 16 | Pending |
+| MLAB-06 | Phase 16 | Pending |
+| MLAB-07 | Phase 16 | Pending |
+| MLAB-08 | Phase 16 | Pending |
+| MLAB-09 | Phase 15 | Pending |
+| MLAB-10 | Phase 16 | Pending |
+
+**Coverage:**
+- v0.5.0 requirements: 10 total
+- Mapped to phases: 10
+- Unmapped: 0
+
+---
+*Requirements defined: 2026-06-09*
+*Last updated: 2026-06-09 after v0.5.0 milestone start*

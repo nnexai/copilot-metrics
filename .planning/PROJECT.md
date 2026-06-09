@@ -12,9 +12,17 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 
 `copilot-metrics@0.4.0` has shipped and the milestone is archived. The CLI supports local Copilot usage import, attribution, selected pricing evidence, configurable regex patterns for the built-in label extractor, granular label association confidence ranking, top-label default reports, explicit top-k/all-match inclusion, and per-session label detail.
 
-## Next Milestone
+## Current Milestone: v0.5.0 manual session labels
 
-No active milestone is defined. Start the next milestone with `$gsd-new-milestone`.
+**Goal:** Add a CLI-first way to manually assign labels to sessions, with manual labels taking precedence over auto-detected labels in default ranking and reports.
+
+**Target features:**
+
+- Assign, replace, list, and remove manual labels for a known session.
+- Store manual label assignments as explicit override evidence while preserving auto-detected evidence for audit/detail views.
+- Make manual labels outrank branch, cwd, prompt, tool-call, and hook evidence in label confidence and top-label reports.
+- Show manual assignment provenance in human-readable and JSON report output.
+- Verify storage, ranking precedence, report inclusion, removal, and replacement behavior with fixture-based tests.
 
 ## Requirements
 
@@ -56,7 +64,10 @@ No active milestone is defined. Start the next milestone with `$gsd-new-mileston
 
 ### Active
 
-No active milestone requirements are currently defined.
+- [ ] Manually assign one or more Jira-style labels to a session from the CLI.
+- [ ] Preserve automatic label evidence while giving manual assignments highest precedence.
+- [ ] Surface manual assignment provenance in human-readable and JSON reports.
+- [ ] Support safe correction workflows: list, replace, and remove manual labels.
 
 ### Out of Scope
 
@@ -111,6 +122,7 @@ The most important attribution convention is Jira ticket IDs such as `DEMO-12345
 | Persist setup-configured regexes under `labelPatterns` | Repeatable CLI flags need a canonical array target while older single-pattern aliases remain readable. | Validated in v0.4.0 Phase 12 |
 | Compute label confidence from granular evidence at query/report time | Scoring algorithms can evolve later without losing per-entry evidence detail. | Validated in v0.4.0 Phase 13 |
 | Make top-label reports the default and top-k explicit | Default reports should avoid overlapping session counts; broader inclusion is useful but must be opt-in and identified. | Validated in v0.4.0 Phase 14 |
+| Treat manual session labels as highest-precedence evidence | The user needs a correction path when automatic attribution is wrong or ambiguous, without deleting the underlying evidence trail. | Pending v0.5.0 |
 
 ## Evolution
 
@@ -130,4 +142,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-03 after v0.4.0 milestone completion*
+*Last updated: 2026-06-09 after v0.5.0 milestone start*

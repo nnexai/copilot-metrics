@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: none
-status: milestone_complete
-last_updated: "2026-06-03T09:11:01+02:00"
-last_activity: 2026-06-03
+milestone: v0.5.0
+milestone_name: manual session labels
+status: planning
+last_updated: "2026-06-09T00:00:00+02:00"
+last_activity: 2026-06-09
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -16,14 +16,14 @@ progress:
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** v0.4.0 milestone complete and archived
+**Status:** v0.5.0 milestone planning
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-06-03)
+See: `.planning/PROJECT.md` (updated 2026-06-09)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** No active milestone. Start the next milestone with `$gsd-new-milestone`.
+**Current focus:** Manual session labels with higher precedence than auto-detected labels.
 
 ## Workflow Settings
 
@@ -37,16 +37,16 @@ See: `.planning/PROJECT.md` (updated 2026-06-03)
 - Auto advance: Yes
 - Text mode: Yes
 
-## Current Phase
+## Current Milestone
 
-None - v0.4.0 is archived.
+v0.5.0 manual session labels
 
 ## Current Position
 
-Phase: —
+Phase: 15 - Manual label assignment CLI and storage
 Plan: —
-Status: Ready for next milestone definition
-Last activity: 2026-06-03 — v0.4.0 milestone archived
+Status: Ready to plan Phase 15
+Last activity: 2026-06-09 — Milestone v0.5.0 started
 
 ## Completed Milestone
 
