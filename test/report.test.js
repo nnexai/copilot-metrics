@@ -115,10 +115,28 @@ test('human label overview normalizes Last values to date-time', () => {
       estimate_label: 'estimate:test',
       last_seen: '2026-06-09T20:52:57.000Z',
     },
+    {
+      label: 'DEMO-3',
+      sessions: 1,
+      usage_records: 1,
+      input_tokens: 1,
+      output_tokens: 1,
+      cache_read_tokens: 0,
+      cache_creation_tokens: 0,
+      reasoning_tokens: 0,
+      selected_ai_credits: 0.01,
+      selected_usd: 0.0001,
+      pricing_basis: 'estimated',
+      usage_status: 'usage',
+      evidence_count: 1,
+      estimate_label: 'estimate:test',
+      last_seen: '1769376468459.0',
+    },
   ]);
 
   assert.match(output, /DEMO-1\s+1\s+1\s+1\s+1\s+0\s+0\s+0\s+0\.01\s+\$0\.00\s+estimated\s+usage\s+1\s+2026-06-09 00:00/);
   assert.match(output, /DEMO-2\s+1\s+1\s+1\s+1\s+0\s+0\s+0\s+0\.01\s+\$0\.00\s+estimated\s+usage\s+1\s+2026-06-09 20:52/);
+  assert.match(output, /DEMO-3\s+1\s+1\s+1\s+1\s+0\s+0\s+0\s+0\.01\s+\$0\.00\s+estimated\s+usage\s+1\s+2026-01-25 21:27/);
 });
 
 test('report label detail preserves source and session context', () => {

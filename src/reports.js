@@ -50,11 +50,20 @@ function formatDollars(value, fallbackCredits = 0) {
 }
 
 function formatDateTime(value) {
-  if (typeof value !== 'string' || value.trim() === '') return '';
-  const trimmed = value.trim();
-  const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}))?/);
-  if (!match) return trimmed;
-  return `${match[1]} ${match[2] || '00:00'}`;
+  if (value === null || value === undefined) return '';
+  const trimmed = String(value).trim();
+  if (trimmed === '') return '';
+  const isoMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}))?/);
+  if (isoMatch) return `${isoMatch[1]} ${isoMatch[2] || '00:00'}`;
+  if (/^\d+(?:\.\d+)?$/.test(trimmed)) {
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric)) {
+      const millis = numeric >= 10_000_000_000 ? numeric : numeric * 1000;
+      const date = new Date(millis);
+      if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 16).replace('T', ' ');
+    }
+  }
+  return trimmed;
 }
 
 function usageStatus(row) {
