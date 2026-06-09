@@ -80,6 +80,11 @@ test('report labels initializes an empty store instead of exposing sqlite errors
 });
 
 test('human label overview normalizes Last values to date-time', () => {
+  const pad = (value) => String(value).padStart(2, '0');
+  const localDateTime = (value) => {
+    const date = new Date(value);
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
   const output = formatLabels([
     {
       label: 'DEMO-1',
@@ -135,8 +140,8 @@ test('human label overview normalizes Last values to date-time', () => {
   ]);
 
   assert.match(output, /DEMO-1\s+1\s+1\s+1\s+1\s+0\s+0\s+0\s+0\.01\s+\$0\.00\s+estimated\s+usage\s+1\s+2026-06-09 00:00/);
-  assert.match(output, /DEMO-2\s+1\s+1\s+1\s+1\s+0\s+0\s+0\s+0\.01\s+\$0\.00\s+estimated\s+usage\s+1\s+2026-06-09 20:52/);
-  assert.match(output, /DEMO-3\s+1\s+1\s+1\s+1\s+0\s+0\s+0\s+0\.01\s+\$0\.00\s+estimated\s+usage\s+1\s+2026-01-25 21:27/);
+  assert.ok(output.includes(localDateTime('2026-06-09T20:52:57.000Z')));
+  assert.ok(output.includes(localDateTime(1769376468459)));
 });
 
 test('report label detail preserves source and session context', () => {

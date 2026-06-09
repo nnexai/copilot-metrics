@@ -49,18 +49,35 @@ function formatDollars(value, fallbackCredits = 0) {
   return `$${dollars.toFixed(2)}`;
 }
 
+function padDatePart(value) {
+  return String(value).padStart(2, '0');
+}
+
+function formatLocalDateTime(date) {
+  return [
+    date.getFullYear(),
+    padDatePart(date.getMonth() + 1),
+    padDatePart(date.getDate()),
+  ].join('-') + ` ${padDatePart(date.getHours())}:${padDatePart(date.getMinutes())}`;
+}
+
 function formatDateTime(value) {
   if (value === null || value === undefined) return '';
   const trimmed = String(value).trim();
   if (trimmed === '') return '';
-  const isoMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}))?/);
-  if (isoMatch) return `${isoMatch[1]} ${isoMatch[2] || '00:00'}`;
+  const dateOnlyMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})$/);
+  if (dateOnlyMatch) return `${dateOnlyMatch[1]} 00:00`;
+  const isoLikeMatch = trimmed.match(/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/);
+  if (isoLikeMatch) {
+    const date = new Date(trimmed);
+    if (!Number.isNaN(date.getTime())) return formatLocalDateTime(date);
+  }
   if (/^\d+(?:\.\d+)?$/.test(trimmed)) {
     const numeric = Number(trimmed);
     if (Number.isFinite(numeric)) {
       const millis = numeric >= 10_000_000_000 ? numeric : numeric * 1000;
       const date = new Date(millis);
-      if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 16).replace('T', ' ');
+      if (!Number.isNaN(date.getTime())) return formatLocalDateTime(date);
     }
   }
   return trimmed;
