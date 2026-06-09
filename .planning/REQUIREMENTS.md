@@ -7,10 +7,10 @@
 
 ### Manual Label Assignment
 
-- [ ] **MLAB-01**: User can assign one or more Jira-style labels to a known session from the CLI.
-- [ ] **MLAB-02**: User can list manual label assignments for a session and distinguish them from auto-detected evidence.
-- [ ] **MLAB-03**: User can replace manual labels on a session without leaving stale manual labels in default report totals.
-- [ ] **MLAB-04**: User can remove manual labels from a session and return that session to automatic confidence ranking.
+- [x] **MLAB-01**: User can assign one or more Jira-style labels to a known session from the CLI.
+- [x] **MLAB-02**: User can list manual label assignments for a session and distinguish them from auto-detected evidence.
+- [x] **MLAB-03**: User can replace manual labels on a session without leaving stale manual labels in default report totals.
+- [x] **MLAB-04**: User can remove manual labels from a session and return that session to automatic confidence ranking.
 
 ### Ranking and Reports
 
@@ -21,7 +21,7 @@
 
 ### Verification and Safety
 
-- [ ] **MLAB-09**: Invalid label inputs are rejected before storage using the same configurable label-pattern rules as normal extraction where practical.
+- [x] **MLAB-09**: Invalid label inputs are rejected before storage using the same configurable label-pattern rules as normal extraction where practical.
 - [ ] **MLAB-10**: Fixture-based tests cover assignment, replacement, removal, ranking precedence, and report output.
 
 ## Deferred Requirements
@@ -45,18 +45,19 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MLAB-01 | Phase 15 | Pending |
-| MLAB-02 | Phase 15 | Pending |
-| MLAB-03 | Phase 15 | Pending |
-| MLAB-04 | Phase 15 | Pending |
+| MLAB-01 | Phase 15 | Complete |
+| MLAB-02 | Phase 15 | Complete |
+| MLAB-03 | Phase 15 | Complete |
+| MLAB-04 | Phase 15 | Complete |
 | MLAB-05 | Phase 16 | Pending |
 | MLAB-06 | Phase 16 | Pending |
 | MLAB-07 | Phase 16 | Pending |
 | MLAB-08 | Phase 16 | Pending |
-| MLAB-09 | Phase 15 | Pending |
+| MLAB-09 | Phase 15 | Complete |
 | MLAB-10 | Phase 16 | Pending |
 
 **Coverage:**
+
 - v0.5.0 requirements: 10 total
 - Mapped to phases: 10
 - Unmapped: 0

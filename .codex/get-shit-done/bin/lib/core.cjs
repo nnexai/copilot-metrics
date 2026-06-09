@@ -645,10 +645,12 @@ function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const PROJECT_CODE_PREFIX_RE = /^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-(?=\d)/i;
+
 function normalizePhaseName(phase) {
   const str = String(phase);
   // Strip optional project_code prefix (e.g., 'CK-01' → '01')
-  const stripped = str.replace(/^[A-Z]{1,6}-(?=\d)/, '');
+  const stripped = str.replace(PROJECT_CODE_PREFIX_RE, '');
   // Standard numeric phases: 1, 01, 12A, 12.1
   const match = stripped.match(/^(\d+)([A-Z])?((?:\.\d+)*)/i);
   if (match) {
@@ -679,7 +681,7 @@ function normalizePhaseName(phase) {
  * See #3537 — wired into every ROADMAP-prose regex builder.
  */
 function phaseMarkdownRegexSource(phaseNum) {
-  const stripped = String(phaseNum).replace(/^[A-Z]{1,6}-(?=\d)/i, '');
+  const stripped = String(phaseNum).replace(PROJECT_CODE_PREFIX_RE, '');
   const match = stripped.match(/^0*(\d+)([A-Z])?((?:\.\d+)*)$/i);
   if (!match) return escapeRegex(phaseNum);
 
@@ -704,14 +706,14 @@ function phaseMarkdownRegexSource(phaseNum) {
  */
 function phaseMarkdownRegexSourceExact(phaseNum) {
   const raw = String(phaseNum);
-  if (!/^[A-Z]{1,6}-(?=\d)/i.test(raw)) return null;
+  if (!PROJECT_CODE_PREFIX_RE.test(raw)) return null;
   return escapeRegex(raw);
 }
 
 function comparePhaseNum(a, b) {
   // Strip optional project_code prefix before comparing (e.g., 'CK-01-name' → '01-name')
-  const sa = String(a).replace(/^[A-Z]{1,6}-/, '');
-  const sb = String(b).replace(/^[A-Z]{1,6}-/, '');
+  const sa = String(a).replace(PROJECT_CODE_PREFIX_RE, '');
+  const sb = String(b).replace(PROJECT_CODE_PREFIX_RE, '');
   const pa = sa.match(/^(\d+)([A-Z])?((?:\.\d+)*)/i);
   const pb = sb.match(/^(\d+)([A-Z])?((?:\.\d+)*)/i);
   // If either is non-numeric (custom ID), fall back to string comparison
@@ -747,7 +749,7 @@ function comparePhaseNum(a, b) {
  */
 function extractPhaseToken(dirName) {
   // Try project-code-prefixed numeric: CK-01-name → CK-01, CK-01A.2-name → CK-01A.2
-  const codePrefixed = dirName.match(/^([A-Z]{1,6}-\d+[A-Z]?(?:\.\d+)*)(?:-|$)/i);
+  const codePrefixed = dirName.match(/^([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-\d+[A-Z]?(?:\.\d+)*)(?:-|$)/i);
   if (codePrefixed) return codePrefixed[1];
   // Try plain numeric: 01-name, 1009A-name, 999.6-name
   const numeric = dirName.match(/^(\d+[A-Z]?(?:\.\d+)*)(?:-|$)/i);
@@ -766,7 +768,7 @@ function phaseTokenMatches(dirName, normalized) {
   const token = extractPhaseToken(dirName);
   if (token.toUpperCase() === normalized.toUpperCase()) return true;
   // Strip optional project_code prefix from dir and retry
-  const stripped = dirName.replace(/^[A-Z]{1,6}-(?=\d)/i, '');
+  const stripped = dirName.replace(PROJECT_CODE_PREFIX_RE, '');
   if (stripped !== dirName) {
     const strippedToken = extractPhaseToken(stripped);
     if (strippedToken.toUpperCase() === normalized.toUpperCase()) return true;
@@ -793,7 +795,7 @@ function searchPhaseInDir(baseDir, relBase, normalized) {
     if (!match) return null;
 
     // Extract phase number and name — supports numeric (01-name), project-code-prefixed (CK-01-name), and custom (PROJ-42-name)
-    const dirMatch = match.match(/^(?:[A-Z]{1,6}-)(\d+[A-Z]?(?:\.\d+)*)-?(.*)/i)
+    const dirMatch = match.match(/^(?:[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-)(\d+[A-Z]?(?:\.\d+)*)-?(.*)/i)
       || match.match(/^(\d+[A-Z]?(?:\.\d+)*)-?(.*)/i)
       || match.match(/^([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)-(.+)/i)
       || [null, match, null];

@@ -1006,21 +1006,19 @@ function cmdInitMilestoneOp(cwd, raw) {
     const m = tok.match(/^(\d+)([A-Z]?(?:\.\d+)*)$/);
     return m ? String(parseInt(m[1], 10)) + m[2] : tok;
   };
-  const diskPhaseDirs = new Map();
+  const diskPhaseDirs = [];
   try {
     const entries = fs.readdirSync(phasesDir, { withFileTypes: true });
     for (const e of entries) {
       if (!e.isDirectory()) continue;
-      const m = e.name.match(/^(\d+[A-Z]?(?:\.\d+)*)/);
-      if (!m) continue;
-      diskPhaseDirs.set(canonicalizePhase(m[1]), e.name);
+      diskPhaseDirs.push(e.name);
     }
   } catch { /* intentionally empty */ }
 
   if (roadmapPhaseNumbers.length > 0) {
     phaseCount = roadmapPhaseNumbers.length;
     for (const num of roadmapPhaseNumbers) {
-      const dirName = diskPhaseDirs.get(canonicalizePhase(num));
+      const dirName = diskPhaseDirs.find(d => phaseTokenMatches(d, normalizePhaseName(canonicalizePhase(num))));
       if (!dirName) continue;
       try {
         const hasSummary = listPhaseSummaryFiles(path.join(phasesDir, dirName)).length > 0;

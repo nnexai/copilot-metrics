@@ -22,6 +22,19 @@ function run(args) {
   });
 }
 
+function runFailure(args) {
+  try {
+    run(args);
+  } catch (error) {
+    return {
+      status: error.status,
+      stderr: error.stderr.toString(),
+      stdout: error.stdout.toString(),
+    };
+  }
+  throw new Error(`Expected command to fail: ${args.join(' ')}`);
+}
+
 function seedStore() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-report-'));
   run(['import', '--source', 'vscode', '--file', path.join(fixtures, 'vscode-otel.jsonl'), '--home', tmp, '--json']);
@@ -72,6 +85,79 @@ test('report label detail preserves source and session context', () => {
   assert.ok(payload.details.some((row) => row.cache_read_tokens === 200));
   assert.equal(payload.label.confidence.scoring_version, 'label-confidence:v1');
   assert.ok(payload.label.confidence.best_rank >= 1);
+});
+
+test('manual label CLI stores active assignments and returns post-operation JSON', async () => {
+  const home = seedStore();
+  const dbPath = path.join(home, 'store', 'copilot-metrics.sqlite');
+
+  const empty = JSON.parse(run(['label', 's1', 'list', '--home', home, '--json']));
+  assert.deepEqual(empty, {
+    session_id: 's1',
+    manual_labels: [],
+    operation: 'list',
+    changed: false,
+  });
+
+  const added = JSON.parse(run(['label', 's1', 'add', 'demo-222', 'DEMO-333', '--home', home, '--json']));
+  assert.deepEqual(added.manual_labels, ['DEMO-222', 'DEMO-333']);
+  assert.equal(added.operation, 'add');
+  assert.equal(added.changed, true);
+
+  const duplicate = JSON.parse(run(['label', 's1', 'add', 'DEMO-222', '--home', home, '--json']));
+  assert.deepEqual(duplicate.manual_labels, ['DEMO-222', 'DEMO-333']);
+  assert.equal(duplicate.changed, false);
+
+  const removedMissing = JSON.parse(run(['label', 's1', 'remove', 'DEMO-404', '--home', home, '--json']));
+  assert.deepEqual(removedMissing.manual_labels, ['DEMO-222', 'DEMO-333']);
+  assert.equal(removedMissing.changed, false);
+
+  const removed = JSON.parse(run(['label', 's1', 'remove', 'DEMO-222', '--home', home, '--json']));
+  assert.deepEqual(removed.manual_labels, ['DEMO-333']);
+  assert.equal(removed.changed, true);
+
+  const set = JSON.parse(run(['label', 's1', 'set', 'demo-999', '--home', home, '--json']));
+  assert.deepEqual(set.manual_labels, ['DEMO-999']);
+  assert.equal(set.changed, true);
+  let rows = await queryOne(dbPath, 'SELECT label FROM manual_label_assignments WHERE session_id = "s1" ORDER BY label');
+  assert.deepEqual(rows.map((row) => row.label), ['DEMO-999']);
+
+  const cleared = JSON.parse(run(['label', 's1', 'clear', '--home', home, '--json']));
+  assert.deepEqual(cleared.manual_labels, []);
+  assert.equal(cleared.changed, true);
+  rows = await queryOne(dbPath, 'SELECT label FROM manual_label_assignments WHERE session_id = "s1"');
+  assert.deepEqual(rows, []);
+
+  const evidence = await queryOne(dbPath, 'SELECT COUNT(*) AS count FROM label_evidence WHERE session_id = "s1"');
+  assert.ok(evidence[0].count > 0);
+});
+
+test('manual label CLI rejects unknown sessions and empty labels', () => {
+  const home = seedStore();
+
+  const unknown = runFailure(['label', 'missing-session', 'add', 'DEMO-1', '--home', home, '--json']);
+  assert.equal(unknown.status, 1);
+  assert.match(unknown.stderr, /Unknown session_id "missing-session"/);
+
+  const empty = runFailure(['label', 's1', 'add', '', '--home', home, '--json']);
+  assert.equal(empty.status, 1);
+  assert.match(empty.stderr, /Manual labels must be non-empty/);
+
+  const noLabels = runFailure(['label', 's1', 'set', '--home', home, '--json']);
+  assert.equal(noLabels.status, 1);
+  assert.match(noLabels.stderr, /label set requires at least one label/);
+});
+
+test('report surfaces expose session ids for manual correction workflow', () => {
+  const home = seedStore();
+
+  const detail = JSON.parse(run(['report', 'label', 'DEMO-12345', '--detail', '--home', home, '--json']));
+  assert.ok(detail.details.some((row) => row.session_id === 's1'));
+
+  const unattributedHome = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-unattributed-session-'));
+  run(['import', '--source', 'vscode', '--file', path.join(fixtures, 'vscode-log-records.jsonl'), '--home', unattributedHome, '--json']);
+  const unattributed = JSON.parse(run(['report', 'unattributed', '--home', unattributedHome, '--json']));
+  assert.ok(unattributed.unattributed.some((row) => row.session_id === 'otel-session'));
 });
 
 test('reports auto-import configured JSONL sources idempotently', async () => {

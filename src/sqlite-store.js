@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const initSqlJs = require('sql.js');
+const { canonicalLabel } = require('./label-extractors');
 
 let sqlModulePromise;
 
@@ -175,6 +176,13 @@ CREATE TABLE IF NOT EXISTS label_evidence (
   cwd TEXT,
   timestamp TEXT
 );
+CREATE TABLE IF NOT EXISTS manual_label_assignments (
+  session_id TEXT NOT NULL,
+  label TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (session_id, label)
+);
 CREATE TABLE IF NOT EXISTS import_warnings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   imported_at TEXT NOT NULL,
@@ -227,6 +235,11 @@ CREATE TABLE IF NOT EXISTS import_checkpoints (
       db,
       'idx_usage_records_identity',
       'CREATE UNIQUE INDEX idx_usage_records_identity ON usage_records (usage_identity) WHERE usage_identity IS NOT NULL',
+    ) || changed;
+    changed = createIndexIfMissing(
+      db,
+      'idx_manual_label_assignments_session',
+      'CREATE INDEX idx_manual_label_assignments_session ON manual_label_assignments (session_id)',
     ) || changed;
     if (changed) persistDatabase(dbPath, db);
   } finally {
@@ -1151,18 +1164,179 @@ async function queryRows(dbPath, sql, params = []) {
   return rows;
 }
 
+function normalizeManualLabels(labels) {
+  return Array.from(new Set((labels || []).map(canonicalLabel).filter(Boolean))).sort();
+}
+
+function manualLabelState(sessionId, labels, operation, changed) {
+  return {
+    session_id: sessionId,
+    manual_labels: normalizeManualLabels(labels),
+    operation,
+    changed: Boolean(changed),
+  };
+}
+
+function currentManualLabels(db, sessionId) {
+  const statement = db.prepare('SELECT label FROM manual_label_assignments WHERE session_id = ? ORDER BY label');
+  const labels = [];
+  try {
+    statement.bind([sessionId]);
+    while (statement.step()) labels.push(statement.getAsObject().label);
+  } finally {
+    statement.free();
+  }
+  return labels;
+}
+
+async function sessionExists(dbPath, sessionId) {
+  await initStore(dbPath);
+  const rows = await queryRows(dbPath, `
+SELECT 1 AS found
+WHERE EXISTS (SELECT 1 FROM usage_records WHERE session_id = ?)
+   OR EXISTS (SELECT 1 FROM label_evidence WHERE session_id = ?)
+   OR EXISTS (SELECT 1 FROM hook_events WHERE session_id = ?)
+LIMIT 1`, [sessionId, sessionId, sessionId]);
+  return rows.length > 0;
+}
+
+async function listManualLabels(dbPath, sessionId) {
+  await initStore(dbPath);
+  const rows = await queryRows(
+    dbPath,
+    'SELECT label FROM manual_label_assignments WHERE session_id = ? ORDER BY label',
+    [sessionId],
+  );
+  return manualLabelState(sessionId, rows.map((row) => row.label), 'list', false);
+}
+
+async function addManualLabels(dbPath, sessionId, labels) {
+  await initStore(dbPath);
+  const normalized = normalizeManualLabels(labels);
+  const db = await openDatabase(dbPath);
+  const now = new Date().toISOString();
+  let changed = false;
+  const statement = db.prepare(`
+    INSERT OR IGNORE INTO manual_label_assignments (session_id, label, created_at, updated_at)
+    VALUES (?, ?, ?, ?)
+  `);
+  try {
+    db.run('BEGIN');
+    for (const label of normalized) {
+      statement.run([sessionId, label, now, now]);
+      changed = (typeof db.getRowsModified === 'function' && db.getRowsModified() > 0) || changed;
+    }
+    const labelsAfter = currentManualLabels(db, sessionId);
+    db.run('COMMIT');
+    persistDatabase(dbPath, db);
+    return manualLabelState(sessionId, labelsAfter, 'add', changed);
+  } catch (error) {
+    rollbackDatabase(db);
+    throw error;
+  } finally {
+    statement.free();
+    closeDatabase(db);
+  }
+}
+
+async function removeManualLabels(dbPath, sessionId, labels) {
+  await initStore(dbPath);
+  const normalized = normalizeManualLabels(labels);
+  const db = await openDatabase(dbPath);
+  let changed = false;
+  const statement = db.prepare('DELETE FROM manual_label_assignments WHERE session_id = ? AND label = ?');
+  try {
+    db.run('BEGIN');
+    for (const label of normalized) {
+      statement.run([sessionId, label]);
+      changed = (typeof db.getRowsModified === 'function' && db.getRowsModified() > 0) || changed;
+    }
+    const labelsAfter = currentManualLabels(db, sessionId);
+    db.run('COMMIT');
+    persistDatabase(dbPath, db);
+    return manualLabelState(sessionId, labelsAfter, 'remove', changed);
+  } catch (error) {
+    rollbackDatabase(db);
+    throw error;
+  } finally {
+    statement.free();
+    closeDatabase(db);
+  }
+}
+
+async function setManualLabels(dbPath, sessionId, labels) {
+  await initStore(dbPath);
+  const normalized = normalizeManualLabels(labels);
+  const db = await openDatabase(dbPath);
+  const now = new Date().toISOString();
+  try {
+    db.run('BEGIN');
+    const before = currentManualLabels(db, sessionId);
+    const beforeKey = before.join('\0');
+    const afterKey = normalized.join('\0');
+    const changed = beforeKey !== afterKey;
+    if (changed) {
+      for (const label of before) {
+        if (!normalized.includes(label)) {
+          db.run('DELETE FROM manual_label_assignments WHERE session_id = ? AND label = ?', [sessionId, label]);
+        }
+      }
+      for (const label of normalized) {
+        db.run(`
+          INSERT INTO manual_label_assignments (session_id, label, created_at, updated_at)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(session_id, label) DO UPDATE SET updated_at = excluded.updated_at
+        `, [sessionId, label, now, now]);
+      }
+    }
+    const labelsAfter = currentManualLabels(db, sessionId);
+    db.run('COMMIT');
+    persistDatabase(dbPath, db);
+    return manualLabelState(sessionId, labelsAfter, 'set', changed);
+  } catch (error) {
+    rollbackDatabase(db);
+    throw error;
+  } finally {
+    closeDatabase(db);
+  }
+}
+
+async function clearManualLabels(dbPath, sessionId) {
+  await initStore(dbPath);
+  const db = await openDatabase(dbPath);
+  try {
+    db.run('BEGIN');
+    db.run('DELETE FROM manual_label_assignments WHERE session_id = ?', [sessionId]);
+    const changed = typeof db.getRowsModified === 'function' && db.getRowsModified() > 0;
+    db.run('COMMIT');
+    persistDatabase(dbPath, db);
+    return manualLabelState(sessionId, [], 'clear', changed);
+  } catch (error) {
+    rollbackDatabase(db);
+    throw error;
+  } finally {
+    closeDatabase(db);
+  }
+}
+
 module.exports = {
   attachVscodeChatLabelEvidence,
+  addManualLabels,
   clearImportCheckpoint,
+  clearManualLabels,
   existingRawFingerprints,
   importCheckpoint,
   importedLineHighWater,
   initStore,
   insertImport,
+  listManualLabels,
   loadImportState,
   queryOne,
   queryRows,
   repairDuplicateVscodeUsageRecords,
+  removeManualLabels,
+  sessionExists,
+  setManualLabels,
   upsertImportCheckpoint,
   updateUsageCostEstimates,
   updateVscodeUsageResponseIds,

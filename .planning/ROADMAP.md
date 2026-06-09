@@ -17,11 +17,14 @@
 
 ## Current Position
 
-Phase 15 is ready for planning.
+Phase 15 is complete. Phase 16 is ready for planning.
 
 ## v0.5.0 manual session labels
 
 **Goal:** Add manual session label assignment while preserving automatic evidence and making manual labels the highest-precedence source in default reports.
+
+- [x] Phase 15: Manual label assignment CLI and storage (completed 2026-06-09)
+- [ ] Phase 16: Manual precedence reports and release readiness
 
 ### Phase 15: Manual label assignment CLI and storage
 
@@ -36,7 +39,7 @@ Phase 15 is ready for planning.
 - Validate assigned labels against configured label patterns where practical.
 - Preserve auto-detected evidence rows while keeping manual assignments separate and explicit.
 
-**Status:** Planned
+**Status:** Complete
 
 ### Phase 16: Manual precedence reports and release readiness
 

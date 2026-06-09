@@ -13,7 +13,15 @@ const {
   setupSnapshot,
 } = require('./setup');
 const { appendHookEvent, readJsonFromStream } = require('./hook-logger');
-const { initStore } = require('./sqlite-store');
+const {
+  addManualLabels,
+  clearManualLabels,
+  initStore,
+  listManualLabels,
+  removeManualLabels,
+  sessionExists,
+  setManualLabels,
+} = require('./sqlite-store');
 const { autoImportConfiguredSources, ingestFile } = require('./ingest');
 const { MODEL_PRICES, PRICING_VERSION } = require('./pricing');
 const {
@@ -32,7 +40,7 @@ const {
   formatRepos,
   formatUnattributed,
 } = require('./reports');
-const { loadConfiguredExtractors } = require('./label-extractors');
+const { canonicalLabel, loadConfiguredExtractors } = require('./label-extractors');
 const path = require('node:path');
 
 function parseFlags(args) {
@@ -100,6 +108,11 @@ Usage:
   copilot-metrics hooks install [--scope local|global] [--surface both|vscode|copilot-cli] [--json]
   copilot-metrics hook-log --event <name>
   copilot-metrics store init [--json]
+  copilot-metrics label <session-id> list [--json]
+  copilot-metrics label <session-id> add <label...> [--json]
+  copilot-metrics label <session-id> remove <label...> [--json]
+  copilot-metrics label <session-id> set <label...> [--json]
+  copilot-metrics label <session-id> clear [--json]
   copilot-metrics import --source vscode|vscode-chat|copilot-cli|copilot-session|hooks --file <path> [--json]
   copilot-metrics report labels [--refresh] [--json]
   copilot-metrics report label <id> [--detail] [--session-detail] [--top-k <n>|all] [--all-matches] [--refresh] [--json]
@@ -161,6 +174,24 @@ function formatCopilotCliSetup(result) {
   return [
     `Installed ${result.scope} Copilot hook config: ${result.target}`,
     'Copilot CLI token usage is imported from local session-state; OTel exports are optional.',
+  ].join('\n');
+}
+
+function normalizeManualLabelArgs(labels) {
+  const normalized = (labels || []).map(canonicalLabel);
+  if (normalized.some((label) => !label)) {
+    throw new Error('Manual labels must be non-empty after trimming.');
+  }
+  return normalized;
+}
+
+function formatManualLabelState(state) {
+  const labels = state.manual_labels.length ? state.manual_labels.join(', ') : '(none)';
+  return [
+    `Session: ${state.session_id}`,
+    `Manual labels: ${labels}`,
+    `Operation: ${state.operation}`,
+    `Changed: ${state.changed ? 'yes' : 'no'}`,
   ].join('\n');
 }
 
@@ -427,6 +458,36 @@ async function main(args, io) {
     });
     if (flags.quiet === true) return;
     writeOutput(io.stdout, json ? result : `Logged hook event: ${result.path}`, json);
+    return;
+  }
+
+  if (command === 'label') {
+    const sessionId = subcommand;
+    const action = rest[2];
+    const labels = rest.slice(3);
+    if (!sessionId) throw new Error('label requires <session-id>');
+    if (!['list', 'add', 'remove', 'set', 'clear'].includes(action)) {
+      throw new Error('label requires action list|add|remove|set|clear');
+    }
+    if ((action === 'list' || action === 'clear') && labels.length > 0) {
+      throw new Error(`label ${action} does not accept label arguments`);
+    }
+    if ((action === 'add' || action === 'remove' || action === 'set') && labels.length === 0) {
+      throw new Error(`label ${action} requires at least one label`);
+    }
+    const normalizedLabels = normalizeManualLabelArgs(labels);
+    ensureDataDirs(paths);
+    const result = await withStoreLock(paths, io, async () => {
+      if (!(await sessionExists(paths.usageDb, sessionId))) {
+        throw new Error(`Unknown session_id "${sessionId}". Import local usage or label evidence before assigning manual labels.`);
+      }
+      if (action === 'list') return listManualLabels(paths.usageDb, sessionId);
+      if (action === 'add') return addManualLabels(paths.usageDb, sessionId, normalizedLabels);
+      if (action === 'remove') return removeManualLabels(paths.usageDb, sessionId, normalizedLabels);
+      if (action === 'set') return setManualLabels(paths.usageDb, sessionId, normalizedLabels);
+      return clearManualLabels(paths.usageDb, sessionId);
+    });
+    writeOutput(io.stdout, json ? result : formatManualLabelState(result), json);
     return;
   }
 
