@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.1 - 2026-06-09
+
+### Fixed
+
+- Manual label reports now deduplicate historical Copilot session usage rows that used different `usage_identity` formats for the same `span_id` and model.
+- `--refresh` now repairs duplicate Copilot session usage rows in the local store, not only VS Code fallback duplicates.
+- Hyphenated Claude model IDs such as `claude-haiku-4.5` now resolve to the existing static pricing row.
+- Human `report labels` output now renders `Last` consistently as local system date-time values, including numeric epoch timestamps.
+
 ## 0.5.0 - 2026-06-09
 
 ### Added
