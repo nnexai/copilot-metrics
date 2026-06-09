@@ -1210,6 +1210,14 @@ async function listManualLabels(dbPath, sessionId) {
   return manualLabelState(sessionId, rows.map((row) => row.label), 'list', false);
 }
 
+async function activeManualLabelAssignments(dbPath) {
+  await initStore(dbPath);
+  return queryRows(dbPath, `
+SELECT session_id, label, created_at, updated_at
+FROM manual_label_assignments
+ORDER BY session_id, label`);
+}
+
 async function addManualLabels(dbPath, sessionId, labels) {
   await initStore(dbPath);
   const normalized = normalizeManualLabels(labels);
@@ -1321,6 +1329,7 @@ async function clearManualLabels(dbPath, sessionId) {
 
 module.exports = {
   attachVscodeChatLabelEvidence,
+  activeManualLabelAssignments,
   addManualLabels,
   clearImportCheckpoint,
   clearManualLabels,

@@ -5,6 +5,7 @@ const { canonicalLabel } = require('./label-extractors');
 const SCORING_VERSION = 'label-confidence:v1';
 
 const SOURCE_WEIGHTS = {
+  manual: 1,
   labels: 0.95,
   branch: 0.9,
   cwd: 0.9,
@@ -47,6 +48,7 @@ function evidenceKey(row) {
 }
 
 function sourceWeight(row) {
+  if (row.source_type === 'manual' || row.source_field === 'manual') return 1;
   const field = String(row.source_field || '').toLowerCase();
   const explicit = Number(row.confidence);
   const defaultWeight = SOURCE_WEIGHTS[field] ?? (Number.isFinite(explicit) && explicit > 0 ? explicit : 0.5);
@@ -82,8 +84,10 @@ function scoreEvidence(evidence) {
     score += row.weight * accumulation;
   });
 
+  const hasManual = distinct.some((row) => row.source_type === 'manual' || row.source_field === 'manual');
+
   return {
-    score: Number(score.toFixed(6)),
+    score: Number((hasManual ? score + 10 : score).toFixed(6)),
     strongest_weight: Number((distinct[0]?.weight || 0).toFixed(6)),
     distinct_evidence_count: distinct.length,
     evidence_count: evidence.length,
@@ -98,13 +102,29 @@ function scoreEvidence(evidence) {
       usage_record_id: row.usage_record_id || null,
       hook_event_id: row.hook_event_id || null,
       session_id: row.session_id || null,
+      created_at: row.created_at || null,
+      updated_at: row.updated_at || null,
     })),
   };
 }
 
-function rankSessionEvidence(evidenceRows) {
+function manualEvidenceRows(manualRows = []) {
+  return manualRows.map((row) => ({
+    label: row.label,
+    source_type: 'manual',
+    source_field: 'manual',
+    source_value: row.label,
+    confidence: 1,
+    session_id: row.session_id,
+    created_at: row.created_at || null,
+    updated_at: row.updated_at || null,
+    timestamp: row.updated_at || row.created_at || null,
+  }));
+}
+
+function rankSessionEvidence(evidenceRows, manualRows = []) {
   const bySession = new Map();
-  for (const row of evidenceRows) {
+  for (const row of [...evidenceRows, ...manualEvidenceRows(manualRows)]) {
     const sessionKey = evidenceSessionKey(row);
     if (!bySession.has(sessionKey)) bySession.set(sessionKey, []);
     bySession.get(sessionKey).push(row);
@@ -119,18 +139,24 @@ function rankSessionEvidence(evidenceRows) {
       byLabel.get(label).push(row);
     }
 
-    const rankings = Array.from(byLabel.entries()).map(([label, evidence]) => ({
-      label,
-      scoring_version: SCORING_VERSION,
-      ...scoreEvidence(evidence),
-      first_seen: evidence
-        .map((row) => row.timestamp || row.imported_at || '')
-        .filter(Boolean)
-        .sort()[0] || null,
-    }));
+    const rankings = Array.from(byLabel.entries()).map(([label, evidence]) => {
+      const isManual = evidence.some((row) => row.source_type === 'manual' || row.source_field === 'manual');
+      return {
+        label,
+        scoring_version: SCORING_VERSION,
+        manual: isManual,
+        ...scoreEvidence(evidence),
+        first_seen: evidence
+          .map((row) => row.timestamp || row.imported_at || row.created_at || '')
+          .filter(Boolean)
+          .sort()[0] || null,
+      };
+    });
 
     rankings.sort((left, right) => (
-      right.score - left.score
+      Number(right.manual) - Number(left.manual)
+      || (left.manual && right.manual ? left.label.localeCompare(right.label) : 0)
+      || right.score - left.score
       || right.strongest_weight - left.strongest_weight
       || right.distinct_evidence_count - left.distinct_evidence_count
       || String(left.first_seen || '').localeCompare(String(right.first_seen || ''))

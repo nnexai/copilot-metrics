@@ -9,8 +9,8 @@ Costs are estimates, not official billing records. GitHub billing remains the so
 From npm:
 
 ```bash
-npx copilot-metrics@0.4.0 --help
-npx copilot-metrics@0.4.0 init
+npx copilot-metrics@0.5.0 --help
+npx copilot-metrics@0.5.0 init
 ```
 
 From this checkout:
@@ -38,8 +38,8 @@ export COPILOT_METRICS_HOME=/path/to/copilot-metrics-data
 Useful commands:
 
 ```bash
-npx copilot-metrics@0.4.0 init
-npx copilot-metrics@0.4.0 paths --json
+npx copilot-metrics@0.5.0 init
+npx copilot-metrics@0.5.0 paths --json
 ```
 
 `init` only creates the central data directory and local config. It does not modify editor or hook settings. `setup` performs integration setup for the current machine/workspace.
@@ -51,19 +51,19 @@ For Copilot CLI, `init` plus hooks are enough for local token reporting. Reports
 Install VS Code Copilot Chat OpenTelemetry settings:
 
 ```bash
-npx copilot-metrics@0.4.0 setup vscode
+npx copilot-metrics@0.5.0 setup vscode
 ```
 
 Install Copilot CLI hooks for the current workspace:
 
 ```bash
-npx copilot-metrics@0.4.0 setup copilot-cli
+npx copilot-metrics@0.5.0 setup copilot-cli
 ```
 
 Or set up both VS Code settings and workspace hooks in one command:
 
 ```bash
-npx copilot-metrics@0.4.0 setup
+npx copilot-metrics@0.5.0 setup
 ```
 
 Use `setup vscode --print` or `setup copilot-cli --print` to print the settings/optional environment exports without writing files. Copilot CLI OTel exports are optional because CLI token usage is read from local session-state files.
@@ -75,14 +75,14 @@ Content capture is disabled by default. Do not enable richer prompt capture unle
 Preview repo-local hook config. The default `--surface both` emits the Copilot CLI lower camel case hook format:
 
 ```bash
-npx copilot-metrics@0.4.0 hooks preview --scope local --surface both
+npx copilot-metrics@0.5.0 hooks preview --scope local --surface both
 ```
 
 Install repo-local or user-global hook config:
 
 ```bash
-npx copilot-metrics@0.4.0 hooks install --scope local --surface both
-npx copilot-metrics@0.4.0 hooks install --scope global --surface both
+npx copilot-metrics@0.5.0 hooks install --scope local --surface both
+npx copilot-metrics@0.5.0 hooks install --scope global --surface both
 ```
 
 Local install writes `.github/hooks/copilot-metrics.json`. Global install updates `~/.copilot/settings.json` idempotently, replacing prior `copilot-metrics` hook entries while preserving other settings and hooks. Use `--surface vscode` for VS Code-only PascalCase events or `--surface copilot-cli` for CLI-native lower camel case events. The hook logger writes redacted JSONL metadata to the central data directory. It extracts Jira-style labels such as `DEMO-12345` from safe metadata and does not store full prompt text by default.
@@ -92,12 +92,12 @@ Local install writes `.github/hooks/copilot-metrics.json`. Global install update
 Initialize the local SQLite store and import JSONL files manually:
 
 ```bash
-npx copilot-metrics@0.4.0 store init
-npx copilot-metrics@0.4.0 import --source vscode --file ~/.local/share/copilot-metrics/telemetry/vscode-copilot-otel.jsonl
-npx copilot-metrics@0.4.0 import --source copilot-cli --file ~/.local/share/copilot-metrics/telemetry/copilot-cli-otel.jsonl
-npx copilot-metrics@0.4.0 import --source copilot-session --file ~/.copilot/session-state/<session-id>/events.jsonl
-npx copilot-metrics@0.4.0 import --source vscode-chat --file ~/.config/Code\ -\ Insiders/User/workspaceStorage/<workspace-id>/chatSessions/<session-id>.jsonl
-npx copilot-metrics@0.4.0 import --source hooks --file ~/.local/share/copilot-metrics/hooks/copilot-hooks.jsonl
+npx copilot-metrics@0.5.0 store init
+npx copilot-metrics@0.5.0 import --source vscode --file ~/.local/share/copilot-metrics/telemetry/vscode-copilot-otel.jsonl
+npx copilot-metrics@0.5.0 import --source copilot-cli --file ~/.local/share/copilot-metrics/telemetry/copilot-cli-otel.jsonl
+npx copilot-metrics@0.5.0 import --source copilot-session --file ~/.copilot/session-state/<session-id>/events.jsonl
+npx copilot-metrics@0.5.0 import --source vscode-chat --file ~/.config/Code\ -\ Insiders/User/workspaceStorage/<workspace-id>/chatSessions/<session-id>.jsonl
+npx copilot-metrics@0.5.0 import --source hooks --file ~/.local/share/copilot-metrics/hooks/copilot-hooks.jsonl
 ```
 
 Imports persist raw records, normalized LLM usage records, hook events, label evidence, import checkpoints, and import warnings. Re-importing the same JSONL rows is idempotent. Session logs are checkpointed by source/file/line so appended logs only process new records on later reports. Usage rows also carry a cross-source exchange identity so the same response/session exchange is not added twice when OTel, VS Code fallback logs, debug-log cache evidence, or session-state data arrive at different times.
@@ -109,23 +109,25 @@ For Copilot session-state files, prompt-bearing session events are used in memor
 Run local reports from the SQLite store:
 
 ```bash
-npx copilot-metrics@0.4.0 report labels
-npx copilot-metrics@0.4.0 report label DEMO-12345
-npx copilot-metrics@0.4.0 report label DEMO-12345 --detail
-npx copilot-metrics@0.4.0 report models
-npx copilot-metrics@0.4.0 report repos
-npx copilot-metrics@0.4.0 report unattributed
+npx copilot-metrics@0.5.0 report labels
+npx copilot-metrics@0.5.0 report label DEMO-12345
+npx copilot-metrics@0.5.0 report label DEMO-12345 --detail
+npx copilot-metrics@0.5.0 report models
+npx copilot-metrics@0.5.0 report repos
+npx copilot-metrics@0.5.0 report unattributed
 ```
 
 Every report supports `--json`:
 
 ```bash
-npx copilot-metrics@0.4.0 report labels --json
+npx copilot-metrics@0.5.0 report labels --json
 ```
 
 Report commands automatically import newly appended configured VS Code OTel, VS Code stable/Insiders chat session fallback logs, optional Copilot CLI OTel, Copilot CLI session-state, and hook JSONL files before querying. Repeated reports skip already imported lines and avoid adding duplicate usage for the same session exchange across sources. Add `--refresh` to any report command to re-read configured files from the beginning and merge newly available pricing evidence, such as displayed-credit details or debug-log cached-token counts, without duplicating usage rows.
 
 `report labels` shows accumulated totals per label. `report label <id>` shows the selected label summary plus a per-model breakdown by default. Label reports include input, output, cache read, cache creation, and reasoning token totals. Labels seen only in hooks remain visible as `evidence-only` with zero usage records, so attribution hints do not imply token-bearing usage.
+
+Manual session labels override automatic attribution in final label rankings. When several manual labels are assigned to one session, they rank alphabetically before automatic labels; default overview reports still count the session only under the final rank-1 label. Use `report label <id> --top-k <n>` or `--all-matches` to include lower-ranked manual or automatic matches. `--detail` and `--session-detail --json` expose manual provenance and timestamps while the overview output stays compact.
 
 Report cost columns show the selected local price per Copilot session/request. Selection uses the strongest available evidence in this order: actual local charge, VS Code displayed credit, complete token estimate, upper-bound token estimate, included/zero evidence, then unknown. JSON reports expose `selected_ai_credits`, `selected_usd`, `selected_pricing_basis`, `selected_confidence`, and `selected_source` as the user-facing total fields.
 
@@ -211,7 +213,7 @@ The manual prompt performs one harmless tool call so Copilot CLI hook execution 
 ## Current Limits
 
 - Costs are estimates, not official billing records.
-- Official GitHub usage report reconciliation is not included in `0.4.0`.
-- Local OTLP collector mode is not included in `0.4.0`.
-- Richer prompt/content capture and redaction controls are not included in `0.4.0`.
+- Official GitHub usage report reconciliation is not included in `0.5.0`.
+- Local OTLP collector mode is not included in `0.5.0`.
+- Richer prompt/content capture and redaction controls are not included in `0.5.0`.
 - Dashboard views are deferred until the CLI/query model proves useful.

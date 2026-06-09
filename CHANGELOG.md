@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 - 2026-06-09
+
+### Added
+
+- Manual session labels now participate in `label-confidence:v1` rankings as the highest-precedence attribution source.
+- Detail and session-detail label reports expose manual assignment provenance, including manual assignment timestamps in JSON output.
+- Fixture tests now cover manual assignment, replacement, removal, report inclusion, unattributed exclusion, and stale-provenance behavior.
+
+### Changed
+
+- Default label reports remain compact and non-overlapping: manually labeled sessions contribute to only their final rank-1 label unless `--top-k` or `--all-matches` is requested.
+- Automatic label evidence remains stored and visible in detail/audit output after manual labels override the default report attribution.
+
 ## 0.4.0 - 2026-06-03
 
 ### Added

@@ -1,6 +1,6 @@
 'use strict';
 
-const { initStore, queryRows } = require('./sqlite-store');
+const { activeManualLabelAssignments, initStore, queryRows } = require('./sqlite-store');
 const { canonicalLabel } = require('./label-extractors');
 const {
   SCORING_VERSION,
@@ -270,7 +270,8 @@ FROM label_evidence le
 LEFT JOIN usage_records ur ON ur.id = le.usage_record_id
 WHERE le.label = ?
 ORDER BY timestamp, le.source_type, le.source_field`, [canonicalLabel(label)]);
-  return filterRowsByInclusion(dbPath, rows, canonicalLabel(label), inclusionForOptions(options));
+  const manualRows = (await manualLabelUsageRows(dbPath)).filter((row) => canonicalLabel(row.label) === canonicalLabel(label));
+  return filterRowsByInclusion(dbPath, [...rows, ...manualRows], canonicalLabel(label), inclusionForOptions(options));
 }
 
 async function labelEvidenceUsageRows(dbPath) {
@@ -321,6 +322,56 @@ LEFT JOIN usage_records ur ON ur.id = le.usage_record_id
 ORDER BY le.session_id, le.usage_record_id, le.hook_event_id, le.label, le.source_type, le.source_field`);
 }
 
+async function manualLabelUsageRows(dbPath) {
+  return queryRows(dbPath, `
+SELECT
+  NULL AS id,
+  mla.created_at AS imported_at,
+  mla.label,
+  'manual' AS source_type,
+  'manual' AS source_field,
+  mla.label AS source_value,
+  1 AS confidence,
+  ur.id AS usage_record_id,
+  NULL AS hook_event_id,
+  mla.session_id,
+  ur.repo,
+  ur.branch,
+  ur.cwd,
+  COALESCE(ur.timestamp, mla.updated_at, mla.created_at) AS timestamp,
+  mla.created_at,
+  mla.updated_at,
+  ur.surface,
+  ur.resolved_model,
+  ur.requested_model,
+  ur.input_tokens,
+  ur.output_tokens,
+  ur.cache_read_tokens,
+  ur.cache_creation_tokens,
+  ur.reasoning_tokens,
+  ur.estimated_ai_credits,
+  ur.estimated_usd,
+  ur.actual_ai_credits,
+  ur.actual_usd,
+  ur.displayed_ai_credits,
+  ur.displayed_usd,
+  ur.inferred_cache_read_tokens,
+  ur.upper_bound_ai_credits,
+  ur.upper_bound_usd,
+  ur.selected_ai_credits,
+  ur.selected_usd,
+  ur.pricing_basis,
+  ur.estimate_confidence,
+  ur.selected_pricing_basis,
+  ur.selected_confidence,
+  ur.selected_source,
+  ur.estimate_label,
+  COALESCE(ur.timestamp, mla.updated_at, mla.created_at) AS seen_at
+FROM manual_label_assignments mla
+LEFT JOIN usage_records ur ON ur.session_id = mla.session_id
+ORDER BY mla.session_id, mla.label, ur.id`);
+}
+
 function rankingBySession(sessionRankings) {
   return new Map(sessionRankings.map((session) => [session.session_key, session]));
 }
@@ -340,6 +391,8 @@ async function aggregateLabelRows(dbPath, options = {}) {
   const inclusion = options.inclusion || inclusionTopLabel();
   const labelFilter = options.label ? canonicalLabel(options.label) : null;
   const evidenceRows = await labelEvidenceUsageRows(dbPath);
+  const manualRows = await manualLabelUsageRows(dbPath);
+  const reportRows = [...evidenceRows, ...manualRows];
   const sessionRankings = await labelConfidenceRankings(dbPath);
   const sessions = rankingBySession(sessionRankings);
   const confidenceSummaries = new Map(labelConfidenceSummaries(sessionRankings).map((summary) => [summary.label, summary]));
@@ -347,7 +400,7 @@ async function aggregateLabelRows(dbPath, options = {}) {
   const seenSessions = new Map();
   const seenUsage = new Map();
 
-  for (const row of evidenceRows) {
+  for (const row of reportRows) {
     const sessionKey = evidenceSessionKey(row);
     const session = sessions.get(sessionKey);
     const label = labelFilter || session?.top_label || canonicalLabel(row.label);
@@ -384,7 +437,7 @@ async function aggregateLabelRows(dbPath, options = {}) {
 }
 
 async function includedEvidenceRows(dbPath, label, inclusion) {
-  const rows = await labelEvidenceUsageRows(dbPath);
+  const rows = [...await labelEvidenceUsageRows(dbPath), ...await manualLabelUsageRows(dbPath)];
   return filterRowsByInclusion(dbPath, rows, canonicalLabel(label), inclusion);
 }
 
@@ -496,7 +549,7 @@ ORDER BY session_id, usage_record_id, hook_event_id, label, source_type, source_
 
 async function labelConfidenceRankings(dbPath) {
   await initStore(dbPath);
-  return rankSessionEvidence(await labelEvidenceRows(dbPath));
+  return rankSessionEvidence(await labelEvidenceRows(dbPath), await activeManualLabelAssignments(dbPath));
 }
 
 async function withConfidenceSummaries(dbPath, rows) {
@@ -629,6 +682,9 @@ SELECT
 FROM usage_records ur
 WHERE NOT EXISTS (
   SELECT 1 FROM label_evidence le WHERE le.usage_record_id = ur.id
+)
+AND NOT EXISTS (
+  SELECT 1 FROM manual_label_assignments mla WHERE mla.session_id = ur.session_id
 )
 ORDER BY ur.timestamp, ur.id`);
 }

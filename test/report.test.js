@@ -132,6 +132,69 @@ test('manual label CLI stores active assignments and returns post-operation JSON
   assert.ok(evidence[0].count > 0);
 });
 
+test('manual labels take report precedence while preserving automatic evidence', async () => {
+  const home = seedStore();
+  const dbPath = path.join(home, 'store', 'copilot-metrics.sqlite');
+  const beforeEvidence = await queryOne(dbPath, 'SELECT COUNT(*) AS count FROM label_evidence WHERE session_id = "session-cli"');
+
+  run(['label', 'session-cli', 'set', 'DEMO-902', 'DEMO-901', '--home', home, '--json']);
+
+  const overview = JSON.parse(run(['report', 'labels', '--home', home, '--json']));
+  const manualTop = overview.labels.find((row) => row.label === 'DEMO-901');
+  const secondManual = overview.labels.find((row) => row.label === 'DEMO-902');
+  assert.ok(manualTop);
+  assert.equal(manualTop.usage_records, 1);
+  assert.equal(manualTop.confidence.best_rank, 1);
+  assert.equal(secondManual, undefined);
+
+  const topK = JSON.parse(run(['report', 'label', 'DEMO-902', '--top-k', '2', '--session-detail', '--home', home, '--json']));
+  assert.equal(topK.label.usage_records, 1);
+  assert.ok(topK.session_details.some((row) => row.session_id === 'session-cli' && row.requested_label_rank === 2));
+  assert.ok(topK.session_details[0].confidence.evidence.some((item) => item.source_field === 'manual' && item.created_at && item.updated_at));
+
+  const autoDefault = JSON.parse(run(['report', 'label', 'DEMO-200', '--session-detail', '--home', home, '--json']));
+  assert.equal(autoDefault.session_details.some((row) => row.session_id === 'session-cli'), false);
+  const autoAll = JSON.parse(run(['report', 'label', 'DEMO-200', '--all-matches', '--session-detail', '--home', home, '--json']));
+  assert.ok(autoAll.session_details.some((row) => row.session_id === 'session-cli' && row.requested_label_rank > 2));
+
+  const detail = JSON.parse(run(['report', 'label', 'DEMO-901', '--detail', '--home', home, '--json']));
+  const manualDetail = detail.details.find((row) => row.session_id === 'session-cli' && row.source_field === 'manual');
+  assert.ok(manualDetail);
+  assert.ok(manualDetail.created_at);
+  assert.ok(manualDetail.updated_at);
+
+  run(['label', 'session-cli', 'set', 'DEMO-999', '--home', home, '--json']);
+  const replacedOverview = JSON.parse(run(['report', 'labels', '--home', home, '--json']));
+  assert.equal(replacedOverview.labels.some((row) => row.label === 'DEMO-901'), false);
+  assert.ok(replacedOverview.labels.some((row) => row.label === 'DEMO-999'));
+  const staleDetail = JSON.parse(run(['report', 'label', 'DEMO-901', '--detail', '--home', home, '--json']));
+  assert.equal(staleDetail.details.some((row) => row.source_field === 'manual'), false);
+
+  run(['label', 'session-cli', 'clear', '--home', home, '--json']);
+  const clearedAuto = JSON.parse(run(['report', 'label', 'DEMO-200', '--session-detail', '--home', home, '--json']));
+  assert.ok(clearedAuto.session_details.some((row) => row.session_id === 'session-cli' && row.requested_label_rank === 1));
+  const clearedManual = JSON.parse(run(['report', 'label', 'DEMO-999', '--detail', '--home', home, '--json']));
+  assert.equal(clearedManual.details.some((row) => row.source_field === 'manual'), false);
+
+  const afterEvidence = await queryOne(dbPath, 'SELECT COUNT(*) AS count FROM label_evidence WHERE session_id = "session-cli"');
+  assert.equal(afterEvidence[0].count, beforeEvidence[0].count);
+});
+
+test('manual-only labeled sessions are attributed in reports', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-manual-only-'));
+  run(['import', '--source', 'vscode', '--file', path.join(fixtures, 'vscode-log-records.jsonl'), '--home', home, '--json']);
+  run(['label', 'otel-session', 'set', 'DEMO-777', '--home', home, '--json']);
+
+  const overview = JSON.parse(run(['report', 'labels', '--home', home, '--json']));
+  const manual = overview.labels.find((row) => row.label === 'DEMO-777');
+  assert.ok(manual);
+  assert.equal(manual.usage_records, 1);
+  assert.equal(manual.confidence.source_summary.some((item) => item.source === 'manual'), true);
+
+  const unattributed = JSON.parse(run(['report', 'unattributed', '--home', home, '--json']));
+  assert.equal(unattributed.unattributed.some((row) => row.session_id === 'otel-session'), false);
+});
+
 test('manual label CLI rejects unknown sessions and empty labels', () => {
   const home = seedStore();
 
