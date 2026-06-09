@@ -80,6 +80,96 @@ function createIndexIfMissing(db, index, sql) {
   return true;
 }
 
+function dropIndexIfExists(db, index) {
+  if (!hasIndex(db, index)) return false;
+  db.run(`DROP INDEX ${index}`);
+  return true;
+}
+
+function repairDuplicateHookEventsInDb(db) {
+  const before = db.exec('SELECT COUNT(*) AS count FROM hook_events')[0]?.values?.[0]?.[0] || 0;
+  const duplicateGroups = db.exec(`
+SELECT source, COALESCE(source_file, '') AS source_file_key, raw_line, MIN(id) AS survivor_id
+FROM hook_events
+GROUP BY source, COALESCE(source_file, ''), raw_line
+HAVING COUNT(*) > 1
+`);
+  if (duplicateGroups.length) {
+    const sourceIndex = duplicateGroups[0].columns.indexOf('source');
+    const sourceFileIndex = duplicateGroups[0].columns.indexOf('source_file_key');
+    const rawLineIndex = duplicateGroups[0].columns.indexOf('raw_line');
+    const survivorIndex = duplicateGroups[0].columns.indexOf('survivor_id');
+    for (const row of duplicateGroups[0].values) {
+      const source = row[sourceIndex];
+      const sourceFileKey = row[sourceFileIndex];
+      const rawLine = row[rawLineIndex];
+      const survivorId = row[survivorIndex];
+      db.run(`
+DELETE FROM label_evidence
+WHERE hook_event_id IN (
+  SELECT id
+  FROM hook_events
+  WHERE source = ?
+    AND COALESCE(source_file, '') = ?
+    AND raw_line = ?
+    AND id != ?
+)
+  AND EXISTS (
+    SELECT 1
+    FROM label_evidence survivor_evidence
+    WHERE survivor_evidence.hook_event_id = ?
+      AND survivor_evidence.label = label_evidence.label
+      AND survivor_evidence.source_type = label_evidence.source_type
+      AND survivor_evidence.source_field = label_evidence.source_field
+      AND COALESCE(survivor_evidence.source_value, '') = COALESCE(label_evidence.source_value, '')
+  )`, [source, sourceFileKey, rawLine, survivorId, survivorId]);
+      db.run(`
+UPDATE label_evidence
+SET hook_event_id = ?
+WHERE hook_event_id IN (
+  SELECT id
+  FROM hook_events
+  WHERE source = ?
+    AND COALESCE(source_file, '') = ?
+    AND raw_line = ?
+    AND id != ?
+)`, [survivorId, source, sourceFileKey, rawLine, survivorId]);
+      db.run(`
+DELETE FROM hook_events
+WHERE source = ?
+  AND COALESCE(source_file, '') = ?
+  AND raw_line = ?
+  AND id != ?`, [source, sourceFileKey, rawLine, survivorId]);
+    }
+  }
+  const after = db.exec('SELECT COUNT(*) AS count FROM hook_events')[0]?.values?.[0]?.[0] || 0;
+  return before - after;
+}
+
+function repairDuplicateLabelEvidenceInDb(db) {
+  const before = db.exec('SELECT COUNT(*) AS count FROM label_evidence')[0]?.values?.[0]?.[0] || 0;
+  db.run(`
+DELETE FROM label_evidence
+WHERE id NOT IN (
+  SELECT MIN(le.id)
+  FROM label_evidence le
+  LEFT JOIN hook_events he ON he.id = le.hook_event_id
+  GROUP BY
+    le.label,
+    le.source_type,
+    le.source_field,
+    COALESCE(le.source_value, ''),
+    CASE
+      WHEN le.usage_record_id IS NOT NULL THEN 'usage:' || le.usage_record_id
+      WHEN le.hook_event_id IS NOT NULL THEN 'hook:' || COALESCE(he.source, '') || ':' || COALESCE(he.source_file, '') || ':' || COALESCE(he.raw_line, le.hook_event_id)
+      ELSE 'evidence:' || le.id
+    END
+)
+`);
+  const after = db.exec('SELECT COUNT(*) AS count FROM label_evidence')[0]?.values?.[0]?.[0] || 0;
+  return before - after;
+}
+
 async function initStore(dbPath) {
   const isNewStore = !fs.existsSync(dbPath);
   const db = await openDatabase(dbPath);
@@ -151,6 +241,7 @@ CREATE TABLE IF NOT EXISTS hook_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   imported_at TEXT NOT NULL,
   source TEXT NOT NULL,
+  source_file TEXT,
   raw_line INTEGER NOT NULL,
   event TEXT,
   session_id TEXT,
@@ -202,6 +293,7 @@ CREATE TABLE IF NOT EXISTS import_checkpoints (
 `);
     changed = addColumnIfMissing(db, 'raw_records', 'source_file', 'TEXT') || changed;
     changed = addColumnIfMissing(db, 'raw_records', 'raw_fingerprint', 'TEXT') || changed;
+    changed = addColumnIfMissing(db, 'hook_events', 'source_file', 'TEXT') || changed;
     changed = addColumnIfMissing(db, 'usage_records', 'usage_identity', 'TEXT') || changed;
     changed = addColumnIfMissing(db, 'usage_records', 'actual_charge_nano_aiu', 'REAL') || changed;
     changed = addColumnIfMissing(db, 'usage_records', 'actual_ai_credits', 'REAL') || changed;
@@ -235,6 +327,29 @@ CREATE TABLE IF NOT EXISTS import_checkpoints (
       db,
       'idx_usage_records_identity',
       'CREATE UNIQUE INDEX idx_usage_records_identity ON usage_records (usage_identity) WHERE usage_identity IS NOT NULL',
+    ) || changed;
+    changed = dropIndexIfExists(db, 'idx_label_evidence_session_key') || changed;
+    changed = repairDuplicateHookEventsInDb(db) > 0 || changed;
+    changed = repairDuplicateLabelEvidenceInDb(db) > 0 || changed;
+    changed = createIndexIfMissing(
+      db,
+      'idx_hook_events_source_file_line',
+      `CREATE UNIQUE INDEX idx_hook_events_source_file_line
+       ON hook_events (source, COALESCE(source_file, ''), raw_line)`,
+    ) || changed;
+    changed = createIndexIfMissing(
+      db,
+      'idx_label_evidence_usage_key',
+      `CREATE UNIQUE INDEX idx_label_evidence_usage_key
+       ON label_evidence (label, source_type, source_field, COALESCE(source_value, ''), usage_record_id)
+       WHERE usage_record_id IS NOT NULL`,
+    ) || changed;
+    changed = createIndexIfMissing(
+      db,
+      'idx_label_evidence_hook_key',
+      `CREATE UNIQUE INDEX idx_label_evidence_hook_key
+       ON label_evidence (label, source_type, source_field, COALESCE(source_value, ''), hook_event_id)
+       WHERE usage_record_id IS NULL AND session_id IS NULL AND hook_event_id IS NOT NULL`,
     ) || changed;
     changed = createIndexIfMissing(
       db,
@@ -270,13 +385,14 @@ function insertLabelEvidence(db, importedAt, evidenceRows) {
       AND source_type = ?
       AND source_field = ?
       AND COALESCE(source_value, '') = COALESCE(?, '')
-      AND COALESCE(usage_record_id, 0) = COALESCE(?, 0)
-      AND COALESCE(hook_event_id, 0) = COALESCE(?, 0)
-      AND COALESCE(session_id, '') = COALESCE(?, '')
+      AND (
+        (usage_record_id IS NOT NULL AND usage_record_id = ?)
+        OR (usage_record_id IS NULL AND ? IS NULL AND hook_event_id IS NOT NULL AND hook_event_id = ?)
+      )
     LIMIT 1
   `);
   const insert = db.prepare(`
-    INSERT INTO label_evidence (
+    INSERT OR IGNORE INTO label_evidence (
       imported_at, label, source_type, source_field, source_value, confidence,
       usage_record_id, hook_event_id, session_id, repo, branch, cwd, timestamp
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -289,8 +405,8 @@ function insertLabelEvidence(db, importedAt, evidenceRows) {
         evidence.source_field,
         evidence.source_value || null,
         evidence.usage_record_id || null,
+        evidence.usage_record_id || null,
         evidence.hook_event_id || null,
-        evidence.session_id || null,
       ]);
       const duplicate = exists.step();
       exists.reset();
@@ -718,22 +834,37 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
       mergeUsageStatement.free();
     }
 
-    const hookStatement = db.prepare('INSERT INTO hook_events (imported_at, source, raw_line, event, session_id, cwd, repo, branch, labels_json, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    const existingHookStatement = db.prepare(`
+      SELECT id
+      FROM hook_events
+      WHERE source = ?
+        AND raw_line = ?
+        AND (source_file = ? OR source_file IS NULL)
+      ORDER BY CASE WHEN source_file = ? THEN 0 ELSE 1 END, id
+      LIMIT 1
+    `);
+    const hookStatement = db.prepare('INSERT OR IGNORE INTO hook_events (imported_at, source, source_file, raw_line, event, session_id, cwd, repo, branch, labels_json, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     try {
       for (const event of hookEvents) {
-        hookStatement.run([
-          importedAt,
-          source,
-          event.raw_line,
-          event.event,
-          event.session_id,
-          event.cwd,
-          event.repo,
-          event.branch,
-          JSON.stringify(event.labels || []),
-          JSON.stringify(event.payload),
-        ]);
-        const hookEventId = lastInsertId(db);
+        existingHookStatement.bind([source, event.raw_line, sourceFile, sourceFile]);
+        let hookEventId = existingHookStatement.step() ? existingHookStatement.getAsObject().id : null;
+        existingHookStatement.reset();
+        if (!hookEventId) {
+          hookStatement.run([
+            importedAt,
+            source,
+            sourceFile,
+            event.raw_line,
+            event.event,
+            event.session_id,
+            event.cwd,
+            event.repo,
+            event.branch,
+            JSON.stringify(event.labels || []),
+            JSON.stringify(event.payload),
+          ]);
+          hookEventId = lastInsertId(db);
+        }
         for (const evidence of event.label_evidence || []) {
           labelEvidence.push({
             ...evidence,
@@ -747,6 +878,7 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
         }
       }
     } finally {
+      existingHookStatement.free();
       hookStatement.free();
     }
 
@@ -800,7 +932,7 @@ async function attachVscodeChatLabelEvidence(dbPath, mappings) {
     LIMIT 1
   `);
   const insertStatement = db.prepare(`
-    INSERT INTO label_evidence (
+    INSERT OR IGNORE INTO label_evidence (
       imported_at, label, source_type, source_field, source_value, confidence,
       usage_record_id, hook_event_id, session_id, repo, branch, cwd, timestamp
     ) VALUES (?, ?, 'usage', 'vscode_chat_response', ?, ?, ?, NULL, ?, ?, ?, ?, ?)
@@ -838,6 +970,7 @@ async function attachVscodeChatLabelEvidence(dbPath, mappings) {
         }
       }
     }
+    repairDuplicateLabelEvidenceInDb(db);
     db.run('COMMIT');
     persistDatabase(dbPath, db);
   } catch (error) {
@@ -1062,6 +1195,7 @@ async function repairDuplicateVscodeUsageRecords(dbPath) {
   let repaired = 0;
   try {
     db.run('BEGIN');
+    repairDuplicateLabelEvidenceInDb(db);
     for (const group of duplicateGroups) {
       const survivor = group.reduce((best, row) => strongerUsageRow(best, row));
       const duplicates = group.filter((row) => Number(row.id) !== Number(survivor.id));
@@ -1138,13 +1272,44 @@ async function repairDuplicateVscodeUsageRecords(dbPath) {
       ]);
 
       for (const duplicate of duplicates) {
+        db.run(`
+DELETE FROM label_evidence
+WHERE usage_record_id = ?
+  AND EXISTS (
+    SELECT 1
+    FROM label_evidence survivor_evidence
+    WHERE survivor_evidence.usage_record_id = ?
+      AND survivor_evidence.label = label_evidence.label
+      AND survivor_evidence.source_type = label_evidence.source_type
+      AND survivor_evidence.source_field = label_evidence.source_field
+      AND COALESCE(survivor_evidence.source_value, '') = COALESCE(label_evidence.source_value, '')
+  )`, [duplicate.id, survivor.id]);
         db.run('UPDATE label_evidence SET usage_record_id = ? WHERE usage_record_id = ?', [survivor.id, duplicate.id]);
         db.run('DELETE FROM usage_records WHERE id = ?', [duplicate.id]);
         repaired += 1;
       }
     }
+    repairDuplicateLabelEvidenceInDb(db);
     db.run('COMMIT');
     persistDatabase(dbPath, db);
+  } catch (error) {
+    rollbackDatabase(db);
+    throw error;
+  } finally {
+    closeDatabase(db);
+  }
+  return repaired;
+}
+
+async function repairDuplicateLabelEvidence(dbPath) {
+  await initStore(dbPath);
+  const db = await openDatabase(dbPath);
+  let repaired = 0;
+  try {
+    db.run('BEGIN');
+    repaired = repairDuplicateLabelEvidenceInDb(db);
+    db.run('COMMIT');
+    if (repaired > 0) persistDatabase(dbPath, db);
   } catch (error) {
     rollbackDatabase(db);
     throw error;
@@ -1358,6 +1523,7 @@ module.exports = {
   loadImportState,
   queryOne,
   queryRows,
+  repairDuplicateLabelEvidence,
   repairDuplicateVscodeUsageRecords,
   removeManualLabels,
   sessionExists,

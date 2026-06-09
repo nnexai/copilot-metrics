@@ -19,7 +19,11 @@ const {
   repairDuplicateVscodeUsageRecords,
   repairUsageCostEstimates,
 } = require('../src/ingest');
-const { queryOne } = require('../src/sqlite-store');
+const {
+  insertImport,
+  queryOne,
+  repairDuplicateLabelEvidence,
+} = require('../src/sqlite-store');
 const { loadConfiguredExtractors, runLabelExtractors } = require('../src/label-extractors');
 
 const fixtures = path.join(__dirname, 'fixtures');
@@ -322,6 +326,40 @@ test('same session exchange is not duplicated across OTel and fallback sources',
   assert.ok(evidence.length >= 1);
   assert.equal(new Set(evidence.map((row) => row.usage_record_id)).size, 1);
   assert.equal(await repairDuplicateVscodeUsageRecords(paths.usageDb), 0);
+});
+
+test('repeated hook imports dedupe by log entry while preserving distinct entries', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-hook-evidence-dedupe-'));
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  const hook = (rawLine) => ({
+    raw_line: rawLine,
+    event: 'stop',
+    session_id: 'session-hook-repeat',
+    cwd: '/repo/HDASPF-321',
+    repo: '/repo',
+    branch: 'feature/HDASPF-321',
+    labels: ['HDASPF-321'],
+    payload: { session_id: 'session-hook-repeat' },
+    label_evidence: [{
+      label: 'HDASPF-321',
+      source_type: 'hook',
+      source_field: 'labels',
+      source_value: 'HDASPF-321',
+      confidence: 0.95,
+    }],
+  });
+
+  await insertImport(paths.usageDb, 'hook', 'hooks.jsonl', [], [], [hook(1), hook(2)], []);
+  await insertImport(paths.usageDb, 'hook', 'hooks.jsonl', [], [], [hook(1), hook(2)], []);
+
+  const evidence = await queryOne(paths.usageDb, `
+SELECT COUNT(*) AS count, COUNT(DISTINCT hook_event_id) AS hook_events
+FROM label_evidence
+WHERE label = 'HDASPF-321' AND session_id = 'session-hook-repeat'
+`);
+  assert.equal(evidence[0].count, 2);
+  assert.equal(evidence[0].hook_events, 2);
+  assert.equal(await repairDuplicateLabelEvidence(paths.usageDb), 0);
 });
 
 test('ingestFile stores VS Code fallback token usage from json files', async () => {
