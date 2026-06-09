@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.2 - 2026-06-09
+
+### Fixed
+
+- `--refresh` now deduplicates label evidence by stable source identity instead of appending replayed evidence rows on repeated imports.
+- Hook evidence now deduplicates by hook log entry while preserving distinct repeated label evidence from separate log entries.
+- Duplicate usage repair now cleans legacy evidence duplicates before merging usage rows, avoiding `idx_label_evidence_usage_key` constraint failures during refresh.
+
 ## 0.5.1 - 2026-06-09
 
 ### Fixed
