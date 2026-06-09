@@ -10,19 +10,19 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 
 ## Current State
 
-`copilot-metrics@0.5.0` has shipped and the milestone is archived. The CLI supports local Copilot usage import, attribution, selected pricing evidence, configurable regex patterns for the built-in label extractor, granular label association confidence ranking, top-label default reports, explicit top-k/all-match inclusion, per-session label detail, and manual session label assignments with highest-precedence report ranking.
+`copilot-metrics@0.5.2` has shipped and the v0.5.0 milestone is archived. The CLI supports local Copilot usage import, attribution, selected pricing evidence, configurable regex patterns for the built-in label extractor, granular label association confidence ranking, top-label default reports, explicit top-k/all-match inclusion, per-session label detail, manual session label assignments with highest-precedence report ranking, and duplicate attribution repair for manual-label report rows.
 
-## Current Milestone: none active
+## Current Milestone: v0.6.0 performance improvements
 
-The v0.5.0 manual session labels milestone is complete.
+**Goal:** Make refresh and report commands substantially faster without changing report semantics, selected-pricing behavior, label attribution, or setup-once CLI usage.
 
 **Target features:**
 
-- Assign, replace, list, and remove manual labels for a known session.
-- Store manual label assignments as explicit override evidence while preserving auto-detected evidence for audit/detail views.
-- Make manual labels outrank branch, cwd, prompt, tool-call, and hook evidence in label confidence and top-label reports.
-- Show manual assignment provenance in human-readable and JSON report output.
-- Verify storage, ranking precedence, report inclusion, removal, and replacement behavior with fixture-based tests.
+- Introduce a file-backed SQLite storage path using `better-sqlite3`, with the existing store API and schema semantics preserved.
+- Batch refresh imports, checkpoint updates, duplicate repair, and cost-repair work through shared connections and transactions to avoid repeated full-store reload/export behavior.
+- Reduce unnecessary refresh work for unchanged Copilot session-state and VS Code fallback sources while keeping explicit `--refresh` behavior correct.
+- Optimize normal report/detail paths by avoiding repeated broad evidence/ranking work where results can be shared inside one command.
+- Verify output equivalence and performance improvements with fixture tests, copied-store benchmarks, and published-package checks.
 
 ## Requirements
 
@@ -64,7 +64,9 @@ The v0.5.0 manual session labels milestone is complete.
 
 ### Active
 
-- No active milestone requirements.
+- v0.6.0: Improve refresh/report performance without changing user-facing report semantics.
+- v0.6.0: Preserve local-first setup and central user-level storage while evaluating/using `better-sqlite3`.
+- v0.6.0: Keep selected-price, label-confidence, manual-label, and diagnostics output contracts stable.
 
 ### Out of Scope
 
@@ -120,6 +122,7 @@ The most important attribution convention is Jira ticket IDs such as `DEMO-12345
 | Compute label confidence from granular evidence at query/report time | Scoring algorithms can evolve later without losing per-entry evidence detail. | Validated in v0.4.0 Phase 13 |
 | Make top-label reports the default and top-k explicit | Default reports should avoid overlapping session counts; broader inclusion is useful but must be opt-in and identified. | Validated in v0.4.0 Phase 14 |
 | Treat manual session labels as highest-precedence evidence | The user needs a correction path when automatic attribution is wrong or ambiguous, without deleting the underlying evidence trail. | Pending v0.5.0 |
+| Optimize storage before changing report semantics | The v0.6.0 spike showed repeated `sql.js` full-file load/export dominates small writes; performance work must preserve report meaning while changing storage mechanics. | Pending v0.6.0 |
 
 ## Evolution
 
@@ -139,4 +142,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-09 after v0.5.0 milestone start*
+*Last updated: 2026-06-09 after v0.6.0 milestone start*

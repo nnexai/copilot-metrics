@@ -1,29 +1,29 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.5.0
-milestone_name: manual session labels
-status: complete
-last_updated: "2026-06-09T20:52:57.000Z"
-last_activity: 2026-06-09 -- quick fix completed for manual label duplicate attribution
+milestone: v0.6.0
+milestone_name: performance improvements
+status: planning
+last_updated: "2026-06-09T22:27:15.422Z"
+last_activity: 2026-06-09
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 1
-  completed_plans: 1
-  percent: 100
+  total_phases: 3
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** Complete
+**Status:** Planning
 
 ## Project Reference
 
 See: `.planning/PROJECT.md` (updated 2026-06-09)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Manual session labels with higher precedence than auto-detected labels.
+**Current focus:** v0.6.0 performance improvements for refresh and report commands without behavior changes.
 
 ## Workflow Settings
 
@@ -39,14 +39,20 @@ See: `.planning/PROJECT.md` (updated 2026-06-09)
 
 ## Current Milestone
 
-v0.5.0 manual session labels
+v0.6.0 performance improvements
 
 ## Current Position
 
-Phase: 16
-Plan: 16-01
-Status: Complete
-Last activity: 2026-06-09 -- v0.5.0 released and archived
+Phase: Not started (defining requirements)
+Plan: —
+Status: Ready to plan Phase 17
+Last activity: 2026-06-09
+
+## Current Roadmap
+
+- Phase 17: File-backed SQLite storage.
+- Phase 18: Refresh import batching.
+- Phase 19: Report query optimization and release.
 
 ## Completed Milestone
 
