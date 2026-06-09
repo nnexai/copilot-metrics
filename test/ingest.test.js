@@ -126,6 +126,18 @@ test('estimateCost maps dated Copilot model ids to matching known pricing rows',
   assert.equal(sonnet.estimated_usd, 6.75);
 });
 
+test('estimateCost maps hyphenated Copilot model ids to matching known pricing rows', () => {
+  const haiku = estimateCost({
+    resolved_model: 'claude-haiku-4.5',
+    input_tokens: 1_000_000,
+    output_tokens: 1_000_000,
+    cache_read_tokens: 1_000_000,
+    cache_creation_tokens: 0,
+  });
+  assert.equal(haiku.warning, null);
+  assert.equal(haiku.estimated_usd, 5.1);
+});
+
 test('ingestFile stores vscode usage and warnings in SQLite', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-ingest-'));
   const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });

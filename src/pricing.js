@@ -40,6 +40,8 @@ function modelPriceKey(model) {
   if (MODEL_PRICES[normalized]) return normalized;
   const withoutDate = normalized.replace(/-\d{4}-\d{2}-\d{2}$/, '');
   if (MODEL_PRICES[withoutDate]) return withoutDate;
+  const spacedAlias = withoutDate.replace(/-/g, ' ');
+  if (MODEL_PRICES[spacedAlias]) return spacedAlias;
   return normalized;
 }
 
