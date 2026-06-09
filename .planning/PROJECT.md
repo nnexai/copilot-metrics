@@ -10,11 +10,11 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 
 ## Current State
 
-`copilot-metrics@0.4.0` has shipped and the milestone is archived. The CLI supports local Copilot usage import, attribution, selected pricing evidence, configurable regex patterns for the built-in label extractor, granular label association confidence ranking, top-label default reports, explicit top-k/all-match inclusion, and per-session label detail.
+`copilot-metrics@0.5.0` has shipped and the milestone is archived. The CLI supports local Copilot usage import, attribution, selected pricing evidence, configurable regex patterns for the built-in label extractor, granular label association confidence ranking, top-label default reports, explicit top-k/all-match inclusion, per-session label detail, and manual session label assignments with highest-precedence report ranking.
 
-## Current Milestone: v0.5.0 manual session labels
+## Current Milestone: none active
 
-**Goal:** Add a CLI-first way to manually assign labels to sessions, with manual labels taking precedence over auto-detected labels in default ranking and reports.
+The v0.5.0 manual session labels milestone is complete.
 
 **Target features:**
 
@@ -64,10 +64,7 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 
 ### Active
 
-- [ ] Manually assign one or more Jira-style labels to a session from the CLI.
-- [ ] Preserve automatic label evidence while giving manual assignments highest precedence.
-- [ ] Surface manual assignment provenance in human-readable and JSON reports.
-- [ ] Support safe correction workflows: list, replace, and remove manual labels.
+- No active milestone requirements.
 
 ### Out of Scope
 
