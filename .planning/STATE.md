@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.5.0
 milestone_name: manual session labels
 status: complete
-last_updated: "2026-06-09T20:37:00.000Z"
-last_activity: 2026-06-09 -- v0.5.0 released and archived
+last_updated: "2026-06-09T20:52:57.000Z"
+last_activity: 2026-06-09 -- quick fix completed for manual label duplicate attribution
 progress:
   total_phases: 2
   completed_phases: 2
@@ -86,3 +86,9 @@ Items acknowledged and deferred at milestone close on 2026-06-03:
 | nyquist | Phase 12 VALIDATION.md artifact missing | Process debt accepted |
 | nyquist | Phase 13 VALIDATION.md artifact missing | Process debt accepted |
 | nyquist | Phase 14 VALIDATION.md artifact missing | Process debt accepted |
+
+## Quick Tasks Completed
+
+| Date | Task | Summary |
+|------|------|---------|
+| 2026-06-09 | [fix manual label duplicate attribution](quick/260609-fix-manual-label-duplicate-attribution/SUMMARY.md) | Deduped manual-label report rows by stable `span_id + model` and extended refresh repair to Copilot session duplicates. |

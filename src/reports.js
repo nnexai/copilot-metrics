@@ -67,6 +67,66 @@ function pricingBasis(row) {
   return row.pricing_basis || 'est';
 }
 
+function usageBasisRank(row) {
+  const basis = row?.pricing_basis || row?.selected_pricing_basis;
+  return {
+    unknown_price: 0,
+    included_or_zero: 1,
+    upper_bound: 2,
+    estimated: 3,
+    displayed_credit: 4,
+    actual: 5,
+    conflict: 6,
+  }[basis] ?? 0;
+}
+
+function usageSemanticKey(row) {
+  if (!row || !row.usage_record_id) return null;
+  const model = String(row.resolved_model || row.requested_model || '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
+  const span = row.span_id || (String(row.usage_identity || '').startsWith('span:')
+    ? String(row.usage_identity).slice(5).split('|')[0]
+    : '');
+  if (span) return `span:${span}|model:${model}`;
+
+  const session = row.session_id || row.trace_id || '';
+  const timestamp = row.timestamp || row.seen_at || '';
+  const tokens = [
+    n(row.input_tokens),
+    n(row.output_tokens),
+    n(row.cache_read_tokens),
+    n(row.cache_creation_tokens),
+    n(row.reasoning_tokens),
+  ].join(':');
+  if (session || timestamp || model || tokens !== '0:0:0:0:0') {
+    return `session:${session}|time:${timestamp}|model:${model}|tokens:${tokens}`;
+  }
+  return `usage:${row.usage_record_id}`;
+}
+
+function usageReportKey(row) {
+  return usageSemanticKey(row) || (row?.usage_record_id ? `usage:${row.usage_record_id}` : null);
+}
+
+function strongerUsageRow(left, right) {
+  if (!left) return right;
+  if (usageBasisRank(left) !== usageBasisRank(right)) return usageBasisRank(left) > usageBasisRank(right) ? left : right;
+  return Number(left.usage_record_id || left.id || 0) <= Number(right.usage_record_id || right.id || 0) ? left : right;
+}
+
+function dedupeUsageRows(rows) {
+  const keyed = new Map();
+  const unkeyed = [];
+  for (const row of rows) {
+    const key = usageReportKey(row);
+    if (!key) {
+      unkeyed.push(row);
+      continue;
+    }
+    keyed.set(key, strongerUsageRow(keyed.get(key), row));
+  }
+  return [...unkeyed, ...keyed.values()];
+}
+
 function inclusionTopLabel() {
   return { mode: 'top-label', top_k: 1, overlap: false };
 }
@@ -130,8 +190,9 @@ function emptyAggregate(label, confidence = null, inclusion = inclusionTopLabel(
 }
 
 function addUsageToAggregate(aggregate, usage, seenUsage) {
-  if (!usage || !usage.usage_record_id || seenUsage.has(usage.usage_record_id)) return;
-  seenUsage.add(usage.usage_record_id);
+  const usageKey = usageReportKey(usage);
+  if (!usage || !usage.usage_record_id || seenUsage.has(usageKey)) return;
+  seenUsage.add(usageKey);
   aggregate.usage_records += 1;
   for (const field of [
     'input_tokens',
@@ -232,8 +293,11 @@ SELECT
   le.branch,
   le.cwd,
   ur.id AS usage_record_id,
+  ur.span_id,
+  ur.trace_id,
   ur.surface,
   ur.resolved_model,
+  ur.requested_model,
   ur.input_tokens,
   ur.output_tokens,
   ur.cache_read_tokens,
@@ -265,6 +329,7 @@ SELECT
   ur.pricing_metadata_json,
   ur.pricing_diagnostics_json,
   ur.estimate_label,
+  ur.usage_identity,
   COALESCE(ur.timestamp, le.timestamp, le.imported_at) AS timestamp
 FROM label_evidence le
 LEFT JOIN usage_records ur ON ur.id = le.usage_record_id
@@ -291,6 +356,8 @@ SELECT
   le.branch,
   le.cwd,
   le.timestamp,
+  ur.span_id,
+  ur.trace_id,
   ur.surface,
   ur.resolved_model,
   ur.requested_model,
@@ -316,6 +383,7 @@ SELECT
   ur.selected_confidence,
   ur.selected_source,
   ur.estimate_label,
+  ur.usage_identity,
   COALESCE(ur.timestamp, le.timestamp, le.imported_at) AS seen_at
 FROM label_evidence le
 LEFT JOIN usage_records ur ON ur.id = le.usage_record_id
@@ -323,7 +391,7 @@ ORDER BY le.session_id, le.usage_record_id, le.hook_event_id, le.label, le.sourc
 }
 
 async function manualLabelUsageRows(dbPath) {
-  return queryRows(dbPath, `
+  const rows = await queryRows(dbPath, `
 SELECT
   NULL AS id,
   mla.created_at AS imported_at,
@@ -333,6 +401,8 @@ SELECT
   mla.label AS source_value,
   1 AS confidence,
   ur.id AS usage_record_id,
+  ur.span_id,
+  ur.trace_id,
   NULL AS hook_event_id,
   mla.session_id,
   ur.repo,
@@ -366,10 +436,12 @@ SELECT
   ur.selected_confidence,
   ur.selected_source,
   ur.estimate_label,
+  ur.usage_identity,
   COALESCE(ur.timestamp, mla.updated_at, mla.created_at) AS seen_at
 FROM manual_label_assignments mla
 LEFT JOIN usage_records ur ON ur.session_id = mla.session_id
 ORDER BY mla.session_id, mla.label, ur.id`);
+  return dedupeUsageRows(rows);
 }
 
 function rankingBySession(sessionRankings) {
@@ -504,8 +576,9 @@ async function labelSessionDetails(dbPath, label, options = {}) {
     if (!detail || !row.usage_record_id) continue;
     if (!seenUsageBySession.has(sessionKey)) seenUsageBySession.set(sessionKey, new Set());
     const seenUsage = seenUsageBySession.get(sessionKey);
-    if (seenUsage.has(row.usage_record_id)) continue;
-    seenUsage.add(row.usage_record_id);
+    const usageKey = usageReportKey(row);
+    if (seenUsage.has(usageKey)) continue;
+    seenUsage.add(usageKey);
     detail.usage_records += 1;
     for (const field of ['input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_creation_tokens', 'reasoning_tokens', 'selected_ai_credits', 'selected_usd']) {
       detail[field] += n(row[field]);

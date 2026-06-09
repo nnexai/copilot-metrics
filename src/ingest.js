@@ -1058,7 +1058,7 @@ async function ingestFile(options) {
     }
   }
   const repairedCostRecords = options.repairCostEstimates === false ? 0 : await repairUsageCostEstimates(dbPath);
-  const repairedDuplicateUsageRecords = source === 'vscode' ? await repairDuplicateVscodeUsageRecords(dbPath) : 0;
+  const repairedDuplicateUsageRecords = ['vscode', 'copilot-session'].includes(source) ? await repairDuplicateVscodeUsageRecords(dbPath) : 0;
 
   return {
     source,

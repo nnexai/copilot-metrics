@@ -1009,6 +1009,20 @@ function vscodeRepairKey(row) {
   return null;
 }
 
+function usageRepairKey(row) {
+  const model = String(row.resolved_model || row.requested_model || '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
+  const isCopilotSession = row.source === 'copilot-session' || row.surface === 'copilot-cli-session';
+  if (isCopilotSession) {
+    if (row.span_id) return `span:${row.span_id}|model:${model}`;
+    if (row.usage_identity && row.usage_identity.startsWith('span:')) {
+      const span = row.usage_identity.slice(5).split('|')[0];
+      if (span) return `span:${span}|model:${model}`;
+    }
+    return null;
+  }
+  return vscodeRepairKey(row);
+}
+
 function strongerUsageRow(left, right) {
   const leftRank = basisRank(left.pricing_basis || left.selected_pricing_basis);
   const rightRank = basisRank(right.pricing_basis || right.selected_pricing_basis);
@@ -1031,10 +1045,12 @@ async function repairDuplicateVscodeUsageRecords(dbPath) {
     FROM usage_records
     WHERE source IN ('vscode', 'vscode-chat')
        OR surface = 'vscode-chat-session'
+       OR source = 'copilot-session'
+       OR surface = 'copilot-cli-session'
   `);
   const groups = new Map();
   for (const row of rows) {
-    const key = vscodeRepairKey(row);
+    const key = usageRepairKey(row);
     if (!key) continue;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(row);

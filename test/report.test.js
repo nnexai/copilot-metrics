@@ -6,7 +6,13 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
-const { queryOne, upsertImportCheckpoint } = require('../src/sqlite-store');
+const {
+  labelDetails,
+  labelModelBreakdown,
+  labelSessionDetails,
+  labelSummary,
+} = require('../src/reports');
+const { insertImport, queryOne, upsertImportCheckpoint } = require('../src/sqlite-store');
 
 const root = path.join(__dirname, '..');
 const cli = path.join(root, 'bin', 'copilot-metrics.js');
@@ -193,6 +199,93 @@ test('manual-only labeled sessions are attributed in reports', () => {
 
   const unattributed = JSON.parse(run(['report', 'unattributed', '--home', home, '--json']));
   assert.equal(unattributed.unattributed.some((row) => row.session_id === 'otel-session'), false);
+});
+
+test('manual label reports dedupe usage rows across historical identity formats', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-manual-dedupe-'));
+  const dbPath = path.join(home, 'store', 'copilot-metrics.sqlite');
+  const usage = {
+    raw_line: 1,
+    span_id: 'span-duplicate',
+    trace_id: 'session-duplicate',
+    parent_span_id: null,
+    timestamp: '2026-06-09T10:00:00.000Z',
+    surface: 'copilot-cli-session',
+    conversation_id: null,
+    session_id: 'session-duplicate',
+    requested_model: 'gpt-5.4',
+    resolved_model: 'gpt-5.4',
+    repo: null,
+    branch: null,
+    cwd: null,
+    commit_sha: null,
+    input_tokens: 1000,
+    output_tokens: 200,
+    cache_read_tokens: 300,
+    cache_creation_tokens: 0,
+    reasoning_tokens: 0,
+    actual_charge_nano_aiu: null,
+    actual_ai_credits: null,
+    actual_usd: null,
+    actual_basis: null,
+    displayed_ai_credits: null,
+    displayed_usd: null,
+    displayed_credit_text: null,
+    displayed_credit_basis: null,
+    inferred_cache_read_tokens: null,
+    inferred_cache_read_reason: null,
+    estimated_usd: 0.01,
+    estimated_ai_credits: 1,
+    upper_bound_usd: null,
+    upper_bound_ai_credits: null,
+    selected_ai_credits: 1,
+    selected_usd: 0.01,
+    selected_pricing_basis: 'estimated',
+    selected_confidence: 'high',
+    selected_source: 'static',
+    pricing_basis: 'estimated',
+    estimate_confidence: 'high',
+    cache_read_status: 'known',
+    pricing_source: 'static',
+    estimate_label: 'estimate:test',
+    pricing_metadata: {},
+    pricing_diagnostics: [],
+    warnings: [],
+    label_evidence: [],
+  };
+
+  await insertImport(
+    dbPath,
+    'copilot-session',
+    'duplicate-session.jsonl',
+    [
+      { line: 1, raw_fingerprint: 'raw-1', value: { id: 1 } },
+      { line: 2, raw_fingerprint: 'raw-2', value: { id: 2 } },
+    ],
+    [
+      { ...usage, usage_identity: 'span:span-duplicate|model:gpt-5.4|tokens:1000:200:300:0:0' },
+      { ...usage, raw_line: 2, usage_identity: 'span:span-duplicate|model:gpt-5.4' },
+    ],
+    [],
+    [],
+  );
+  run(['label', 'session-duplicate', 'set', 'DEMO-555', '--home', home, '--json']);
+
+  let storedRows = await queryOne(dbPath, 'SELECT COUNT(*) AS count FROM usage_records WHERE session_id = "session-duplicate"');
+  assert.equal(storedRows[0].count, 2);
+  const summary = await labelSummary(dbPath, 'DEMO-555');
+  const models = await labelModelBreakdown(dbPath, 'DEMO-555');
+  const details = await labelDetails(dbPath, 'DEMO-555');
+  const sessionDetails = await labelSessionDetails(dbPath, 'DEMO-555');
+  assert.equal(summary.usage_records, 1);
+  assert.equal(summary.input_tokens, 1000);
+  assert.equal(models.find((row) => row.model === 'gpt-5.4').usage_records, 1);
+  assert.equal(details.filter((row) => row.source_field === 'manual').length, 1);
+  assert.equal(sessionDetails[0].usage_records, 1);
+
+  run(['report', 'label', 'DEMO-555', '--detail', '--refresh', '--home', home, '--json']);
+  storedRows = await queryOne(dbPath, 'SELECT COUNT(*) AS count FROM usage_records WHERE session_id = "session-duplicate"');
+  assert.equal(storedRows[0].count, 1);
 });
 
 test('manual label CLI rejects unknown sessions and empty labels', () => {
