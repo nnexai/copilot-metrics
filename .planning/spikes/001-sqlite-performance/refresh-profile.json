@@ -1,0 +1,1253 @@
+{
+  "generated_at": "2026-06-09T22:20:54.236Z",
+  "source_home": "/home/nnex/.local/share/copilot-metrics",
+  "profile_home": "/tmp/copilot-metrics-refresh-profile-7VSbLo",
+  "total_ms": 59259.86,
+  "source_count": 350,
+  "diagnostics_count": 0,
+  "totals": {
+    "raw_records": 59417,
+    "new_raw_records": 59417,
+    "usage_records": 144,
+    "duplicate_usage_records": 72,
+    "repaired_duplicate_usage_records": 144,
+    "repaired_cost_records": 0,
+    "label_evidence": 1264,
+    "warnings": 102
+  },
+  "slowest_sources": [
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/60f25a68-8a4f-4008-8666-dba9c6e6981c/events.jsonl",
+      "size_bytes": 27884644,
+      "mtime_ms": 1775908620398,
+      "index": 279,
+      "total": 350,
+      "started_at_ms": 25140.072004999998,
+      "duration_ms": 910.67,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/60f25a68-8a4f-4008-8666-dba9c6e6981c/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 7011,
+        "new_raw_records": 7011,
+        "skipped_existing_records": 0,
+        "usage_records": 5,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 5,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 310,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "vscode",
+      "file": "/home/nnex/.local/share/copilot-metrics/telemetry/vscode-copilot-otel.jsonl",
+      "size_bytes": 16230020,
+      "mtime_ms": 1780421966372,
+      "index": 1,
+      "total": 350,
+      "started_at_ms": 138.570296,
+      "duration_ms": 903.49,
+      "result": {
+        "source": "vscode",
+        "file": "/home/nnex/.local/share/copilot-metrics/telemetry/vscode-copilot-otel.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 2798,
+        "new_raw_records": 2798,
+        "skipped_existing_records": 0,
+        "usage_records": 55,
+        "duplicate_usage_records": 63,
+        "repaired_duplicate_usage_records": 55,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 0,
+        "warnings": [
+          {
+            "code": "unknown_model",
+            "line": 1,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 2,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 7,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 8,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 9,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 94,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 136,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 239,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 240,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 241,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 242,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 243,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 244,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 245,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 246,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 247,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 248,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 249,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 250,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 251,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 252,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 253,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 254,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 255,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 256,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 257,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 258,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 259,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 260,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 261,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 262,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 263,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 264,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 265,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 266,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 267,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 268,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 269,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 270,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 271,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 272,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 273,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 274,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 275,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 276,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 277,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 278,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 279,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 280,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 499,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 500,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 505,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 514,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 515,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 516,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 517,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 518,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 568,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 626,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 627,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 665,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 666,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 667,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 668,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 669,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 670,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 678,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 679,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 680,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 681,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 682,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 683,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 684,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 685,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 686,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 687,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 688,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 689,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 690,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 691,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 692,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 693,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 694,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 695,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 715,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 716,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 717,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 718,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 719,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 720,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 721,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 722,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 723,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 724,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 741,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 742,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 749,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 769,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 770,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 771,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 810,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          },
+          {
+            "code": "unknown_model",
+            "line": 861,
+            "message": "unknown_model:gpt-4o-mini-2024-07-18"
+          }
+        ],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/a1059000-1e1c-4c95-b7e5-3febeca857ac/events.jsonl",
+      "size_bytes": 11312679,
+      "mtime_ms": 1775912415718,
+      "index": 308,
+      "total": 350,
+      "started_at_ms": 39130.15782,
+      "duration_ms": 658.83,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/a1059000-1e1c-4c95-b7e5-3febeca857ac/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 2509,
+        "new_raw_records": 2509,
+        "skipped_existing_records": 0,
+        "usage_records": 4,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 4,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 152,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/6913a14c-7e20-413d-aa7c-a0464fe2fb32/events.jsonl",
+      "size_bytes": 8481865,
+      "mtime_ms": 1775373403003,
+      "index": 282,
+      "total": 350,
+      "started_at_ms": 26965.327283,
+      "duration_ms": 647.19,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/6913a14c-7e20-413d-aa7c-a0464fe2fb32/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 2715,
+        "new_raw_records": 2715,
+        "skipped_existing_records": 0,
+        "usage_records": 1,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 1,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 59,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/1a928ace-ff90-470b-a0c7-3f9c53821638/events.jsonl",
+      "size_bytes": 7780441,
+      "mtime_ms": 1777795230389,
+      "index": 244,
+      "total": 350,
+      "started_at_ms": 7815.890219999999,
+      "duration_ms": 644.14,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/1a928ace-ff90-470b-a0c7-3f9c53821638/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 3481,
+        "new_raw_records": 3481,
+        "skipped_existing_records": 0,
+        "usage_records": 1,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 1,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 0,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/d4e7bdef-9e0b-4bc9-b08f-0ba8371ccc6f/events.jsonl",
+      "size_bytes": 9161944,
+      "mtime_ms": 1775248258370,
+      "index": 329,
+      "total": 350,
+      "started_at_ms": 49029.397567,
+      "duration_ms": 633.92,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/d4e7bdef-9e0b-4bc9-b08f-0ba8371ccc6f/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 2169,
+        "new_raw_records": 2169,
+        "skipped_existing_records": 0,
+        "usage_records": 1,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 1,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 88,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/fdcfa743-c7bc-4cd2-87b1-43d62f4b4b63/events.jsonl",
+      "size_bytes": 8235362,
+      "mtime_ms": 1775252235287,
+      "index": 349,
+      "total": 350,
+      "started_at_ms": 58082.854466000004,
+      "duration_ms": 609.29,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/fdcfa743-c7bc-4cd2-87b1-43d62f4b4b63/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 1974,
+        "new_raw_records": 1974,
+        "skipped_existing_records": 0,
+        "usage_records": 2,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 2,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 128,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/41aa01b5-ccc7-4c01-aa91-dcfaef79d09c/events.jsonl",
+      "size_bytes": 2412711,
+      "mtime_ms": 1777317128985,
+      "index": 266,
+      "total": 350,
+      "started_at_ms": 18186.016811999998,
+      "duration_ms": 573.89,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/41aa01b5-ccc7-4c01-aa91-dcfaef79d09c/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 924,
+        "new_raw_records": 924,
+        "skipped_existing_records": 0,
+        "usage_records": 1,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 1,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 54,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/bb533bd4-32a5-4922-88ad-868bd9f4a8a4/events.jsonl",
+      "size_bytes": 5477733,
+      "mtime_ms": 1774694693602,
+      "index": 319,
+      "total": 350,
+      "started_at_ms": 44230.989755,
+      "duration_ms": 571.95,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/bb533bd4-32a5-4922-88ad-868bd9f4a8a4/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 1860,
+        "new_raw_records": 1860,
+        "skipped_existing_records": 0,
+        "usage_records": 3,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 3,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 111,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/c108a42b-a44f-4fa0-b3c5-47035279fa47/events.jsonl",
+      "size_bytes": 4613909,
+      "mtime_ms": 1775377132556,
+      "index": 322,
+      "total": 350,
+      "started_at_ms": 45676.727239,
+      "duration_ms": 567,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/c108a42b-a44f-4fa0-b3c5-47035279fa47/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 2082,
+        "new_raw_records": 2082,
+        "skipped_existing_records": 0,
+        "usage_records": 2,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 2,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 64,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/406180fe-0854-44f8-b271-f55bd20c52eb/events.jsonl",
+      "size_bytes": 4249932,
+      "mtime_ms": 1775502146489,
+      "index": 265,
+      "total": 350,
+      "started_at_ms": 17619.284211,
+      "duration_ms": 566.72,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/406180fe-0854-44f8-b271-f55bd20c52eb/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 1074,
+        "new_raw_records": 1074,
+        "skipped_existing_records": 0,
+        "usage_records": 1,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 1,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 38,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/d1024515-3103-4bff-94df-bbaf2d25a57a/events.jsonl",
+      "size_bytes": 3631110,
+      "mtime_ms": 1775503615665,
+      "index": 326,
+      "total": 350,
+      "started_at_ms": 47691.12138700001,
+      "duration_ms": 563.5,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/d1024515-3103-4bff-94df-bbaf2d25a57a/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 947,
+        "new_raw_records": 947,
+        "skipped_existing_records": 0,
+        "usage_records": 1,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 1,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 31,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/0bf72003-16e0-4786-86f8-ed55c7c5de82/events.jsonl",
+      "size_bytes": 2190251,
+      "mtime_ms": 1775506920650,
+      "index": 238,
+      "total": 350,
+      "started_at_ms": 5221.3077379999995,
+      "duration_ms": 561.17,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/0bf72003-16e0-4786-86f8-ed55c7c5de82/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 599,
+        "new_raw_records": 599,
+        "skipped_existing_records": 0,
+        "usage_records": 1,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 1,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 26,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/52fb8889-1dd5-4441-91d8-5bae43978c4a/events.jsonl",
+      "size_bytes": 1919503,
+      "mtime_ms": 1772993695323,
+      "index": 278,
+      "total": 350,
+      "started_at_ms": 24587.522291,
+      "duration_ms": 552.54,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/52fb8889-1dd5-4441-91d8-5bae43978c4a/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 542,
+        "new_raw_records": 542,
+        "skipped_existing_records": 0,
+        "usage_records": 2,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 2,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 0,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/f7451a9d-a7bd-41b4-b5e0-7d5f8c85ae4b/events.jsonl",
+      "size_bytes": 2462908,
+      "mtime_ms": 1775518575561,
+      "index": 346,
+      "total": 350,
+      "started_at_ms": 56586.395649000006,
+      "duration_ms": 547.49,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/f7451a9d-a7bd-41b4-b5e0-7d5f8c85ae4b/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 566,
+        "new_raw_records": 566,
+        "skipped_existing_records": 0,
+        "usage_records": 1,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 1,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 26,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/4f6271a0-2873-42fb-a365-25c588038102/events.jsonl",
+      "size_bytes": 1987791,
+      "mtime_ms": 1772974314284,
+      "index": 275,
+      "total": 350,
+      "started_at_ms": 23017.102961,
+      "duration_ms": 545.34,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/4f6271a0-2873-42fb-a365-25c588038102/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 505,
+        "new_raw_records": 505,
+        "skipped_existing_records": 0,
+        "usage_records": 2,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 2,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 2,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/7a7c7d91-a69f-4d42-beb7-af247384e305/events.jsonl",
+      "size_bytes": 3848451,
+      "mtime_ms": 1775851722197,
+      "index": 291,
+      "total": 350,
+      "started_at_ms": 31083.017929,
+      "duration_ms": 543.6,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/7a7c7d91-a69f-4d42-beb7-af247384e305/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 1019,
+        "new_raw_records": 1019,
+        "skipped_existing_records": 0,
+        "usage_records": 2,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 2,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 68,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/4ebb950b-3a6b-400e-8b36-62808b476f8c/events.jsonl",
+      "size_bytes": 1329932,
+      "mtime_ms": 1777798177200,
+      "index": 274,
+      "total": 350,
+      "started_at_ms": 22473.711363,
+      "duration_ms": 543.38,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/4ebb950b-3a6b-400e-8b36-62808b476f8c/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 607,
+        "new_raw_records": 607,
+        "skipped_existing_records": 0,
+        "usage_records": 1,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 1,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 0,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/4be17afe-afd8-42f4-8048-15904d5ce5a7/events.jsonl",
+      "size_bytes": 2168112,
+      "mtime_ms": 1775498046402,
+      "index": 270,
+      "total": 350,
+      "started_at_ms": 20338.64474,
+      "duration_ms": 542.54,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/4be17afe-afd8-42f4-8048-15904d5ce5a7/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 650,
+        "new_raw_records": 650,
+        "skipped_existing_records": 0,
+        "usage_records": 2,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 2,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 0,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/4e250202-94ca-4085-9203-2ac1e7c307f2/events.jsonl",
+      "size_bytes": 293052,
+      "mtime_ms": 1777684725183,
+      "index": 271,
+      "total": 350,
+      "started_at_ms": 20881.194669,
+      "duration_ms": 542.37,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/4e250202-94ca-4085-9203-2ac1e7c307f2/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 137,
+        "new_raw_records": 137,
+        "skipped_existing_records": 0,
+        "usage_records": 1,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 1,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 0,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/3abf1194-353a-47ed-a28b-5b6ae345377c/events.jsonl",
+      "size_bytes": 65083,
+      "mtime_ms": 1780125226263,
+      "index": 260,
+      "total": 350,
+      "started_at_ms": 15388.037892999999,
+      "duration_ms": 542.08,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/3abf1194-353a-47ed-a28b-5b6ae345377c/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 21,
+        "new_raw_records": 21,
+        "skipped_existing_records": 0,
+        "usage_records": 1,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 1,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 0,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/4e840447-7ac9-48ac-b122-84b4c22294d3/events.jsonl",
+      "size_bytes": 472077,
+      "mtime_ms": 1777155290174,
+      "index": 273,
+      "total": 350,
+      "started_at_ms": 21935.830492,
+      "duration_ms": 537.85,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/4e840447-7ac9-48ac-b122-84b4c22294d3/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 233,
+        "new_raw_records": 233,
+        "skipped_existing_records": 0,
+        "usage_records": 1,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 1,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 0,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/4aedf0a3-233d-4056-b95f-075c1dea605a/events.jsonl",
+      "size_bytes": 35858,
+      "mtime_ms": 1780123713998,
+      "index": 269,
+      "total": 350,
+      "started_at_ms": 19803.36887,
+      "duration_ms": 535.26,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/4aedf0a3-233d-4056-b95f-075c1dea605a/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 8,
+        "new_raw_records": 8,
+        "skipped_existing_records": 0,
+        "usage_records": 1,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 1,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 0,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/ac82e4ab-d7dd-403d-a177-2766f178c340/events.jsonl",
+      "size_bytes": 2174815,
+      "mtime_ms": 1777320015541,
+      "index": 311,
+      "total": 350,
+      "started_at_ms": 40544.492446000004,
+      "duration_ms": 530.28,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/ac82e4ab-d7dd-403d-a177-2766f178c340/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 844,
+        "new_raw_records": 844,
+        "skipped_existing_records": 0,
+        "usage_records": 1,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 1,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 10,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    },
+    {
+      "source": "copilot-session",
+      "file": "/home/nnex/.copilot/session-state/36060d34-b9ec-4650-ad41-b96463db7582/events.jsonl",
+      "size_bytes": 155575,
+      "mtime_ms": 1774076088120,
+      "index": 255,
+      "total": 350,
+      "started_at_ms": 13009.078881,
+      "duration_ms": 529.94,
+      "result": {
+        "source": "copilot-session",
+        "file": "/home/nnex/.copilot/session-state/36060d34-b9ec-4650-ad41-b96463db7582/events.jsonl",
+        "dbPath": "/tmp/copilot-metrics-refresh-profile-7VSbLo/store/copilot-metrics.sqlite",
+        "raw_records": 55,
+        "new_raw_records": 55,
+        "skipped_existing_records": 0,
+        "usage_records": 1,
+        "duplicate_usage_records": 0,
+        "repaired_duplicate_usage_records": 1,
+        "hook_events": 0,
+        "backfilled_usage_records": 0,
+        "repaired_cost_records": 0,
+        "label_evidence": 0,
+        "warnings": [],
+        "estimate_label": "estimate:github-copilot-2026-06-01"
+      }
+    }
+  ],
+  "by_source": [
+    {
+      "source": "vscode",
+      "count": 1,
+      "duration_ms": 903.49,
+      "size_bytes": 16230020,
+      "raw_records": 2798,
+      "new_raw_records": 2798,
+      "warnings": 102
+    },
+    {
+      "source": "vscode-chat",
+      "count": 230,
+      "duration_ms": 1972.31,
+      "size_bytes": 437748027,
+      "raw_records": 0,
+      "new_raw_records": 0,
+      "warnings": 0
+    },
+    {
+      "source": "hooks",
+      "count": 1,
+      "duration_ms": 215.38,
+      "size_bytes": 50690,
+      "raw_records": 137,
+      "new_raw_records": 137,
+      "warnings": 0
+    },
+    {
+      "source": "copilot-cli",
+      "count": 1,
+      "duration_ms": 0.03,
+      "size_bytes": 0,
+      "raw_records": 0,
+      "new_raw_records": 0,
+      "warnings": 0
+    },
+    {
+      "source": "copilot-session",
+      "count": 117,
+      "duration_ms": 55860.71,
+      "size_bytes": 194292381,
+      "raw_records": 56482,
+      "new_raw_records": 56482,
+      "warnings": 0
+    }
+  ]
+}

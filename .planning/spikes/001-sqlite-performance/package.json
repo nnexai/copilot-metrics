@@ -1,0 +1,18 @@
+{
+  "name": "001-sqlite-performance",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "benchmark": "node benchmark.js",
+    "profile:refresh": "node profile-refresh.js",
+    "benchmark:writes": "node write-benchmark.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "better-sqlite3": "12.10.0"
+  }
+}

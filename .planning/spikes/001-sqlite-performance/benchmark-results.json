@@ -1,0 +1,162 @@
+{
+  "generated_at": "2026-06-09T22:17:53.117Z",
+  "root": "/home/nnex/dev/prj/copilot-metrics",
+  "source_home": "/home/nnex/.local/share/copilot-metrics",
+  "benchmark_home": "/tmp/copilot-metrics-perf-H8wGFv",
+  "store_before": {
+    "db_path": "/tmp/copilot-metrics-perf-H8wGFv/store/copilot-metrics.sqlite",
+    "size_bytes": 59060224,
+    "counts": {
+      "raw_records": 60373,
+      "usage_records": 253,
+      "hook_events": 137,
+      "label_evidence": 1295,
+      "manual_label_assignments": 1,
+      "import_checkpoints": 347,
+      "import_warnings": 3769
+    }
+  },
+  "cli": [
+    {
+      "args": [
+        "report",
+        "labels",
+        "--json"
+      ],
+      "ms": 3410.73,
+      "status": 0,
+      "stdout_bytes": 33293,
+      "stderr_bytes": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "args": [
+        "report",
+        "labels",
+        "--json"
+      ],
+      "ms": 3313.93,
+      "status": 0,
+      "stdout_bytes": 33293,
+      "stderr_bytes": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "args": [
+        "report",
+        "label",
+        "ADR-019",
+        "--detail",
+        "--session-detail",
+        "--json"
+      ],
+      "ms": 4193.21,
+      "status": 0,
+      "stdout_bytes": 43794,
+      "stderr_bytes": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "args": [
+        "report",
+        "labels",
+        "--refresh",
+        "--json"
+      ],
+      "ms": 60390.18,
+      "status": 0,
+      "stdout_bytes": 33293,
+      "stderr_bytes": 0,
+      "stderr_excerpt": ""
+    }
+  ],
+  "microbench": {
+    "sql_js": [
+      {
+        "name": "labelEvidenceUsageRows",
+        "rows": 1295,
+        "open_ms": 28.38,
+        "query_ms": 34.79,
+        "total_ms": 63.17
+      },
+      {
+        "name": "manualLabelUsageRows",
+        "rows": 2,
+        "open_ms": 27.38,
+        "query_ms": 2.24,
+        "total_ms": 29.62
+      },
+      {
+        "name": "labelEvidenceRows",
+        "rows": 1295,
+        "open_ms": 25.07,
+        "query_ms": 13.37,
+        "total_ms": 38.44
+      },
+      {
+        "name": "activeManualLabelAssignments",
+        "rows": 1,
+        "open_ms": 25.01,
+        "query_ms": 0.29,
+        "total_ms": 25.3
+      },
+      {
+        "name": "modelReportSubset",
+        "rows": 16,
+        "open_ms": 22.55,
+        "query_ms": 1.07,
+        "total_ms": 23.62
+      }
+    ],
+    "better_sqlite3": [
+      {
+        "name": "labelEvidenceUsageRows",
+        "rows": 1295,
+        "open_ms": 0.16,
+        "query_ms": 7.75,
+        "total_ms": 7.91
+      },
+      {
+        "name": "manualLabelUsageRows",
+        "rows": 2,
+        "open_ms": 0,
+        "query_ms": 0.55,
+        "total_ms": 0.55
+      },
+      {
+        "name": "labelEvidenceRows",
+        "rows": 1295,
+        "open_ms": 0,
+        "query_ms": 1.4,
+        "total_ms": 1.4
+      },
+      {
+        "name": "activeManualLabelAssignments",
+        "rows": 1,
+        "open_ms": 0,
+        "query_ms": 0.03,
+        "total_ms": 0.03
+      },
+      {
+        "name": "modelReportSubset",
+        "rows": 16,
+        "open_ms": 0,
+        "query_ms": 0.15,
+        "total_ms": 0.15
+      }
+    ]
+  },
+  "store_after": {
+    "db_path": "/tmp/copilot-metrics-perf-H8wGFv/store/copilot-metrics.sqlite",
+    "size_bytes": 59060224,
+    "counts": {
+      "raw_records": 60373,
+      "usage_records": 253,
+      "hook_events": 137,
+      "label_evidence": 1295,
+      "manual_label_assignments": 1,
+      "import_checkpoints": 347,
+      "import_warnings": 3871
+    }
+  }
+}

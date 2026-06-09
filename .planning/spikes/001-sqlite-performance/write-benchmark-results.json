@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-06-09T22:21:23.831Z",
+  "store_size_bytes": 59060224,
+  "writes": [
+    {
+      "backend": "sql.js current helper",
+      "count": 350,
+      "ms": 46341.27,
+      "db_path": "/tmp/copilot-metrics-write-sqljs-SxmNPJ/copilot-metrics.sqlite"
+    },
+    {
+      "backend": "better-sqlite3 transaction",
+      "count": 350,
+      "ms": 1.38,
+      "db_path": "/tmp/copilot-metrics-write-better-ggdWs4/copilot-metrics.sqlite"
+    }
+  ]
+}
