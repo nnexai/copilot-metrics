@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 const {
+  formatLabels,
   labelDetails,
   labelModelBreakdown,
   labelSessionDetails,
@@ -76,6 +77,48 @@ test('report labels initializes an empty store instead of exposing sqlite errors
   const payload = JSON.parse(run(['report', 'labels', '--home', home, '--json']));
   assert.deepEqual(payload.labels, []);
   assert.ok(fs.existsSync(path.join(home, 'store', 'copilot-metrics.sqlite')));
+});
+
+test('human label overview normalizes Last values to date-time', () => {
+  const output = formatLabels([
+    {
+      label: 'DEMO-1',
+      sessions: 1,
+      usage_records: 1,
+      input_tokens: 1,
+      output_tokens: 1,
+      cache_read_tokens: 0,
+      cache_creation_tokens: 0,
+      reasoning_tokens: 0,
+      selected_ai_credits: 0.01,
+      selected_usd: 0.0001,
+      pricing_basis: 'estimated',
+      usage_status: 'usage',
+      evidence_count: 1,
+      estimate_label: 'estimate:test',
+      last_seen: '2026-06-09',
+    },
+    {
+      label: 'DEMO-2',
+      sessions: 1,
+      usage_records: 1,
+      input_tokens: 1,
+      output_tokens: 1,
+      cache_read_tokens: 0,
+      cache_creation_tokens: 0,
+      reasoning_tokens: 0,
+      selected_ai_credits: 0.01,
+      selected_usd: 0.0001,
+      pricing_basis: 'estimated',
+      usage_status: 'usage',
+      evidence_count: 1,
+      estimate_label: 'estimate:test',
+      last_seen: '2026-06-09T20:52:57.000Z',
+    },
+  ]);
+
+  assert.match(output, /DEMO-1\s+1\s+1\s+1\s+1\s+0\s+0\s+0\s+0\.01\s+\$0\.00\s+estimated\s+usage\s+1\s+2026-06-09 00:00/);
+  assert.match(output, /DEMO-2\s+1\s+1\s+1\s+1\s+0\s+0\s+0\s+0\.01\s+\$0\.00\s+estimated\s+usage\s+1\s+2026-06-09 20:52/);
 });
 
 test('report label detail preserves source and session context', () => {

@@ -49,8 +49,12 @@ function formatDollars(value, fallbackCredits = 0) {
   return `$${dollars.toFixed(2)}`;
 }
 
-function formatDate(value) {
-  return typeof value === 'string' ? value.slice(0, 10) : '';
+function formatDateTime(value) {
+  if (typeof value !== 'string' || value.trim() === '') return '';
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}))?/);
+  if (!match) return trimmed;
+  return `${match[1]} ${match[2] || '00:00'}`;
 }
 
 function usageStatus(row) {
@@ -780,7 +784,7 @@ function formatLabels(rows) {
         pricingBasis(row),
         usageStatus(row),
         row.evidence_count,
-        formatDate(row.last_seen),
+        formatDateTime(row.last_seen),
       ]),
     ),
     '',
