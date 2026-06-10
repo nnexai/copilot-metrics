@@ -1,6 +1,6 @@
 {
   "name": "copilot-metrics",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "Local-first Copilot usage telemetry setup and reporting tools.",
   "type": "commonjs",
   "homepage": "https://github.com/nnexai/copilot-metrics#readme",
@@ -34,6 +34,7 @@
     "prepack": "node scripts/sync-readme-version.js --check",
     "smoke": "node scripts/smoke.js",
     "benchmark:storage": "node scripts/benchmark-storage.js",
+    "benchmark:reports": "node scripts/benchmark-reports.js",
     "verify:package": "node scripts/verify-package.js",
     "verify:native-sqlite": "node scripts/verify-native-sqlite-package.js",
     "test": "node --test"

@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 const {
+  createLabelReportContext,
   formatLabels,
   labelDetails,
   labelModelBreakdown,
@@ -159,6 +160,33 @@ test('report label detail preserves source and session context', () => {
   assert.ok(payload.details.some((row) => row.cache_read_tokens === 200));
   assert.equal(payload.label.confidence.scoring_version, 'label-confidence:v1');
   assert.ok(payload.label.confidence.best_rank >= 1);
+});
+
+test('shared label report context preserves report semantics', async () => {
+  const home = seedStore();
+  const dbPath = path.join(home, 'store', 'copilot-metrics.sqlite');
+  run(['label', 'session-cli', 'set', 'DEMO-902', 'DEMO-901', '--home', home, '--json']);
+
+  const options = { topK: 2 };
+  const context = await createLabelReportContext(dbPath);
+  const contextOptions = { ...options, context };
+
+  assert.deepEqual(
+    await labelSummary(dbPath, 'DEMO-902', contextOptions),
+    await labelSummary(dbPath, 'DEMO-902', options),
+  );
+  assert.deepEqual(
+    await labelModelBreakdown(dbPath, 'DEMO-902', contextOptions),
+    await labelModelBreakdown(dbPath, 'DEMO-902', options),
+  );
+  assert.deepEqual(
+    await labelSessionDetails(dbPath, 'DEMO-902', contextOptions),
+    await labelSessionDetails(dbPath, 'DEMO-902', options),
+  );
+  assert.deepEqual(
+    await labelDetails(dbPath, 'DEMO-902', contextOptions),
+    await labelDetails(dbPath, 'DEMO-902', options),
+  );
 });
 
 test('manual label CLI stores active assignments and returns post-operation JSON', async () => {

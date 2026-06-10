@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.0 - 2026-06-10
+
+### Added
+
+- File-backed SQLite storage using `better-sqlite3`, with native package smoke validation.
+- `npm run benchmark:storage` and `npm run benchmark:reports` for repeatable performance evidence.
+
+### Changed
+
+- Report auto-import now skips unchanged configured sources and batches import/checkpoint/repair writes during refresh.
+- Label reports now reuse command-level evidence, manual label, and confidence-ranking context across overview, summary, model, detail, and session-detail output.
+- Package metadata now declares Node.js `>=20`.
+
+### Fixed
+
+- Repeated report refreshes avoid unnecessary unchanged-source processing while still importing appended telemetry/session data.
+- Report query optimization preserves selected pricing, manual-label precedence, top-label, top-k, all-match, diagnostics, and estimate output contracts.
+
 ## 0.5.2 - 2026-06-09
 
 ### Fixed

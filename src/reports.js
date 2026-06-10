@@ -272,21 +272,22 @@ function table(headers, rows) {
   return [line, sep, ...body].join('\n');
 }
 
-async function labelOverview(dbPath) {
+async function labelOverview(dbPath, options = {}) {
   await initStore(dbPath);
-  const rows = await aggregateLabelRows(dbPath, { overview: true });
+  const context = options.context || await createLabelReportContext(dbPath);
+  const rows = await aggregateLabelRows(dbPath, { overview: true, context });
   return rows.sort((left, right) => n(right.selected_ai_credits) - n(left.selected_ai_credits) || left.label.localeCompare(right.label));
 }
 
 async function labelSummary(dbPath, label, options = {}) {
   await initStore(dbPath);
-  const rows = await aggregateLabelRows(dbPath, { label: canonicalLabel(label), inclusion: inclusionForOptions(options) });
+  const rows = await aggregateLabelRows(dbPath, { label: canonicalLabel(label), inclusion: inclusionForOptions(options), context: options.context });
   return rows[0] || null;
 }
 
 async function labelModelBreakdown(dbPath, label, options = {}) {
   await initStore(dbPath);
-  const rows = await includedEvidenceRows(dbPath, canonicalLabel(label), inclusionForOptions(options));
+  const rows = await includedEvidenceRows(dbPath, canonicalLabel(label), inclusionForOptions(options), options.context);
   const byModel = new Map();
   const seenUsage = new Map();
   const seenSessions = new Map();
@@ -365,8 +366,8 @@ FROM label_evidence le
 LEFT JOIN usage_records ur ON ur.id = le.usage_record_id
 WHERE le.label = ?
 ORDER BY timestamp, le.source_type, le.source_field`, [canonicalLabel(label)]);
-  const manualRows = (await manualLabelUsageRows(dbPath)).filter((row) => canonicalLabel(row.label) === canonicalLabel(label));
-  return filterRowsByInclusion(dbPath, [...rows, ...manualRows], canonicalLabel(label), inclusionForOptions(options));
+  const manualRows = (options.context?.manualRows || await manualLabelUsageRows(dbPath)).filter((row) => canonicalLabel(row.label) === canonicalLabel(label));
+  return filterRowsByInclusion(dbPath, [...rows, ...manualRows], canonicalLabel(label), inclusionForOptions(options), options.context);
 }
 
 async function labelEvidenceUsageRows(dbPath) {
@@ -492,12 +493,8 @@ function includeRanking(ranking, inclusion) {
 async function aggregateLabelRows(dbPath, options = {}) {
   const inclusion = options.inclusion || inclusionTopLabel();
   const labelFilter = options.label ? canonicalLabel(options.label) : null;
-  const evidenceRows = await labelEvidenceUsageRows(dbPath);
-  const manualRows = await manualLabelUsageRows(dbPath);
-  const reportRows = [...evidenceRows, ...manualRows];
-  const sessionRankings = await labelConfidenceRankings(dbPath);
-  const sessions = rankingBySession(sessionRankings);
-  const confidenceSummaries = new Map(labelConfidenceSummaries(sessionRankings).map((summary) => [summary.label, summary]));
+  const context = options.context || await createLabelReportContext(dbPath);
+  const { reportRows, sessions, confidenceSummaries } = context;
   const aggregates = new Map();
   const seenSessions = new Map();
   const seenUsage = new Map();
@@ -538,13 +535,13 @@ async function aggregateLabelRows(dbPath, options = {}) {
   return Array.from(aggregates.values());
 }
 
-async function includedEvidenceRows(dbPath, label, inclusion) {
-  const rows = [...await labelEvidenceUsageRows(dbPath), ...await manualLabelUsageRows(dbPath)];
-  return filterRowsByInclusion(dbPath, rows, canonicalLabel(label), inclusion);
+async function includedEvidenceRows(dbPath, label, inclusion, context = null) {
+  const rows = context?.reportRows || [...await labelEvidenceUsageRows(dbPath), ...await manualLabelUsageRows(dbPath)];
+  return filterRowsByInclusion(dbPath, rows, canonicalLabel(label), inclusion, context);
 }
 
-async function filterRowsByInclusion(dbPath, rows, label, inclusion) {
-  const sessions = rankingBySession(await labelConfidenceRankings(dbPath));
+async function filterRowsByInclusion(dbPath, rows, label, inclusion, context = null) {
+  const sessions = context?.sessions || rankingBySession(await labelConfidenceRankings(dbPath));
   return rows.filter((row) => {
     const session = sessions.get(evidenceSessionKey(row));
     return includeRanking(rankingForLabel(session, label), inclusion);
@@ -555,8 +552,8 @@ async function labelSessionDetails(dbPath, label, options = {}) {
   await initStore(dbPath);
   const inclusion = inclusionForOptions(options);
   const labelId = canonicalLabel(label);
-  const rows = await includedEvidenceRows(dbPath, labelId, inclusion);
-  const sessions = rankingBySession(await labelConfidenceRankings(dbPath));
+  const rows = await includedEvidenceRows(dbPath, labelId, inclusion, options.context);
+  const sessions = options.context?.sessions || rankingBySession(await labelConfidenceRankings(dbPath));
   const bySession = new Map();
 
   for (const row of rows) {
@@ -653,6 +650,25 @@ ORDER BY session_id, usage_record_id, hook_event_id, label, source_type, source_
 async function labelConfidenceRankings(dbPath) {
   await initStore(dbPath);
   return rankSessionEvidence(await labelEvidenceRows(dbPath), await activeManualLabelAssignments(dbPath));
+}
+
+async function createLabelReportContext(dbPath) {
+  await initStore(dbPath);
+  const evidenceRows = await labelEvidenceRows(dbPath);
+  const manualAssignments = await activeManualLabelAssignments(dbPath);
+  const sessionRankings = rankSessionEvidence(evidenceRows, manualAssignments);
+  const usageRows = await labelEvidenceUsageRows(dbPath);
+  const manualRows = await manualLabelUsageRows(dbPath);
+  return {
+    evidenceRows,
+    manualAssignments,
+    sessionRankings,
+    usageRows,
+    manualRows,
+    reportRows: [...usageRows, ...manualRows],
+    sessions: rankingBySession(sessionRankings),
+    confidenceSummaries: new Map(labelConfidenceSummaries(sessionRankings).map((summary) => [summary.label, summary])),
+  };
 }
 
 async function withConfidenceSummaries(dbPath, rows) {
@@ -969,6 +985,7 @@ module.exports = {
   labelModelBreakdown,
   labelDetails,
   labelConfidenceRankings,
+  createLabelReportContext,
   labelSessionDetails,
   inclusionForOptions,
   modelReport,

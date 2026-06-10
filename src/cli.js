@@ -30,6 +30,7 @@ const {
   labelModelBreakdown,
   labelDetails,
   labelSessionDetails,
+  createLabelReportContext,
   inclusionForOptions,
   modelReport,
   repoReport,
@@ -545,7 +546,8 @@ async function main(args, io) {
       const diagnostics = telemetryDiagnostics(imports);
 
       if (subcommand === 'labels') {
-        const rows = await labelOverview(paths.usageDb);
+        const context = await createLabelReportContext(paths.usageDb);
+        const rows = await labelOverview(paths.usageDb, { context });
         return json
           ? { value: { inclusion: inclusionForOptions(), labels: rows, diagnostics }, asJson: true }
           : { value: appendDiagnostics(formatLabels(rows), diagnostics), asJson: false };
@@ -553,7 +555,8 @@ async function main(args, io) {
       if (subcommand === 'label') {
         const label = rest[2];
         if (!label) throw new Error('report label requires <id>');
-        const reportOptions = { topK: flags.topK, allMatches: flags.allMatches === true };
+        const context = await createLabelReportContext(paths.usageDb);
+        const reportOptions = { topK: flags.topK, allMatches: flags.allMatches === true, context };
         const inclusion = inclusionForOptions(reportOptions);
         const summary = await labelSummary(paths.usageDb, label, reportOptions);
         const models = await labelModelBreakdown(paths.usageDb, label, reportOptions);
