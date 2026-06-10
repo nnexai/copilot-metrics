@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v0.6.0
 milestone_name: performance improvements
-status: verifying
-last_updated: "2026-06-10T07:03:18.049Z"
-last_activity: 2026-06-10
+status: completed
+last_updated: "2026-06-10T07:07:41.194Z"
+last_activity: 2026-06-10 — Milestone v0.6.0 completed and archived
 progress:
   total_phases: 3
   completed_phases: 3
@@ -16,14 +16,14 @@ progress:
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** Phase 19 complete — local release verification passed
+**Status:** v0.6.0 milestone complete
 
 ## Project Reference
 
 See: `.planning/PROJECT.md` (updated 2026-06-09)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Phase 19 — Report Query Optimization and Release
+**Current focus:** Awaiting next milestone
 
 ## Workflow Settings
 
@@ -43,16 +43,14 @@ v0.6.0 performance improvements
 
 ## Current Position
 
-Phase: 18 (Refresh Import Batching) — COMPLETE
-Plan: 1 of 1
-Status: Phase complete — verification passed
-Last activity: 2026-06-10
+Phase: Milestone v0.6.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-10 — Milestone v0.6.0 completed and archived
 
 ## Current Roadmap
 
-- Phase 17: File-backed SQLite storage.
-- Phase 18: Refresh import batching.
-- Phase 19: Report query optimization and release.
+v0.6.0 is complete and archived. Start the next milestone with `$gsd-new-milestone`.
 
 ## Completed Milestone
 
@@ -99,3 +97,7 @@ Items acknowledged and deferred at milestone close on 2026-06-03:
 |------|------|---------|
 | 2026-06-09 | [release 0.5.2 evidence dedupe fix](quick/260609-release-0-5-2-evidence-dedupe/SUMMARY.md) | Released refresh label-evidence dedupe repair as `copilot-metrics@0.5.2`. |
 | 2026-06-09 | [fix manual label duplicate attribution](quick/260609-fix-manual-label-duplicate-attribution/SUMMARY.md) | Deduped manual-label report rows by stable `span_id + model` and extended refresh repair to Copilot session duplicates. |
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

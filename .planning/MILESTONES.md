@@ -1,5 +1,19 @@
 # Milestones
 
+## v0.6.0 performance improvements (Shipped: 2026-06-10)
+
+**Phases completed:** 3 phases, 5 plans, 0 tasks
+
+**Key accomplishments:**
+
+- Replaced the repeated full-file `sql.js` store load/export pattern with file-backed `better-sqlite3` storage.
+- Batched report-time refresh imports and skipped unchanged configured telemetry/session sources.
+- Preserved selected pricing, manual-label precedence, top-label defaults, and explicit top-k/all-match report semantics.
+- Added repeatable storage and report benchmarks with fixture-backed equivalence tests.
+- Published and externally validated `copilot-metrics@0.6.0` through GitHub Actions and `npx`.
+
+---
+
 ## v0.4.0 label association confidence (Shipped: 2026-06-03)
 
 **Phases completed:** Phases 12-14, 3 plans
