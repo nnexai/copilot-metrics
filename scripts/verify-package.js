@@ -15,6 +15,10 @@ const forbidden = [
   /^copilot-metrics-data\//,
   /^\.copilot-metrics\//,
   /(?:^|\/).*\.sqlite(?:-shm|-wal)?$/,
+  /(?:^|\/).*\.db(?:-shm|-wal)?$/,
+  /(?:^|\/).*benchmark.*store.*$/,
+  /(?:^|\/).*copied.*store.*$/,
+  /(?:^|\/).*temp.*db.*$/,
   /(?:^|\/).*otel.*\.jsonl$/,
   /(?:^|\/).*hooks.*\.jsonl$/,
 ];

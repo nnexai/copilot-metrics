@@ -7,10 +7,10 @@
 
 ### Storage Backend
 
-- [ ] **PERF-01**: User can run existing setup, import, label, and report commands against a file-backed SQLite store without changing command syntax or output semantics.
-- [ ] **PERF-02**: The storage layer preserves the existing schema, migrations, dedupe constraints, import checkpoints, manual label assignments, selected pricing fields, diagnostics, and warning rows.
-- [ ] **PERF-03**: The implementation uses shared database connections and explicit transactions for multi-step import/refresh work instead of repeatedly loading and exporting the full SQLite database file.
-- [ ] **PERF-04**: If `better-sqlite3` is adopted as the default backend, package installation and release validation prove the native dependency works through local CLI and external `npx` usage on supported Node versions.
+- [x] **PERF-01**: User can run existing setup, import, label, and report commands against a file-backed SQLite store without changing command syntax or output semantics.
+- [x] **PERF-02**: The storage layer preserves the existing schema, migrations, dedupe constraints, import checkpoints, manual label assignments, selected pricing fields, diagnostics, and warning rows.
+- [x] **PERF-03**: The implementation uses shared database connections and explicit transactions for multi-step import/refresh work instead of repeatedly loading and exporting the full SQLite database file.
+- [x] **PERF-04**: If `better-sqlite3` is adopted as the default backend, package installation and release validation prove the native dependency works through local CLI and external `npx` usage on supported Node versions.
 
 ### Refresh Performance
 
@@ -53,10 +53,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PERF-01 | Phase 17 | Planned |
-| PERF-02 | Phase 17 | Planned |
-| PERF-03 | Phase 17 | Planned |
-| PERF-04 | Phase 17 | Planned |
+| PERF-01 | Phase 17 | Validated |
+| PERF-02 | Phase 17 | Validated |
+| PERF-03 | Phase 17 | Validated |
+| PERF-04 | Phase 17 | Validated for packed-package install; published `npx` validation remains PERF-14 |
 | PERF-05 | Phase 18 | Planned |
 | PERF-06 | Phase 18 | Planned |
 | PERF-07 | Phase 18 | Planned |

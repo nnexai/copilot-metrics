@@ -2,42 +2,127 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const initSqlJs = require('sql.js');
+const BetterSqlite = require('better-sqlite3');
 const { canonicalLabel } = require('./label-extractors');
 
-let sqlModulePromise;
+let activeConnection = null;
 
-function getSqlModule() {
-  if (!sqlModulePromise) sqlModulePromise = initSqlJs();
-  return sqlModulePromise;
+class BetterStatement {
+  constructor(db, statement) {
+    this.db = db;
+    this.statement = statement;
+    this.params = [];
+    this.rows = null;
+    this.index = -1;
+  }
+
+  bind(params = []) {
+    this.params = params;
+    this.rows = null;
+    this.index = -1;
+  }
+
+  step() {
+    if (!this.rows) this.rows = this.statement.all(this.params);
+    this.index += 1;
+    return this.index < this.rows.length;
+  }
+
+  getAsObject() {
+    return this.rows?.[this.index] || {};
+  }
+
+  run(params = this.params) {
+    const info = this.statement.run(params);
+    this.db._rowsModified = info.changes;
+    return info;
+  }
+
+  reset() {
+    this.rows = null;
+    this.index = -1;
+  }
+
+  free() {}
 }
 
-async function openDatabase(dbPath) {
-  const SQL = await getSqlModule();
-  if (fs.existsSync(dbPath)) {
-    try {
-      return new SQL.Database(fs.readFileSync(dbPath));
-    } catch (error) {
-      const message = error && error.message ? error.message : error && error.name ? error.name : String(error);
-      throw new Error(`SQLite store is unreadable at ${dbPath}: ${message}. Move the file aside and re-run setup/report to rebuild from local sources.`);
-    }
+class BetterDatabase {
+  constructor(dbPath) {
+    this.db = new BetterSqlite(dbPath, { timeout: 5000 });
+    this._rowsModified = 0;
+    this.db.pragma('journal_mode = WAL');
+    this.db.pragma('synchronous = FULL');
   }
-  return new SQL.Database();
+
+  run(sql, params) {
+    if (params === undefined) {
+      this.db.exec(sql);
+      this._rowsModified = this.db.totalChanges;
+      return this;
+    }
+    const info = this.db.prepare(sql).run(params);
+    this._rowsModified = info.changes;
+    return this;
+  }
+
+  exec(sql) {
+    const statement = this.db.prepare(sql);
+    const rows = statement.all();
+    return [{
+      columns: statement.columns().map((column) => column.name),
+      values: rows.map((row) => Object.values(row)),
+    }];
+  }
+
+  prepare(sql) {
+    return new BetterStatement(this, this.db.prepare(sql));
+  }
+
+  getRowsModified() {
+    return this._rowsModified;
+  }
+
+  close() {
+    this.db.close();
+  }
+}
+
+function openDatabase(dbPath) {
+  const resolvedPath = path.resolve(dbPath);
+  if (activeConnection && activeConnection.dbPath === resolvedPath) {
+    return activeConnection.db;
+  }
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true, mode: 0o700 });
+  const isNew = !fs.existsSync(dbPath);
+  try {
+    const db = new BetterDatabase(dbPath);
+    if (isNew) {
+      try {
+        fs.chmodSync(dbPath, 0o600);
+      } catch {
+        // Best-effort on non-POSIX filesystems.
+      }
+    }
+    return db;
+  } catch (error) {
+    const message = error && error.message ? error.message : error && error.name ? error.name : String(error);
+    throw new Error(`SQLite store is unreadable at ${dbPath}: ${message}. Move the file aside and re-run setup/report to rebuild from local sources.`);
+  }
 }
 
 function persistDatabase(dbPath, db) {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true, mode: 0o700 });
-  const tmpPath = `${dbPath}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tmpPath, Buffer.from(db.export()), { mode: 0o600 });
   try {
-    fs.chmodSync(tmpPath, 0o600);
+    fs.chmodSync(dbPath, 0o600);
   } catch {
     // Best-effort on non-POSIX filesystems.
   }
-  fs.renameSync(tmpPath, dbPath);
+  if (activeConnection && activeConnection.db === db) return;
+  if (db?.db && typeof db.db.pragma === 'function') db.db.pragma('wal_checkpoint(TRUNCATE)');
 }
 
 function closeDatabase(db) {
+  if (activeConnection && activeConnection.db === db) return;
   if (db && typeof db.close === 'function') db.close();
 }
 
@@ -171,6 +256,7 @@ WHERE id NOT IN (
 }
 
 async function initStore(dbPath) {
+  if (activeConnection && activeConnection.dbPath === path.resolve(dbPath)) return;
   const isNewStore = !fs.existsSync(dbPath);
   const db = await openDatabase(dbPath);
   try {
@@ -358,6 +444,24 @@ CREATE TABLE IF NOT EXISTS import_checkpoints (
     ) || changed;
     if (changed) persistDatabase(dbPath, db);
   } finally {
+    closeDatabase(db);
+  }
+}
+
+async function runImportMutationBatch(dbPath, fn) {
+  if (typeof fn !== 'function') throw new TypeError('runImportMutationBatch requires a callback.');
+  await initStore(dbPath);
+  const resolvedPath = path.resolve(dbPath);
+  if (activeConnection && activeConnection.dbPath === resolvedPath) {
+    return fn();
+  }
+  const db = openDatabase(dbPath);
+  activeConnection = { dbPath: resolvedPath, db };
+  try {
+    return await fn();
+  } finally {
+    activeConnection = null;
+    persistDatabase(dbPath, db);
     closeDatabase(db);
   }
 }
@@ -1526,6 +1630,7 @@ module.exports = {
   repairDuplicateLabelEvidence,
   repairDuplicateVscodeUsageRecords,
   removeManualLabels,
+  runImportMutationBatch,
   sessionExists,
   setManualLabels,
   upsertImportCheckpoint,

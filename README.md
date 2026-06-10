@@ -21,6 +21,8 @@ npm test
 npm run cli -- --help
 ```
 
+Requires Node.js 20 or newer. The CLI uses `better-sqlite3` as its runtime SQLite backend; normal `npm`/`npx` installation installs the native dependency.
+
 ## Data Directory
 
 By default, all metadata is stored in a user-level local folder:

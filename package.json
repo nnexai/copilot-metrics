@@ -33,7 +33,9 @@
     "version": "node scripts/sync-readme-version.js --write && git add README.md",
     "prepack": "node scripts/sync-readme-version.js --check",
     "smoke": "node scripts/smoke.js",
+    "benchmark:storage": "node scripts/benchmark-storage.js",
     "verify:package": "node scripts/verify-package.js",
+    "verify:native-sqlite": "node scripts/verify-native-sqlite-package.js",
     "test": "node --test"
   },
   "keywords": [
@@ -48,6 +50,6 @@
   },
   "license": "MIT",
   "dependencies": {
-    "sql.js": "^1.14.1"
+    "better-sqlite3": "12.10.0"
   }
 }

@@ -18,13 +18,15 @@
 
 ## Current Position
 
-v0.6.0 is ready for planning. Continue phase numbering from Phase 17.
+Phase 17 is complete and ready for verification. Next up: Phase 18 refresh import batching.
 
 ## v0.6.0 Phases
 
 ### Phase 17: File-Backed SQLite Storage
 
 **Goal:** Replace the repeated full-file `sql.js` store load/export pattern with a file-backed SQLite storage path while preserving the existing store API and behavior.
+
+**Status:** Complete (2026-06-10)
 
 **Requirements:** PERF-01, PERF-02, PERF-03, PERF-04
 
@@ -35,12 +37,12 @@ v0.6.0 is ready for planning. Continue phase numbering from Phase 17.
 3. Multi-step store mutations use shared connections and transactions rather than one full DB export per helper call.
 4. Package validation proves the native dependency can be installed and used through local CLI/package workflows.
 
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 17-01-PLAN.md — Create storage equivalence tests, native package smoke, benchmark contract, and package artifact guardrails.
-- [ ] 17-02-PLAN.md — Replace `sql.js` internals with file-backed `better-sqlite3` while preserving the async store facade and transaction behavior.
-- [ ] 17-03-PLAN.md — Validate native package workflows, run storage benchmark, and prove Phase 17 package gates.
+- [x] 17-01-PLAN.md — Create storage equivalence tests, native package smoke, benchmark contract, and package artifact guardrails.
+- [x] 17-02-PLAN.md — Replace `sql.js` internals with file-backed `better-sqlite3` while preserving the async store facade and transaction behavior.
+- [x] 17-03-PLAN.md — Validate native package workflows, run storage benchmark, and prove Phase 17 package gates. (completed 2026-06-10)
 
 ### Phase 18: Refresh Import Batching
 

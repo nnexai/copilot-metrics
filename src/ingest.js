@@ -17,6 +17,7 @@ const {
   loadImportState,
   repairDuplicateVscodeUsageRecords,
   queryRows,
+  runImportMutationBatch,
   upsertImportCheckpoint,
   updateUsageCostEstimates,
   updateVscodeUsageResponseIds,
@@ -830,20 +831,23 @@ async function ingestVscodeChatSessionFile(options) {
     }
   }
   let importResult = null;
-  if (newRecords.length > 0 || fallbackUsage.length > 0 || warnings.length > 0) {
-    const redactedRawRecords = newRecords.map((record) => ({
-      ...record,
-      value: {
-        fallback_session: true,
-        responseId: responseId(record.value) || null,
-        sessionId: chatSessionId(record.value) || null,
-      },
-    }));
-    importResult = await insertImport(dbPath, 'vscode-chat', sourceFile, redactedRawRecords, fallbackUsage, [], warnings);
-    const nextLine = newRecords.reduce((max, record) => Math.max(max, Number(record.line || 0)), highWaterLine);
-    await upsertImportCheckpoint(dbPath, 'vscode-chat', sourceFile, nextLine, { file_stat: statContext });
-  }
-  const repairedDuplicateUsageRecords = await repairDuplicateVscodeUsageRecords(dbPath);
+  let repairedDuplicateUsageRecords = 0;
+  await runImportMutationBatch(dbPath, async () => {
+    if (newRecords.length > 0 || fallbackUsage.length > 0 || warnings.length > 0) {
+      const redactedRawRecords = newRecords.map((record) => ({
+        ...record,
+        value: {
+          fallback_session: true,
+          responseId: responseId(record.value) || null,
+          sessionId: chatSessionId(record.value) || null,
+        },
+      }));
+      importResult = await insertImport(dbPath, 'vscode-chat', sourceFile, redactedRawRecords, fallbackUsage, [], warnings);
+      const nextLine = newRecords.reduce((max, record) => Math.max(max, Number(record.line || 0)), highWaterLine);
+      await upsertImportCheckpoint(dbPath, 'vscode-chat', sourceFile, nextLine, { file_stat: statContext });
+    }
+    repairedDuplicateUsageRecords = await repairDuplicateVscodeUsageRecords(dbPath);
+  });
   return {
     source: 'vscode-chat',
     file,
@@ -1047,18 +1051,22 @@ async function ingestFile(options) {
 
   const rawRecordsToInsert = source === 'copilot-session' ? newRecords.map(redactedSessionRecord) : newRecords;
   let importResult = { inserted_usage_records: 0, duplicate_usage_records: 0 };
-  if (rawRecordsToInsert.length > 0 || enrichedUsage.length > 0 || enrichedHooks.length > 0 || warnings.length > 0) {
-    importResult = await insertImport(dbPath, source, sourceFile, rawRecordsToInsert, enrichedUsage, enrichedHooks, warnings);
-  }
-  if (source === 'copilot-session') {
-    const nextLine = newRecords.reduce((max, record) => Math.max(max, Number(record.line || 0)), checkpointLine);
-    const context = updateCopilotSessionContext(checkpoint?.context || {}, newRecords);
-    if (newRecords.length > 0 || nextLine > checkpointLine) {
-      await upsertImportCheckpoint(dbPath, source, sourceFile, nextLine, context);
+  let repairedCostRecords = 0;
+  let repairedDuplicateUsageRecords = 0;
+  await runImportMutationBatch(dbPath, async () => {
+    if (rawRecordsToInsert.length > 0 || enrichedUsage.length > 0 || enrichedHooks.length > 0 || warnings.length > 0) {
+      importResult = await insertImport(dbPath, source, sourceFile, rawRecordsToInsert, enrichedUsage, enrichedHooks, warnings);
     }
-  }
-  const repairedCostRecords = options.repairCostEstimates === false ? 0 : await repairUsageCostEstimates(dbPath);
-  const repairedDuplicateUsageRecords = ['vscode', 'copilot-session'].includes(source) ? await repairDuplicateVscodeUsageRecords(dbPath) : 0;
+    if (source === 'copilot-session') {
+      const nextLine = newRecords.reduce((max, record) => Math.max(max, Number(record.line || 0)), checkpointLine);
+      const context = updateCopilotSessionContext(checkpoint?.context || {}, newRecords);
+      if (newRecords.length > 0 || nextLine > checkpointLine) {
+        await upsertImportCheckpoint(dbPath, source, sourceFile, nextLine, context);
+      }
+    }
+    repairedCostRecords = options.repairCostEstimates === false ? 0 : await repairUsageCostEstimates(dbPath);
+    repairedDuplicateUsageRecords = ['vscode', 'copilot-session'].includes(source) ? await repairDuplicateVscodeUsageRecords(dbPath) : 0;
+  });
 
   return {
     source,

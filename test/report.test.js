@@ -191,23 +191,23 @@ test('manual label CLI stores active assignments and returns post-operation JSON
   const set = JSON.parse(run(['label', 's1', 'set', 'demo-999', '--home', home, '--json']));
   assert.deepEqual(set.manual_labels, ['DEMO-999']);
   assert.equal(set.changed, true);
-  let rows = await queryOne(dbPath, 'SELECT label FROM manual_label_assignments WHERE session_id = "s1" ORDER BY label');
+  let rows = await queryOne(dbPath, "SELECT label FROM manual_label_assignments WHERE session_id = 's1' ORDER BY label");
   assert.deepEqual(rows.map((row) => row.label), ['DEMO-999']);
 
   const cleared = JSON.parse(run(['label', 's1', 'clear', '--home', home, '--json']));
   assert.deepEqual(cleared.manual_labels, []);
   assert.equal(cleared.changed, true);
-  rows = await queryOne(dbPath, 'SELECT label FROM manual_label_assignments WHERE session_id = "s1"');
+  rows = await queryOne(dbPath, "SELECT label FROM manual_label_assignments WHERE session_id = 's1'");
   assert.deepEqual(rows, []);
 
-  const evidence = await queryOne(dbPath, 'SELECT COUNT(*) AS count FROM label_evidence WHERE session_id = "s1"');
+  const evidence = await queryOne(dbPath, "SELECT COUNT(*) AS count FROM label_evidence WHERE session_id = 's1'");
   assert.ok(evidence[0].count > 0);
 });
 
 test('manual labels take report precedence while preserving automatic evidence', async () => {
   const home = seedStore();
   const dbPath = path.join(home, 'store', 'copilot-metrics.sqlite');
-  const beforeEvidence = await queryOne(dbPath, 'SELECT COUNT(*) AS count FROM label_evidence WHERE session_id = "session-cli"');
+  const beforeEvidence = await queryOne(dbPath, "SELECT COUNT(*) AS count FROM label_evidence WHERE session_id = 'session-cli'");
 
   run(['label', 'session-cli', 'set', 'DEMO-902', 'DEMO-901', '--home', home, '--json']);
 
@@ -248,7 +248,7 @@ test('manual labels take report precedence while preserving automatic evidence',
   const clearedManual = JSON.parse(run(['report', 'label', 'DEMO-999', '--detail', '--home', home, '--json']));
   assert.equal(clearedManual.details.some((row) => row.source_field === 'manual'), false);
 
-  const afterEvidence = await queryOne(dbPath, 'SELECT COUNT(*) AS count FROM label_evidence WHERE session_id = "session-cli"');
+  const afterEvidence = await queryOne(dbPath, "SELECT COUNT(*) AS count FROM label_evidence WHERE session_id = 'session-cli'");
   assert.equal(afterEvidence[0].count, beforeEvidence[0].count);
 });
 
@@ -337,7 +337,7 @@ test('manual label reports dedupe usage rows across historical identity formats'
   );
   run(['label', 'session-duplicate', 'set', 'DEMO-555', '--home', home, '--json']);
 
-  let storedRows = await queryOne(dbPath, 'SELECT COUNT(*) AS count FROM usage_records WHERE session_id = "session-duplicate"');
+  let storedRows = await queryOne(dbPath, "SELECT COUNT(*) AS count FROM usage_records WHERE session_id = 'session-duplicate'");
   assert.equal(storedRows[0].count, 2);
   const summary = await labelSummary(dbPath, 'DEMO-555');
   const models = await labelModelBreakdown(dbPath, 'DEMO-555');
@@ -350,7 +350,7 @@ test('manual label reports dedupe usage rows across historical identity formats'
   assert.equal(sessionDetails[0].usage_records, 1);
 
   run(['report', 'label', 'DEMO-555', '--detail', '--refresh', '--home', home, '--json']);
-  storedRows = await queryOne(dbPath, 'SELECT COUNT(*) AS count FROM usage_records WHERE session_id = "session-duplicate"');
+  storedRows = await queryOne(dbPath, "SELECT COUNT(*) AS count FROM usage_records WHERE session_id = 'session-duplicate'");
   assert.equal(storedRows[0].count, 1);
 });
 

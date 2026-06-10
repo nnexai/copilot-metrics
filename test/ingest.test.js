@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
-const initSqlJs = require('sql.js');
+const BetterSqlite = require('better-sqlite3');
 const { resolvePaths } = require('../src/paths');
 const { readJsonl } = require('../src/jsonl');
 const { normalizePayload } = require('../src/otel');
@@ -188,15 +188,17 @@ test('backfillVscodeUsageResponseIds repairs existing VS Code rows imported befo
   const file = path.join(fixtures, 'vscode-log-records.jsonl');
   await ingestFile({ dbPath: paths.usageDb, file, source: 'vscode' });
 
-  const SQL = await initSqlJs();
-  const db = new SQL.Database(fs.readFileSync(paths.usageDb));
-  db.run("UPDATE usage_records SET span_id = NULL, session_id = NULL, timestamp = NULL WHERE source = 'vscode'");
-  fs.writeFileSync(paths.usageDb, Buffer.from(db.export()));
+  const db = new BetterSqlite(paths.usageDb);
+  try {
+    db.prepare("UPDATE usage_records SET span_id = NULL, session_id = NULL, timestamp = NULL WHERE source = 'vscode'").run();
+  } finally {
+    db.close();
+  }
 
   const updated = await backfillVscodeUsageResponseIds(paths.usageDb, path.resolve(file));
   assert.equal(updated, 1);
 
-  const usage = await queryOne(paths.usageDb, 'SELECT span_id, session_id, timestamp FROM usage_records WHERE source = "vscode"');
+  const usage = await queryOne(paths.usageDb, "SELECT span_id, session_id, timestamp FROM usage_records WHERE source = 'vscode'");
   assert.equal(usage[0].span_id, 'vscode-response');
   assert.equal(usage[0].session_id, 'otel-session');
   assert.equal(usage[0].timestamp, '2026-05-31T21:28:50.000Z');
@@ -211,10 +213,12 @@ test('repairUsageCostEstimates updates existing zero-cost dated model rows', asy
     source: 'vscode',
   });
 
-  const SQL = await initSqlJs();
-  const db = new SQL.Database(fs.readFileSync(paths.usageDb));
-  db.run("UPDATE usage_records SET estimated_usd = 0, estimated_ai_credits = 0, selected_ai_credits = NULL, selected_usd = NULL, selected_pricing_basis = NULL, selected_confidence = NULL, selected_source = NULL, warnings_json = '[\"unknown_model:gpt-5-mini-2025-08-07\"]'");
-  fs.writeFileSync(paths.usageDb, Buffer.from(db.export()));
+  const db = new BetterSqlite(paths.usageDb);
+  try {
+    db.prepare("UPDATE usage_records SET estimated_usd = 0, estimated_ai_credits = 0, selected_ai_credits = NULL, selected_usd = NULL, selected_pricing_basis = NULL, selected_confidence = NULL, selected_source = NULL, warnings_json = '[\"unknown_model:gpt-5-mini-2025-08-07\"]'").run();
+  } finally {
+    db.close();
+  }
 
   const updated = await repairUsageCostEstimates(paths.usageDb);
   assert.equal(updated, 1);
