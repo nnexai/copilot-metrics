@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1 - 2026-06-10
+
+### Fixed
+
+- `report labels` now skips unchanged VS Code chat session files before parsing them, matching the unchanged-file fast path already used by OTel, hooks, and Copilot session-state sources.
+
 ## 0.6.0 - 2026-06-10
 
 ### Added

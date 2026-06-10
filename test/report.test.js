@@ -417,10 +417,29 @@ test('reports auto-import configured JSONL sources idempotently', async () => {
   fs.mkdirSync(path.join(home, 'telemetry'), { recursive: true });
   fs.mkdirSync(path.join(home, 'hooks'), { recursive: true });
   fs.mkdirSync(path.join(home, 'copilot-home', 'session-state', 'session-native'), { recursive: true });
+  const chatDir = path.join(home, 'vscode-chat');
+  fs.mkdirSync(chatDir, { recursive: true });
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({
+    sources: {
+      vscode: {
+        additionalChatSessions: [chatDir],
+      },
+    },
+  }, null, 2));
   fs.copyFileSync(path.join(fixtures, 'vscode-otel.jsonl'), path.join(home, 'telemetry', 'vscode-copilot-otel.jsonl'));
   fs.copyFileSync(path.join(fixtures, 'copilot-cli-otel.jsonl'), path.join(home, 'telemetry', 'copilot-cli-otel.jsonl'));
   fs.copyFileSync(path.join(fixtures, 'hook-events.jsonl'), path.join(home, 'hooks', 'copilot-hooks.jsonl'));
   fs.copyFileSync(path.join(fixtures, 'copilot-session-events.jsonl'), path.join(home, 'copilot-home', 'session-state', 'session-native', 'events.jsonl'));
+  fs.writeFileSync(path.join(chatDir, 'session-auto-report.jsonl'), JSON.stringify({
+    kind: 0,
+    v: {
+      sessionId: 'session-auto-report',
+      requests: [{
+        message: { text: 'Auto report DEMO-905 chat evidence.' },
+        responseId: 'response-auto-report',
+      }],
+    },
+  }) + '\n');
 
   const env = {
     ...process.env,
@@ -439,6 +458,7 @@ test('reports auto-import configured JSONL sources idempotently', async () => {
   const paths = resolvePaths({ home, env, cwd: root });
   const unchanged = await autoImportConfiguredSources(paths, { cwd: root });
   assert.ok(unchanged.some((result) => result.source === 'vscode' && result.skipped === true && result.reason === 'unchanged_file'));
+  assert.ok(unchanged.some((result) => result.source === 'vscode-chat' && result.skipped === true && result.reason === 'unchanged_file'));
   assert.ok(unchanged.some((result) => result.source === 'copilot-cli' && result.skipped === true && result.reason === 'unchanged_file'));
 
   fs.appendFileSync(path.join(home, 'telemetry', 'copilot-cli-otel.jsonl'), '\n{"name":"copilot cli appended","spanId":"cli-appended","traceId":"trace-cli-appended","attributes":{"gen_ai.operation.name":"chat","gen_ai.request.model":"gpt-5-mini","gen_ai.response.model":"gpt-5-mini","session.id":"session-cli-appended","cwd":"/repo/DEMO-901","git.branch":"DEMO-901-cli","gen_ai.usage.input_tokens":500,"gen_ai.usage.output_tokens":125}}\n');

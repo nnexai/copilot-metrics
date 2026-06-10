@@ -773,6 +773,26 @@ async function ingestVscodeChatSessionFile(options) {
   const sourceFile = path.resolve(file);
   const checkpoint = await sourceCheckpoint(options, 'vscode-chat', sourceFile);
   const statContext = vscodeChatRefreshStatContext(sourceFile);
+  const unchangedFile = sameFileStat(checkpointFileStat(checkpoint), statContext) && Number(checkpoint?.checkpoint_line || 0) > 0;
+  if (unchangedFile) {
+    return {
+      source: 'vscode-chat',
+      file,
+      dbPath,
+      raw_records: 0,
+      new_raw_records: 0,
+      skipped_existing_records: Number(checkpoint.checkpoint_line || 0),
+      usage_records: 0,
+      duplicate_usage_records: 0,
+      repaired_duplicate_usage_records: 0,
+      hook_events: 0,
+      label_evidence: 0,
+      warnings: [],
+      estimate_label: `estimate:${PRICING_VERSION}`,
+      skipped: true,
+      reason: 'unchanged_file',
+    };
+  }
   const forceRead = shouldForceRefreshFile(options, checkpoint, statContext);
   const highWaterLine = forceRead
     ? 0
