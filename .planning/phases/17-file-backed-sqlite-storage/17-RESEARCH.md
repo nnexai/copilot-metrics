@@ -322,22 +322,19 @@ function all(db, sql, params = []) {
 | A3 | WAL should be enabled if package/artifact validation is adjusted and durability tradeoff is accepted. | Architecture Patterns | Medium; durability expectations may require `synchronous=FULL` or no WAL. |
 | A4 | No runtime data migration is needed if the existing `.sqlite` file remains compatible. | Runtime State Inventory | Medium; old stores with odd schema drift must still be tested via copied stores. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should WAL use default NORMAL durability or set `synchronous = FULL`?**
    - What we know: Official docs recommend WAL for performance and document the NORMAL durability tradeoff. [CITED: github.com/WiseLibs/better-sqlite3/docs/performance.md]
-   - What's unclear: Product tolerance for the small durability tradeoff in a local telemetry cache. [ASSUMED]
-   - Recommendation: Start with WAL plus `synchronous = FULL` if benchmark impact is acceptable; otherwise document NORMAL explicitly. [ASSUMED]
+   - RESOLVED: Use WAL mode plus `synchronous = FULL` for Phase 17. This keeps the file-backed write path while choosing conservative local durability for the user-level usage store. Benchmark output must record the actual timing so later phases can revisit only if `FULL` materially undermines the performance goal. [DECIDED: plan-checker revision 2026-06-10]
 
 2. **Should `sql.js` remain as a fallback for one release?**
    - What we know: `sql.js` is the current dependency and package-portable baseline. [VERIFIED: package.json]
-   - What's unclear: Whether native install failures should have fallback behavior or fail with a clear installation diagnostic. [ASSUMED]
-   - Recommendation: Do not build fallback unless package validation finds real install risk; fallback doubles storage test matrix. [ASSUMED]
+   - RESOLVED: Do not keep a `sql.js` fallback in Phase 17 unless native package validation produces a concrete install failure that cannot be handled by a clear diagnostic. A fallback would double the storage semantics and test matrix, weakening PERF-01/PERF-02 equivalence. [DECIDED: plan-checker revision 2026-06-10]
 
 3. **Which external `npx` version should release validation target?**
    - What we know: Current package is 0.5.2 and Phase 17 will likely ship in v0.6.0. [VERIFIED: package.json; .planning/ROADMAP.md]
-   - What's unclear: Exact post-merge versioning/release flow for this phase. [ASSUMED]
-   - Recommendation: Planner should include neutral-directory validation against packed tarball during phase and `npx -y copilot-metrics@<release>` during release. [VERIFIED: scripts/verify-package.js] [ASSUMED]
+   - RESOLVED: Phase 17 validates the local packed tarball from a neutral temp directory. Published-package `npx -y copilot-metrics@<release>` validation belongs to Phase 19 release work after a version is actually published. Plan 17-03 must record the exact post-publish command shape for Phase 19, but must not publish or validate a nonexistent release. [DECIDED: plan-checker revision 2026-06-10]
 
 ## Environment Availability
 
