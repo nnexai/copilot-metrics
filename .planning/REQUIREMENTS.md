@@ -14,10 +14,10 @@
 
 ### Refresh Performance
 
-- [ ] **PERF-05**: Normal report commands avoid reprocessing unchanged configured sources while still auto-importing newly appended local telemetry/session data.
-- [ ] **PERF-06**: `--refresh` remains an explicit correctness tool that can re-read changed source files, but avoids unnecessary writes for unchanged checkpoints and unchanged diagnostics.
-- [ ] **PERF-07**: Copilot session-state refresh work is batched so large configured source sets do not pay one full-store rewrite per source file.
-- [ ] **PERF-08**: VS Code chat-session refresh behavior continues to account for debug sidecar fingerprints so cached-token evidence is not missed.
+- [x] **PERF-05**: Normal report commands avoid reprocessing unchanged configured sources while still auto-importing newly appended local telemetry/session data.
+- [x] **PERF-06**: `--refresh` remains an explicit correctness tool that can re-read changed source files, but avoids unnecessary writes for unchanged checkpoints and unchanged diagnostics.
+- [x] **PERF-07**: Copilot session-state refresh work is batched so large configured source sets do not pay one full-store rewrite per source file.
+- [x] **PERF-08**: VS Code chat-session refresh behavior continues to account for debug sidecar fingerprints so cached-token evidence is not missed.
 
 ### Report Performance
 
@@ -57,10 +57,10 @@
 | PERF-02 | Phase 17 | Validated |
 | PERF-03 | Phase 17 | Validated |
 | PERF-04 | Phase 17 | Validated for packed-package install; published `npx` validation remains PERF-14 |
-| PERF-05 | Phase 18 | Planned |
-| PERF-06 | Phase 18 | Planned |
-| PERF-07 | Phase 18 | Planned |
-| PERF-08 | Phase 18 | Planned |
+| PERF-05 | Phase 18 | Validated |
+| PERF-06 | Phase 18 | Validated |
+| PERF-07 | Phase 18 | Validated |
+| PERF-08 | Phase 18 | Validated |
 | PERF-09 | Phase 19 | Planned |
 | PERF-10 | Phase 19 | Planned |
 | PERF-11 | Phase 19 | Planned |

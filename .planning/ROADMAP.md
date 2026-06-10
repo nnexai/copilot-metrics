@@ -48,6 +48,8 @@ Plans:
 
 **Goal:** Make normal reports and explicit `--refresh` avoid unnecessary source processing and database writes, especially for large Copilot session-state source sets.
 
+**Status:** Complete (2026-06-10)
+
 **Requirements:** PERF-05, PERF-06, PERF-07, PERF-08
 
 **Success criteria:**
@@ -56,6 +58,11 @@ Plans:
 2. Explicit `--refresh` still re-reads changed source files and preserves VS Code debug-sidecar cache evidence behavior.
 3. Copilot session-state refresh work batches inserts, checkpoints, duplicate repair, and cost repair across shared database work.
 4. Copied-store refresh benchmarks show materially lower wall time than the spike baseline.
+
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] 18-01-PLAN.md — Skip unchanged configured sources, batch report auto-import storage work, and verify refresh performance evidence. (completed 2026-06-10)
 
 ### Phase 19: Report Query Optimization and Release
 

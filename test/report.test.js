@@ -13,6 +13,8 @@ const {
   labelSessionDetails,
   labelSummary,
 } = require('../src/reports');
+const { autoImportConfiguredSources } = require('../src/ingest');
+const { resolvePaths } = require('../src/paths');
 const { insertImport, queryOne, upsertImportCheckpoint } = require('../src/sqlite-store');
 
 const root = path.join(__dirname, '..');
@@ -405,6 +407,17 @@ test('reports auto-import configured JSONL sources idempotently', async () => {
 
   const rows = await queryOne(path.join(home, 'store', 'copilot-metrics.sqlite'), 'SELECT COUNT(*) AS count FROM usage_records');
   assert.equal(rows[0].count, 4);
+
+  const paths = resolvePaths({ home, env, cwd: root });
+  const unchanged = await autoImportConfiguredSources(paths, { cwd: root });
+  assert.ok(unchanged.some((result) => result.source === 'vscode' && result.skipped === true && result.reason === 'unchanged_file'));
+  assert.ok(unchanged.some((result) => result.source === 'copilot-cli' && result.skipped === true && result.reason === 'unchanged_file'));
+
+  fs.appendFileSync(path.join(home, 'telemetry', 'copilot-cli-otel.jsonl'), '\n{"name":"copilot cli appended","spanId":"cli-appended","traceId":"trace-cli-appended","attributes":{"gen_ai.operation.name":"chat","gen_ai.request.model":"gpt-5-mini","gen_ai.response.model":"gpt-5-mini","session.id":"session-cli-appended","cwd":"/repo/DEMO-901","git.branch":"DEMO-901-cli","gen_ai.usage.input_tokens":500,"gen_ai.usage.output_tokens":125}}\n');
+  const appended = await autoImportConfiguredSources(paths, { cwd: root });
+  assert.ok(appended.some((result) => result.source === 'copilot-cli' && result.usage_records === 1));
+  const afterAppend = await queryOne(path.join(home, 'store', 'copilot-metrics.sqlite'), 'SELECT COUNT(*) AS count FROM usage_records');
+  assert.equal(afterAppend[0].count, 5);
 });
 
 test('report --refresh re-reads configured sources and merges new debug pricing evidence', async () => {

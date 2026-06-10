@@ -978,12 +978,43 @@ async function ingestFile(options) {
   const backfilledUsageRecords = source === 'vscode'
     ? await backfillVscodeUsageResponseIds(dbPath, sourceFile)
     : 0;
-  const highWaterLine = options.forceRefresh ? 0 : await sourceHighWater(options, source, sourceFile);
-  const checkpoint = source === 'copilot-session' ? await sourceCheckpoint(options, source, sourceFile) : null;
-  const checkpointLine = options.forceRefresh ? 0 : checkpoint ? Math.max(Number(checkpoint.checkpoint_line || 0), highWaterLine) : highWaterLine;
+  const checkpoint = await sourceCheckpoint(options, source, sourceFile);
+  const statContext = fileStatContext(sourceFile);
+  const checkpointStat = checkpointFileStat(checkpoint);
+  const unchangedFile = sameFileStat(checkpointStat, statContext) && Number(checkpoint?.checkpoint_line || 0) > 0;
+  const forceRead = options.forceRefresh === true && !unchangedFile;
+  const highWaterLine = forceRead ? 0 : await sourceHighWater(options, source, sourceFile);
+  const checkpointLine = forceRead ? 0 : Math.max(Number(checkpoint.checkpoint_line || 0), highWaterLine);
+  if (unchangedFile && backfilledUsageRecords === 0) {
+    return {
+      source,
+      file,
+      dbPath,
+      raw_records: 0,
+      new_raw_records: 0,
+      skipped_existing_records: checkpointLine,
+      usage_records: 0,
+      duplicate_usage_records: 0,
+      repaired_duplicate_usage_records: 0,
+      hook_events: 0,
+      backfilled_usage_records: 0,
+      repaired_cost_records: 0,
+      label_evidence: 0,
+      warnings: [],
+      estimate_label: `estimate:${PRICING_VERSION}`,
+      skipped: true,
+      reason: 'unchanged_file',
+    };
+  }
   const parsed = readJsonl(file, { afterLine: checkpointLine });
   const warnings = [...parsed.warnings];
   if (parsed.records.length === 0 && warnings.length === 0) {
+    if (!sameFileStat(checkpointStat, statContext)) {
+      await upsertImportCheckpoint(dbPath, source, sourceFile, checkpointLine, {
+        ...(checkpoint?.context || {}),
+        file_stat: statContext,
+      });
+    }
     return {
       source,
       file,
@@ -1059,10 +1090,19 @@ async function ingestFile(options) {
     }
     if (source === 'copilot-session') {
       const nextLine = newRecords.reduce((max, record) => Math.max(max, Number(record.line || 0)), checkpointLine);
-      const context = updateCopilotSessionContext(checkpoint?.context || {}, newRecords);
+      const context = {
+        ...updateCopilotSessionContext(checkpoint?.context || {}, newRecords),
+        file_stat: statContext,
+      };
       if (newRecords.length > 0 || nextLine > checkpointLine) {
         await upsertImportCheckpoint(dbPath, source, sourceFile, nextLine, context);
       }
+    } else if (parsedRecords.length > 0 || warnings.length > 0 || !sameFileStat(checkpointStat, statContext)) {
+      const nextLine = parsedRecords.reduce((max, record) => Math.max(max, Number(record.line || 0)), checkpointLine);
+      await upsertImportCheckpoint(dbPath, source, sourceFile, nextLine, {
+        ...(checkpoint?.context || {}),
+        file_stat: statContext,
+      });
     }
     repairedCostRecords = options.repairCostEstimates === false ? 0 : await repairUsageCostEstimates(dbPath);
     repairedDuplicateUsageRecords = ['vscode', 'copilot-session'].includes(source) ? await repairDuplicateVscodeUsageRecords(dbPath) : 0;
@@ -1238,54 +1278,60 @@ async function autoImportConfiguredSources(paths, options = {}) {
     reason: diagnostic.code,
     diagnostic: true,
   }));
-  for (const [index, entry] of sourceEntries.files.entries()) {
-    if (typeof options.onProgress === 'function') {
-      options.onProgress({
-        phase: 'source',
-        current: index + 1,
-        total: sourceEntries.files.length,
-        source: entry.source,
-        file: entry.file,
-      });
-    }
-    if (!fs.existsSync(entry.file)) {
-      results.push({ ...entry, skipped: true, reason: 'missing_file' });
+  await runImportMutationBatch(paths.usageDb, async () => {
+    for (const [index, entry] of sourceEntries.files.entries()) {
+      if (typeof options.onProgress === 'function') {
+        options.onProgress({
+          phase: 'source',
+          current: index + 1,
+          total: sourceEntries.files.length,
+          source: entry.source,
+          file: entry.file,
+        });
+      }
+      if (!fs.existsSync(entry.file)) {
+        results.push({ ...entry, skipped: true, reason: 'missing_file' });
+        if (typeof options.onProgress === 'function') {
+          options.onProgress({ phase: 'done', current: index + 1, total: sourceEntries.files.length, result: results[results.length - 1] });
+        }
+        continue;
+      }
+      try {
+        results.push(await ingestFile({
+          dbPath: paths.usageDb,
+          file: entry.file,
+          source: entry.source,
+          extractors,
+          importState,
+          repairCostEstimates: false,
+          forceRefresh: options.forceRefresh === true,
+        }));
+      } catch (error) {
+        results.push({
+          ...entry,
+          skipped: true,
+          reason: 'import_error',
+          warnings: [{
+            code: 'import_error',
+            line: null,
+            message: `Could not import ${entry.source} fallback source ${entry.file}: ${error && error.message ? error.message : error && error.name ? error.name : String(error)}`,
+          }],
+        });
+      }
       if (typeof options.onProgress === 'function') {
         options.onProgress({ phase: 'done', current: index + 1, total: sourceEntries.files.length, result: results[results.length - 1] });
       }
-      continue;
     }
-    try {
-      results.push(await ingestFile({
-        dbPath: paths.usageDb,
-        file: entry.file,
-        source: entry.source,
-        extractors,
-        importState,
-        repairCostEstimates: false,
-        forceRefresh: options.forceRefresh === true,
-      }));
-    } catch (error) {
-      results.push({
-        ...entry,
-        skipped: true,
-        reason: 'import_error',
-        warnings: [{
-          code: 'import_error',
-          line: null,
-          message: `Could not import ${entry.source} fallback source ${entry.file}: ${error && error.message ? error.message : error && error.name ? error.name : String(error)}`,
-        }],
-      });
-    }
-    if (typeof options.onProgress === 'function') {
-      options.onProgress({ phase: 'done', current: index + 1, total: sourceEntries.files.length, result: results[results.length - 1] });
-    }
-  }
+  });
   if (typeof options.onProgress === 'function') {
     options.onProgress({ phase: 'finish', total: sourceEntries.files.length });
   }
-  const repairedCostRecords = await repairUsageCostEstimates(paths.usageDb);
-  const repairedDuplicateUsageRecords = await repairDuplicateVscodeUsageRecords(paths.usageDb);
+  let repairedCostRecords = 0;
+  let repairedDuplicateUsageRecords = 0;
+  await runImportMutationBatch(paths.usageDb, async () => {
+    repairedCostRecords = await repairUsageCostEstimates(paths.usageDb);
+    repairedDuplicateUsageRecords = await repairDuplicateVscodeUsageRecords(paths.usageDb);
+  });
   if (repairedCostRecords > 0) {
     results.push({
       source: 'store',
