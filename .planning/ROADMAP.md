@@ -35,6 +35,13 @@ v0.6.0 is ready for planning. Continue phase numbering from Phase 17.
 3. Multi-step store mutations use shared connections and transactions rather than one full DB export per helper call.
 4. Package validation proves the native dependency can be installed and used through local CLI/package workflows.
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 17-01-PLAN.md — Create storage equivalence tests, native package smoke, benchmark contract, and package artifact guardrails.
+- [ ] 17-02-PLAN.md — Replace `sql.js` internals with file-backed `better-sqlite3` while preserving the async store facade and transaction behavior.
+- [ ] 17-03-PLAN.md — Validate native package workflows, run storage benchmark, and prove Phase 17 package gates.
+
 ### Phase 18: Refresh Import Batching
 
 **Goal:** Make normal reports and explicit `--refresh` avoid unnecessary source processing and database writes, especially for large Copilot session-state source sets.
