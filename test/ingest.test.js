@@ -138,6 +138,30 @@ test('readJsonl incremental preserves valid rows around invalid UTF-8 with an ab
   assert.equal(parsed.resetRequired, false);
 });
 
+test('readJsonl incremental preserves legacy malformed warnings for a UTF-8 BOM on each line', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-jsonl-bom-'));
+  const file = path.join(tmp, 'events.jsonl');
+  const bom = Buffer.from([0xef, 0xbb, 0xbf]);
+  fs.writeFileSync(file, Buffer.concat([
+    bom,
+    Buffer.from('{"value":1}\n'),
+    bom,
+    Buffer.from('{"value":2}\n'),
+  ]));
+
+  const legacy = readJsonl(file);
+  const incremental = readJsonl(file, { startByte: 0, completedLines: 0, chunkSize: 5 });
+  const warningShape = ({ code, line }) => ({ code, line });
+
+  assert.deepEqual(legacy.records, []);
+  assert.deepEqual(legacy.warnings.map(warningShape), [
+    { code: 'malformed_jsonl', line: 1 },
+    { code: 'malformed_jsonl', line: 2 },
+  ]);
+  assert.deepEqual(incremental.records, legacy.records);
+  assert.deepEqual(incremental.warnings.map(warningShape), legacy.warnings.map(warningShape));
+});
+
 test('readJsonl incremental rejects incompatible and non-boundary byte resumes', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-jsonl-invalid-'));
   const file = path.join(tmp, 'events.jsonl');
@@ -994,6 +1018,44 @@ test('incremental ingest resets when the same inode is truncated and regrown pas
   assert.equal(result.skipped_existing_records, 0);
   const usage = await queryOne(paths.usageDb, 'SELECT span_id FROM usage_records ORDER BY span_id');
   assert.deepEqual(usage.map((row) => row.span_id), ['same-inode-add', 'same-inode-new', 'same-inode-old']);
+});
+
+test('incremental ingest detects an early same-inode rewrite when the trailing 4 KiB stays unchanged', async (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-incremental-head-rewrite-'));
+  const file = path.join(tmp, 'events.jsonl');
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  const original = cliUsageLine('same-head-old', 'DEMO-945');
+  const replacement = cliUsageLine('same-head-new', 'DEMO-946');
+  assert.equal(Buffer.byteLength(original), Buffer.byteLength(replacement));
+  const stableTail = Array.from({ length: 48 }, (_, index) => JSON.stringify({
+    kind: 'stable-padding',
+    index,
+    padding: 'x'.repeat(256),
+  })).join('\n') + '\n';
+  const originalContents = `${original}\n${stableTail}`;
+  const replacementContents = `${replacement}\n${stableTail}`;
+  assert.equal(Buffer.byteLength(originalContents), Buffer.byteLength(replacementContents));
+  assert.ok(Buffer.byteLength(originalContents) > 9 * 1024);
+
+  fs.writeFileSync(file, originalContents);
+  await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli' });
+  const initial = fs.statSync(file);
+  const firstCheckpoint = await importCheckpoint(paths.usageDb, 'copilot-cli', path.resolve(file));
+  assert.equal(firstCheckpoint.context.jsonl.continuity.tail.bytes, 4 * 1024);
+
+  fs.writeFileSync(file, replacementContents);
+  const rewritten = fs.statSync(file);
+  if (Number.isFinite(initial.ino) && Number.isFinite(rewritten.ino) && initial.ino !== rewritten.ino) {
+    return t.skip('runtime replaced the inode during in-place rewrite');
+  }
+  const changedAt = new Date(Date.now() + 2000);
+  fs.utimesSync(file, changedAt, changedAt);
+
+  const result = await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli' });
+  assert.equal(result.usage_records, 1);
+  assert.equal(result.skipped_existing_records, 0);
+  const usage = await queryOne(paths.usageDb, 'SELECT span_id FROM usage_records ORDER BY span_id');
+  assert.deepEqual(usage.map((row) => row.span_id), ['same-head-new', 'same-head-old']);
 });
 
 test('incremental ingest imports valid rows surrounding invalid UTF-8 and stores its warning', async () => {
