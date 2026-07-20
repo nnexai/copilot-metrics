@@ -13,7 +13,7 @@
 
 ### Collection
 
-- [ ] **COL-01**: Copilot hook events use a lightweight collection entrypoint that avoids loading SQLite, ingestion, pricing, and report modules.
+- [x] **COL-01**: Copilot hook events use a lightweight collection entrypoint that avoids loading SQLite, ingestion, pricing, and report modules.
 - [ ] **COL-02**: A VS Code session debug log is parsed at most once per import while preserving cached-token evidence for every matching usage record.
 
 ### Store maintenance
@@ -63,7 +63,7 @@
 | ING-01 | Phase 20 | Complete |
 | ING-02 | Phase 20 | Complete |
 | ING-03 | Phase 20 | Complete |
-| COL-01 | Phase 20 | Pending |
+| COL-01 | Phase 20 | Complete |
 | COL-02 | Phase 20 | Pending |
 | STR-01 | Phase 21 | Pending |
 | STR-02 | Phase 21 | Pending |

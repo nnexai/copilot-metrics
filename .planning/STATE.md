@@ -4,19 +4,19 @@ milestone: v0.7.0
 milestone_name: Ingestion and Reporting Scalability
 current_phase: 20
 current_phase_name: Incremental JSONL and Lightweight Collection
-current_plan: 2
-total_plans_in_phase: 3
 status: executing
-stopped_at: Completed 20-01-PLAN.md
-last_updated: "2026-07-20T09:25:25.013Z"
+stopped_at: Completed 20-02-PLAN.md
+last_updated: "2026-07-20T09:33:13.027Z"
 last_activity: 2026-07-20
-last_activity_desc: Completed Plan 20-01 incremental JSONL byte checkpoints
+last_activity_desc: Completed Plan 20-02 lightweight hook collection
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
-  percent: 33
+  completed_plans: 2
+  percent: 67
+current_plan: 3
+total_plans_in_phase: 3
 ---
 
 # State: Copilot Metrics
@@ -50,11 +50,11 @@ v0.7.0 Ingestion and Reporting Scalability
 ## Current Position
 
 Phase: 20 of 21 (Incremental JSONL and Lightweight Collection)
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-07-20 — v0.7.0 roadmap created with 13/13 requirements mapped
 
-Progress: [███░░░░░░░] 33%
+Progress: [███████░░░] 67%
 
 ## Current Roadmap
 
@@ -72,6 +72,8 @@ Two coarse phases execute in order:
 - [Phase 20]: Store versioned JSONL byte offsets and completed-line counts in import checkpoint context.
 - [Phase 20]: Advance JSONL checkpoints only through complete newlines and retry trailing partial bytes.
 - [Phase 20]: Validate stable file identity with dev:ino where the platform exposes it.
+- [Phase 20]: Keep legacy hook-log compatibility while generated hooks use the dedicated hook executable.
+- [Phase 20]: Use npx --package to select the secondary hook bin without embedding ephemeral cache paths.
 
 ### Blockers/Concerns
 
@@ -96,12 +98,12 @@ Items acknowledged and deferred at milestone close on 2026-06-03:
 
 ## Operator Next Steps
 
-- Discuss or plan Phase 20.
+- Execute Plan 20-03 debug-log reuse and benchmark registration.
 
 ## Session Continuity
 
-Last session: 2026-07-20T09:24:41.232Z
-Stopped at: Completed 20-01-PLAN.md
+Last session: 2026-07-20T09:33:13.020Z
+Stopped at: Completed 20-02-PLAN.md
 Resume file: None
 
 ## Performance Metrics
@@ -109,3 +111,4 @@ Resume file: None
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 20 P01 | 9min | 3 tasks | 3 files |
+| Phase 20 P02 | 4min | 3 tasks | 7 files |
