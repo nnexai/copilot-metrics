@@ -31,7 +31,7 @@
 
 - [x] **VER-01**: Fixture tests cover append, unchanged, truncation, rotation, malformed and partial JSONL inputs plus hook/debug-log behavior.
 - [x] **VER-02**: Benchmarks demonstrate improved incremental refresh, hook startup, store initialization, and report performance without output drift.
-- [ ] **VER-03**: The npm package passes the full release checklist and the published version is verified from an isolated environment.
+- [x] **VER-03**: The npm package passes the full release checklist and the published version is verified from an isolated environment.
 
 ## Future Requirements
 
@@ -72,7 +72,7 @@
 | REP-02 | Phase 21 | Complete |
 | VER-01 | Phase 20 | Complete |
 | VER-02 | Phase 21 | Complete |
-| VER-03 | Phase 21 | Pending |
+| VER-03 | Phase 21 | Complete |
 
 **Coverage:**
 
