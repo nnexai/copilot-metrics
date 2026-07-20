@@ -143,11 +143,11 @@ function strongerUsageRow(left, right) {
   return Number(left.usage_record_id || left.id || 0) <= Number(right.usage_record_id || right.id || 0) ? left : right;
 }
 
-function dedupeUsageRows(rows) {
+function dedupeUsageRows(rows, keyForRow = usageReportKey) {
   const keyed = new Map();
   const unkeyed = [];
   for (const row of rows) {
-    const key = usageReportKey(row);
+    const key = keyForRow(row);
     if (!key) {
       unkeyed.push(row);
       continue;
@@ -475,7 +475,10 @@ ORDER BY mla.session_id, mla.label, ur.id`);
 }
 
 async function manualLabelUsageRows(dbPath) {
-  return dedupeUsageRows(await rawManualLabelUsageRows(dbPath));
+  return dedupeUsageRows(await rawManualLabelUsageRows(dbPath), (row) => {
+    const usageKey = usageReportKey(row);
+    return usageKey ? `${canonicalLabel(row.label)}\0${usageKey}` : null;
+  });
 }
 
 function rankingBySession(sessionRankings) {
@@ -685,7 +688,10 @@ async function createLabelReportContext(dbPath) {
     },
   ])).values());
   const sessionRankings = rankSessionEvidence(evidenceRows, manualAssignments);
-  const manualRows = dedupeUsageRows(rawManualRows);
+  const manualRows = dedupeUsageRows(rawManualRows, (row) => {
+    const usageKey = usageReportKey(row);
+    return usageKey ? `${canonicalLabel(row.label)}\0${usageKey}` : null;
+  });
   return {
     evidenceRows,
     manualAssignments,

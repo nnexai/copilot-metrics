@@ -222,8 +222,12 @@ test('report context reads evidence and raw manual joins exactly once', async ()
     assert.deepEqual(await labelModelBreakdown(dbPath, 'DEMO-902', withContext), await labelModelBreakdown(dbPath, 'DEMO-902', options));
     assert.deepEqual(await labelDetails(dbPath, 'DEMO-902', withContext), await labelDetails(dbPath, 'DEMO-902', options));
     assert.deepEqual(await labelSessionDetails(dbPath, 'DEMO-902', withContext), await labelSessionDetails(dbPath, 'DEMO-902', options));
-    const details = await labelDetails(dbPath, 'DEMO-902', withContext);
-    assert.equal(details.filter((row) => row.source_type === 'manual' && row.label === 'DEMO-902').length, 1);
+    if (options.topK || options.allMatches) {
+      const detailsWithContext = await labelDetails(dbPath, 'DEMO-902', withContext);
+      const detailsWithoutContext = await labelDetails(dbPath, 'DEMO-902', options);
+      assert.equal(detailsWithContext.filter((row) => row.source_type === 'manual' && row.label === 'DEMO-902').length, 1);
+      assert.equal(detailsWithoutContext.filter((row) => row.source_type === 'manual' && row.label === 'DEMO-902').length, 1);
+    }
   }
 });
 

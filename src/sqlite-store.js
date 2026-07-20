@@ -56,9 +56,13 @@ class BetterStatement {
 }
 
 class BetterDatabase {
-  constructor(dbPath) {
+  constructor(dbPath, options = {}) {
     this.db = new BetterSqlite(dbPath, { timeout: 5000 });
     this._rowsModified = 0;
+    if (options.configure !== false) this.configure();
+  }
+
+  configure() {
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('synchronous = FULL');
   }
@@ -96,7 +100,7 @@ class BetterDatabase {
   }
 }
 
-function openDatabase(dbPath) {
+function openDatabase(dbPath, options = {}) {
   const resolvedPath = path.resolve(dbPath);
   if (activeConnection && activeConnection.dbPath === resolvedPath) {
     return activeConnection.db;
@@ -104,7 +108,7 @@ function openDatabase(dbPath) {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true, mode: 0o700 });
   const isNew = !fs.existsSync(dbPath);
   try {
-    const db = new BetterDatabase(dbPath);
+    const db = new BetterDatabase(dbPath, options);
     if (isNew) {
       try {
         fs.chmodSync(dbPath, 0o600);
@@ -554,7 +558,7 @@ async function markStoreRepairComplete(dbPath, repair) {
 
 async function initStore(dbPath) {
   if (activeConnection && activeConnection.dbPath === path.resolve(dbPath)) return;
-  const db = await openDatabase(dbPath);
+  const db = await openDatabase(dbPath, { configure: false });
   try {
     const currentVersion = schemaVersion(db);
     if (currentVersion > CURRENT_SCHEMA_VERSION) {
@@ -562,6 +566,7 @@ async function initStore(dbPath) {
         `SQLite store at ${dbPath} uses newer schema version ${currentVersion}; this binary supports through version ${CURRENT_SCHEMA_VERSION}. Upgrade copilot-metrics or use a compatible store.`,
       );
     }
+    db.configure();
     for (let version = currentVersion + 1; version <= CURRENT_SCHEMA_VERSION; version += 1) {
       const migrate = SCHEMA_MIGRATIONS.get(version);
       if (!migrate) throw new Error(`Missing SQLite schema migration for version ${version}.`);
@@ -621,6 +626,49 @@ function runPrepared(db, sql, rows) {
     for (const row of rows) statement.run(row);
   } finally {
     statement.free();
+  }
+}
+
+function queryRowsInDb(db, sql, params = []) {
+  const statement = db.prepare(sql);
+  const rows = [];
+  try {
+    statement.bind(params);
+    while (statement.step()) rows.push(statement.getAsObject());
+  } finally {
+    statement.free();
+  }
+  return rows;
+}
+
+async function runStoreRepairTransaction(dbPath, repair, callback) {
+  if (typeof callback !== 'function') throw new TypeError('runStoreRepairTransaction requires a callback.');
+  await initStore(dbPath);
+  const db = await openDatabase(dbPath);
+  try {
+    db.run('BEGIN IMMEDIATE');
+    if (metadataValueInDb(db, repairMarkerKey(repair)) === String(STORE_REPAIR_VERSIONS[repair])) {
+      db.run('COMMIT');
+      return 0;
+    }
+    const result = await callback({
+      db,
+      queryRows(sql, params = []) {
+        return queryRowsInDb(db, sql, params);
+      },
+      updateUsageCostEstimates(updates) {
+        return updateUsageCostEstimatesInDb(db, updates);
+      },
+    });
+    markStoreRepairCompleteInDb(db, repair);
+    db.run('COMMIT');
+    persistDatabase(dbPath, db);
+    return result;
+  } catch (error) {
+    rollbackDatabase(db);
+    throw error;
+  } finally {
+    closeDatabase(db);
   }
 }
 
@@ -980,7 +1028,7 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
     );
 
     const labelEvidence = [];
-    const usageStatement = db.prepare(`INSERT OR IGNORE INTO usage_records (
+    const usageStatement = db.prepare(`INSERT INTO usage_records (
         imported_at, source, raw_line, span_id, trace_id, parent_span_id, timestamp, surface,
         conversation_id, session_id, requested_model, resolved_model, repo, branch, cwd, commit_sha,
         input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, reasoning_tokens,
@@ -1069,7 +1117,7 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
           ]);
           usageByIdentity.set(usage.usage_identity, cachedMergedUsage(existingUsage, usage, merged));
         } else {
-          const insertResult = usageStatement.run([
+          const usageValues = [
             importedAt,
             source,
             usage.raw_line,
@@ -1119,20 +1167,27 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
             JSON.stringify(usage.pricing_diagnostics || []),
             JSON.stringify(usage.warnings || []),
             usage.usage_identity || null,
-          ]);
-          if (insertResult.changes > 0) {
-            usageRecordId = Number(insertResult.lastInsertRowid);
-            insertedUsageRecords += 1;
-            if (usage.usage_identity) usageByIdentity.set(usage.usage_identity, cachedInsertedUsage(usageRecordId, usage));
-          } else if (usage.usage_identity) {
+          ];
+          let insertResult = null;
+          try {
+            insertResult = usageStatement.run(usageValues);
+          } catch (error) {
+            const identityConflict = usage.usage_identity
+              && error?.code === 'SQLITE_CONSTRAINT_UNIQUE'
+              && /usage_records\.usage_identity/i.test(String(error.message || ''));
+            if (!identityConflict) throw error;
             conflictingUsageStatement.bind([usage.usage_identity]);
             const conflict = conflictingUsageStatement.step() ? conflictingUsageStatement.getAsObject() : null;
             conflictingUsageStatement.reset();
-            if (conflict) {
-              usageRecordId = conflict.id;
-              duplicateUsageRecords += 1;
-              usageByIdentity.set(usage.usage_identity, conflict);
-            }
+            if (!conflict) throw error;
+            usageRecordId = conflict.id;
+            duplicateUsageRecords += 1;
+            usageByIdentity.set(usage.usage_identity, conflict);
+          }
+          if (insertResult) {
+            usageRecordId = Number(insertResult.lastInsertRowid);
+            insertedUsageRecords += 1;
+            if (usage.usage_identity) usageByIdentity.set(usage.usage_identity, cachedInsertedUsage(usageRecordId, usage));
           }
         }
         if (!usageRecordId) continue;
@@ -1383,11 +1438,8 @@ async function updateVscodeUsageResponseIds(dbPath, updates) {
   return updated;
 }
 
-async function updateUsageCostEstimates(dbPath, updates) {
-  await initStore(dbPath);
+function updateUsageCostEstimatesInDb(db, updates) {
   if (!updates.length) return 0;
-
-  const db = await openDatabase(dbPath);
   const statement = db.prepare(`
     UPDATE usage_records
     SET estimated_usd = ?,
@@ -1416,7 +1468,6 @@ async function updateUsageCostEstimates(dbPath, updates) {
   `);
   let updated = 0;
   try {
-    db.run('BEGIN');
     for (const update of updates) {
       statement.run([
         update.estimated_usd,
@@ -1445,17 +1496,28 @@ async function updateUsageCostEstimates(dbPath, updates) {
       ]);
       updated += typeof db.getRowsModified === 'function' ? db.getRowsModified() : 0;
     }
+  } finally {
+    statement.free();
+  }
+  return updated;
+}
+
+async function updateUsageCostEstimates(dbPath, updates) {
+  await initStore(dbPath);
+  if (!updates.length) return 0;
+  const db = await openDatabase(dbPath);
+  try {
+    db.run('BEGIN');
+    const updated = updateUsageCostEstimatesInDb(db, updates);
     db.run('COMMIT');
     persistDatabase(dbPath, db);
+    return updated;
   } catch (error) {
     rollbackDatabase(db);
     throw error;
   } finally {
-    statement.free();
     closeDatabase(db);
   }
-
-  return updated;
 }
 
 function vscodeRepairKey(row) {
@@ -1493,10 +1555,9 @@ function strongerUsageRow(left, right) {
 }
 
 async function repairDuplicateVscodeUsageRecords(dbPath, options = {}) {
-  await initStore(dbPath);
-  if (!(await storeRepairNeeded(dbPath, STORE_REPAIRS.DUPLICATE_USAGE))) return 0;
-  if (typeof options.onScan === 'function') options.onScan(STORE_REPAIRS.DUPLICATE_USAGE);
-  const rows = await queryRows(dbPath, `
+  return runStoreRepairTransaction(dbPath, STORE_REPAIRS.DUPLICATE_USAGE, ({ db, queryRows: queryRepairRows }) => {
+    if (typeof options.onScan === 'function') options.onScan(STORE_REPAIRS.DUPLICATE_USAGE);
+    const rows = queryRepairRows(`
     SELECT id, source, surface, span_id, trace_id, timestamp, session_id,
       requested_model, resolved_model, actual_charge_nano_aiu, actual_ai_credits,
       actual_usd, actual_basis, displayed_ai_credits, displayed_usd,
@@ -1511,20 +1572,16 @@ async function repairDuplicateVscodeUsageRecords(dbPath, options = {}) {
        OR surface = 'vscode-chat-session'
        OR source = 'copilot-session'
        OR surface = 'copilot-cli-session'
-  `);
-  const groups = new Map();
-  for (const row of rows) {
-    const key = usageRepairKey(row);
-    if (!key) continue;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(row);
-  }
-  const duplicateGroups = Array.from(groups.values()).filter((group) => group.length > 1);
-
-  const db = await openDatabase(dbPath);
-  let repaired = 0;
-  try {
-    db.run('BEGIN');
+    `);
+    const groups = new Map();
+    for (const row of rows) {
+      const key = usageRepairKey(row);
+      if (!key) continue;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(row);
+    }
+    const duplicateGroups = Array.from(groups.values()).filter((group) => group.length > 1);
+    let repaired = 0;
     if (duplicateGroups.length) repairDuplicateLabelEvidenceInDb(db);
     for (const group of duplicateGroups) {
       const survivor = group.reduce((best, row) => strongerUsageRow(best, row));
@@ -1620,16 +1677,8 @@ WHERE usage_record_id = ?
       }
     }
     if (duplicateGroups.length) repairDuplicateLabelEvidenceInDb(db);
-    markStoreRepairCompleteInDb(db, STORE_REPAIRS.DUPLICATE_USAGE);
-    db.run('COMMIT');
-    persistDatabase(dbPath, db);
-  } catch (error) {
-    rollbackDatabase(db);
-    throw error;
-  } finally {
-    closeDatabase(db);
-  }
-  return repaired;
+    return repaired;
+  });
 }
 
 async function repairDuplicateLabelEvidence(dbPath) {
@@ -1664,16 +1713,11 @@ async function queryOne(dbPath, sql) {
 
 async function queryRows(dbPath, sql, params = []) {
   const db = await openDatabase(dbPath);
-  const statement = db.prepare(sql);
-  const rows = [];
   try {
-    statement.bind(params);
-    while (statement.step()) rows.push(statement.getAsObject());
+    return queryRowsInDb(db, sql, params);
   } finally {
-    statement.free();
     closeDatabase(db);
   }
-  return rows;
 }
 
 function normalizeManualLabels(labels) {
@@ -1861,6 +1905,7 @@ module.exports = {
   repairDuplicateVscodeUsageRecords,
   removeManualLabels,
   runImportMutationBatch,
+  runStoreRepairTransaction,
   sessionExists,
   setManualLabels,
   storeRepairNeeded,

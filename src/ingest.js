@@ -13,16 +13,14 @@ const {
   importCheckpoint,
   importedLineHighWater,
   initStore,
-  markStoreRepairComplete,
   insertImport,
   loadImportState,
   repairDuplicateVscodeUsageRecords,
+  runStoreRepairTransaction,
   STORE_REPAIRS,
-  storeRepairNeeded,
   queryRows,
   runImportMutationBatch,
   upsertImportCheckpoint,
-  updateUsageCostEstimates,
   updateVscodeUsageResponseIds,
   vscodeRawRecordsNeedingResponseBackfill,
 } = require('./sqlite-store');
@@ -1058,10 +1056,12 @@ function parseWarningsJson(value) {
 }
 
 async function repairUsageCostEstimates(dbPath, options = {}) {
-  await initStore(dbPath);
-  if (!(await storeRepairNeeded(dbPath, STORE_REPAIRS.COST_ESTIMATES))) return 0;
-  if (typeof options.onScan === 'function') options.onScan(STORE_REPAIRS.COST_ESTIMATES);
-  const rows = await queryRows(dbPath, `
+  return runStoreRepairTransaction(dbPath, STORE_REPAIRS.COST_ESTIMATES, ({
+    queryRows: queryRepairRows,
+    updateUsageCostEstimates: updateRepairCosts,
+  }) => {
+    if (typeof options.onScan === 'function') options.onScan(STORE_REPAIRS.COST_ESTIMATES);
+    const rows = queryRepairRows(`
     SELECT id, requested_model, resolved_model, input_tokens, output_tokens,
       cache_read_tokens, cache_creation_tokens, reasoning_tokens, cache_read_status,
       displayed_ai_credits, displayed_credit_text, displayed_credit_basis,
@@ -1072,9 +1072,9 @@ async function repairUsageCostEstimates(dbPath, options = {}) {
       OR selected_pricing_basis IS NULL
       OR warnings_json LIKE '%unknown_model:%'
       OR warnings_json LIKE '%missing_model%'
-  `);
-  const updates = [];
-  for (const row of rows) {
+    `);
+    const updates = [];
+    for (const row of rows) {
     let pricingMetadata = {};
     let pricingDiagnostics = [];
     try {
@@ -1096,7 +1096,7 @@ async function repairUsageCostEstimates(dbPath, options = {}) {
     if (estimate.warnings.some((warning) => String(warning).startsWith('unknown_model:') || warning === 'missing_model')) continue;
     const warnings = parseWarningsJson(row.warnings_json)
       .filter((warning) => !String(warning).startsWith('unknown_model:') && warning !== 'missing_model');
-    updates.push({
+      updates.push({
       id: row.id,
       estimated_usd: estimate.estimated_usd,
       estimated_ai_credits: estimate.estimated_ai_credits,
@@ -1120,11 +1120,10 @@ async function repairUsageCostEstimates(dbPath, options = {}) {
       pricing_metadata: pricingMetadata,
       pricing_diagnostics: estimate.pricing_diagnostics,
       warnings,
-    });
-  }
-  const updated = await updateUsageCostEstimates(dbPath, updates);
-  await markStoreRepairComplete(dbPath, STORE_REPAIRS.COST_ESTIMATES);
-  return updated;
+      });
+    }
+    return updateRepairCosts(updates);
+  });
 }
 
 async function ingestFile(options) {
