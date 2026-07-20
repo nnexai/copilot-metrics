@@ -632,13 +632,9 @@ function normalizeVscodeFallbackUsage(records) {
     }));
 }
 
-function readVscodeDebugCachedTokens(sessionFile, sessionId) {
-  if (!sessionId) return null;
-  const sessionDir = path.dirname(sessionFile);
-  if (path.basename(sessionDir) !== 'chatSessions') return null;
-  const debugFile = vscodeDebugFileForSession(sessionFile, sessionId);
+function readVscodeDebugCachedTokens(debugFile, readDebugJsonl = readJsonl) {
   if (!debugFile) return null;
-  const parsed = readJsonl(debugFile);
+  const parsed = readDebugJsonl(debugFile);
   let cachedTokens = 0;
   let seen = false;
   for (const record of parsed.records) {
@@ -656,10 +652,28 @@ function readVscodeDebugCachedTokens(sessionFile, sessionId) {
   return seen ? { file: debugFile, cachedTokens } : null;
 }
 
-function applyVscodeDebugCachedTokens(usageRecords, sourceFile) {
+function applyVscodeDebugCachedTokens(usageRecords, sourceFile, options = {}) {
+  const resolveDebugFile = options.resolveDebugFile || vscodeDebugFileForSession;
+  const readDebugJsonl = options.readJsonl || readJsonl;
+  const resolvedBySession = new Map();
+  const debugByFile = new Map();
+
+  function debugForSession(sessionId) {
+    if (!sessionId) return null;
+    if (!resolvedBySession.has(sessionId)) {
+      resolvedBySession.set(sessionId, resolveDebugFile(sourceFile, sessionId));
+    }
+    const debugFile = resolvedBySession.get(sessionId);
+    if (!debugFile) return null;
+    if (!debugByFile.has(debugFile)) {
+      debugByFile.set(debugFile, readVscodeDebugCachedTokens(debugFile, readDebugJsonl));
+    }
+    return debugByFile.get(debugFile);
+  }
+
   return usageRecords.map((usage) => {
     if (usage.cache_read_status !== 'unknown') return usage;
-    const debug = readVscodeDebugCachedTokens(sourceFile, usage.session_id);
+    const debug = debugForSession(usage.session_id);
     if (!debug) return usage;
     return {
       ...usage,
@@ -892,7 +906,11 @@ async function ingestVscodeChatSessionFile(options) {
     ? allRecords
     : allRecords.filter((record) => !existing.has(record.raw_fingerprint));
   const fallbackUsage = attachUsageLabelEvidence(
-    enrichCosts(applyVscodeDebugCachedTokens(normalizeVscodeFallbackUsage(newRecords), sourceFile)),
+    enrichCosts(applyVscodeDebugCachedTokens(
+      normalizeVscodeFallbackUsage(newRecords),
+      sourceFile,
+      options.vscodeDebugOptions,
+    )),
     { extractors: options.extractors || [] },
   );
   const mappings = normalizeVscodeChatSession(parsed.records, options.extractors || []);
