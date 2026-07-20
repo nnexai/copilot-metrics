@@ -10,19 +10,19 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 
 ## Current State
 
-`copilot-metrics@0.5.2` has shipped and the v0.5.0 milestone is archived. The CLI supports local Copilot usage import, attribution, selected pricing evidence, configurable regex patterns for the built-in label extractor, granular label association confidence ranking, top-label default reports, explicit top-k/all-match inclusion, per-session label detail, manual session label assignments with highest-precedence report ranking, and duplicate attribution repair for manual-label report rows.
+`copilot-metrics@0.6.1` has shipped and the v0.6.0 milestone is archived. The CLI uses file-backed SQLite storage, batches refresh imports, skips unchanged configured sources, and preserves selected pricing, label-confidence, manual-label, and report semantics across local Copilot telemetry and session fallback sources.
 
-## Current Milestone: v0.6.0 performance improvements
+## Current Milestone: v0.7.0 Ingestion and Reporting Scalability
 
-**Goal:** Make refresh and report commands substantially faster without changing report semantics, selected-pricing behavior, label attribution, or setup-once CLI usage.
+**Goal:** Keep collection, incremental log ingestion, store maintenance, and reports fast as telemetry history and discovered session counts grow, without changing observable output or privacy behavior.
 
 **Target features:**
 
-- Introduce a file-backed SQLite storage path using `better-sqlite3`, with the existing store API and schema semantics preserved.
-- Batch refresh imports, checkpoint updates, duplicate repair, and cost-repair work through shared connections and transactions to avoid repeated full-store reload/export behavior.
-- Reduce unnecessary refresh work for unchanged Copilot session-state and VS Code fallback sources while keeping explicit `--refresh` behavior correct.
-- Optimize normal report/detail paths by avoiding repeated broad evidence/ranking work where results can be shared inside one command.
-- Verify output equivalence and performance improvements with fixture tests, copied-store benchmarks, and published-package checks.
+- Resume append-only JSONL imports from byte checkpoints instead of rereading historical lines, with safe rotation/truncation fallback.
+- Reduce hook collection startup overhead and avoid repeated VS Code debug-log parsing within one session import.
+- Move legacy store cleanup to one-time migrations, gate historical repairs on actual need, and reduce per-record SQLite queries.
+- Add targeted indexes and shared report-query context while preserving report values, label ranking, selected pricing, diagnostics, and manual-label precedence.
+- Prove compatibility with fixture-based regression tests, scaling benchmarks, package verification, and published-package smoke checks.
 
 ## Requirements
 
@@ -64,9 +64,9 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 
 ### Active
 
-- v0.6.0: Improve refresh/report performance without changing user-facing report semantics.
-- v0.6.0: Preserve local-first setup and central user-level storage while evaluating/using `better-sqlite3`.
-- v0.6.0: Keep selected-price, label-confidence, manual-label, and diagnostics output contracts stable.
+- v0.7.0: Make append-only telemetry and session-log refresh cost proportional to newly appended bytes where possible.
+- v0.7.0: Reduce per-hook process startup and repeated parser/database maintenance overhead.
+- v0.7.0: Preserve selected-price, label-confidence, manual-label, diagnostics, privacy, and report output contracts.
 
 ### Out of Scope
 
@@ -142,4 +142,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-09 after v0.6.0 milestone start*
+*Last updated: 2026-07-20 after v0.7.0 milestone start*

@@ -1,29 +1,29 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.6.0
-milestone_name: performance improvements
-status: completed
-last_updated: "2026-06-10T07:07:41.194Z"
-last_activity: 2026-06-10 — Milestone v0.6.0 completed and archived
+milestone: v0.7.0
+milestone_name: Ingestion and Reporting Scalability
+status: planning
+last_updated: "2026-07-20T08:56:12.464Z"
+last_activity: 2026-07-20
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 5
-  completed_plans: 5
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** v0.6.0 milestone complete
+**Status:** v0.7.0 milestone planning
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-06-09)
+See: `.planning/PROJECT.md` (updated 2026-07-20)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Awaiting next milestone
+**Current focus:** Defining ingestion and reporting scalability requirements
 
 ## Workflow Settings
 
@@ -39,18 +39,18 @@ See: `.planning/PROJECT.md` (updated 2026-06-09)
 
 ## Current Milestone
 
-v0.6.0 performance improvements
+v0.7.0 Ingestion and Reporting Scalability
 
 ## Current Position
 
-Phase: Milestone v0.6.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-10 — Milestone v0.6.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-07-20 — Milestone v0.7.0 started
 
 ## Current Roadmap
 
-v0.6.0 is complete and archived. Start the next milestone with `$gsd-new-milestone`.
+Requirements and roadmap are being defined for v0.7.0.
 
 ## Completed Milestone
 
