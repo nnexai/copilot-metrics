@@ -213,7 +213,7 @@ test('report context reads evidence and raw manual joins exactly once', async ()
     { session_id: 'session-cli', label: 'DEMO-901' },
     { session_id: 'session-cli', label: 'DEMO-902' },
   ]);
-  assert.equal(context.manualRows.filter((row) => row.session_id === 'session-cli').length, 1);
+  assert.equal(context.manualRows.filter((row) => row.session_id === 'session-cli').length, 2);
 
   for (const options of [{}, { topK: 2 }, { allMatches: true }]) {
     const withContext = { ...options, context };
@@ -222,6 +222,8 @@ test('report context reads evidence and raw manual joins exactly once', async ()
     assert.deepEqual(await labelModelBreakdown(dbPath, 'DEMO-902', withContext), await labelModelBreakdown(dbPath, 'DEMO-902', options));
     assert.deepEqual(await labelDetails(dbPath, 'DEMO-902', withContext), await labelDetails(dbPath, 'DEMO-902', options));
     assert.deepEqual(await labelSessionDetails(dbPath, 'DEMO-902', withContext), await labelSessionDetails(dbPath, 'DEMO-902', options));
+    const details = await labelDetails(dbPath, 'DEMO-902', withContext);
+    assert.equal(details.filter((row) => row.source_type === 'manual' && row.label === 'DEMO-902').length, 1);
   }
 });
 

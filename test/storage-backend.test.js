@@ -292,15 +292,36 @@ test('future schema version is rejected without modifying the store', async () =
   await initStore(dbPath);
   const futureVersion = schemaVersion(dbPath) + 1;
   withRawDb(dbPath, (db) => {
+    db.pragma('wal_checkpoint(TRUNCATE)');
+    db.pragma('journal_mode = DELETE');
     db.pragma(`user_version = ${futureVersion}`);
     db.exec("INSERT INTO store_metadata (key, value) VALUES ('future-sentinel', 'intact')");
   });
+  assert.equal(fs.existsSync(`${dbPath}-wal`), false);
+  assert.equal(fs.existsSync(`${dbPath}-shm`), false);
 
   await assert.rejects(initStore(dbPath), new RegExp(`newer schema version ${futureVersion}`, 'i'));
   withRawDb(dbPath, (db) => {
     assert.equal(schemaVersion(dbPath), futureVersion);
+    assert.equal(db.pragma('journal_mode', { simple: true }), 'delete');
     assert.equal(db.prepare("SELECT value FROM store_metadata WHERE key = 'future-sentinel'").get().value, 'intact');
   });
+  assert.equal(fs.existsSync(`${dbPath}-wal`), false);
+  assert.equal(fs.existsSync(`${dbPath}-shm`), false);
+});
+
+test('usage insert rejects non-identity constraint failures and rolls back the import', async () => {
+  const dbPath = tempDb();
+  const fixture = fixtureImport();
+  const invalidUsage = { ...fixture.usageRecords[0], estimate_label: null, usage_identity: 'invalid-required-field' };
+
+  await assert.rejects(
+    insertImport(dbPath, 'vscode', '/tmp/invalid.jsonl', fixture.rawRecords.slice(0, 1), [invalidUsage], [], []),
+    /NOT NULL constraint failed: usage_records\.estimate_label/i,
+  );
+
+  assert.equal((await queryRows(dbPath, 'SELECT COUNT(*) AS count FROM raw_records'))[0].count, 0);
+  assert.equal((await queryRows(dbPath, 'SELECT COUNT(*) AS count FROM usage_records'))[0].count, 0);
 });
 
 test('usage duplicate repair marker gates scans and repair retry after failure', async () => {
@@ -321,6 +342,35 @@ test('usage duplicate repair marker gates scans and repair retry after failure',
   assert.equal(await repairDuplicateVscodeUsageRecords(dbPath, { onScan() { scans += 1; } }), 0);
   assert.equal(scans, 2);
   assert.equal((await queryRows(dbPath, 'SELECT COUNT(*) AS count FROM usage_records'))[0].count, 1);
+});
+
+test('usage duplicate repair serializes candidate scan and marker completion', async () => {
+  const dbPath = tempDb();
+  const fixture = fixtureImport();
+  const duplicateUsage = fixture.usageRecords.map((usage) => ({ ...usage, usage_identity: null }));
+  await insertImport(dbPath, 'vscode', '/tmp/repair-race.jsonl', [], duplicateUsage, [], []);
+  await insertImport(dbPath, 'vscode', '/tmp/repair-race-2.jsonl', [], duplicateUsage, [], []);
+
+  let blockedInvalidations = 0;
+  const repaired = await repairDuplicateVscodeUsageRecords(dbPath, {
+    onScan() {
+      const concurrent = new BetterSqlite(dbPath, { timeout: 0 });
+      try {
+        assert.throws(
+          () => concurrent.prepare("DELETE FROM store_metadata WHERE key = 'repair:duplicate_usage'").run(),
+          /database is locked/i,
+        );
+        blockedInvalidations += 1;
+      } finally {
+        concurrent.close();
+      }
+    },
+  });
+
+  assert.equal(blockedInvalidations, 1);
+  assert.equal(repaired, 1);
+  assert.equal((await queryRows(dbPath, 'SELECT COUNT(*) AS count FROM usage_records'))[0].count, 1);
+  assert.equal((await queryRows(dbPath, "SELECT value FROM store_metadata WHERE key = 'repair:duplicate_usage'"))[0].value, '1');
 });
 
 test('query plan uses named indexes for label lookup and manual join index', async () => {

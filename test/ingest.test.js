@@ -497,6 +497,43 @@ test('repairUsageCostEstimates updates existing zero-cost dated model rows', asy
   assert.equal(usage[0].warnings_json, '[]');
 });
 
+test('cost repair serializes candidate scan, updates, and marker completion', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-cost-repair-race-'));
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  await ingestFile({
+    dbPath: paths.usageDb,
+    file: path.join(fixtures, 'vscode-log-records.jsonl'),
+    source: 'vscode',
+  });
+  const db = new BetterSqlite(paths.usageDb);
+  try {
+    db.prepare("UPDATE usage_records SET estimated_usd = 0, estimated_ai_credits = 0, selected_pricing_basis = NULL").run();
+  } finally {
+    db.close();
+  }
+  await invalidateStoreRepair(paths.usageDb, STORE_REPAIRS.COST_ESTIMATES);
+
+  let blockedInvalidations = 0;
+  const updated = await repairUsageCostEstimates(paths.usageDb, {
+    onScan() {
+      const concurrent = new BetterSqlite(paths.usageDb, { timeout: 0 });
+      try {
+        assert.throws(
+          () => concurrent.prepare("DELETE FROM store_metadata WHERE key = 'repair:cost_estimates'").run(),
+          /database is locked/i,
+        );
+        blockedInvalidations += 1;
+      } finally {
+        concurrent.close();
+      }
+    },
+  });
+
+  assert.equal(blockedInvalidations, 1);
+  assert.equal(updated, 1);
+  assert.equal((await queryOne(paths.usageDb, "SELECT value FROM store_metadata WHERE key = 'repair:cost_estimates'"))[0].value, '1');
+});
+
 test('unchanged configured-source refresh does not scan repair candidates', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-repair-gating-'));
   const paths = resolvePaths({
