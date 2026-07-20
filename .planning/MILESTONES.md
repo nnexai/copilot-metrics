@@ -1,5 +1,22 @@
 # Milestones
 
+## v0.7.0 Ingestion and Reporting Scalability (Shipped: 2026-07-20)
+
+**Delivered:** Proportional JSONL refresh, lightweight collection, bounded store maintenance, set-based imports, and faster equivalent reports in the published `copilot-metrics@0.7.0` package.
+
+**Phases completed:** 2 phases, 6 plans, 17 tasks
+
+**Key accomplishments:**
+
+- Bounded byte-range JSONL reads with complete-line checkpoints, safe file-reset recovery, and database-level behavioral equivalence coverage
+- Dedicated hook collection avoids the general CLI dependency graph while preserving privacy, compatibility, setup behavior, and fresh-process output.
+- Import-scoped VS Code debug reuse plus semantic-equivalence benchmarks close Phase 20 with complete recovery, privacy, and compatibility coverage.
+- Transactional store migrations, durable repair gating, and named hot-path indexes remove repeated maintenance scans without changing persisted usage semantics.
+- Bounded identity reads, exact insert-result linkage, a two-read label context, and deep semantic benchmarks make large imports and repeated reports scale without observable drift.
+- Synchronized v0.7.0 metadata plus clean-install, native SQLite, package-content, and semantic benchmark gates produce an audit-ready release candidate without premature publication claims.
+
+---
+
 ## v0.6.0 performance improvements (Shipped: 2026-06-10)
 
 **Phases completed:** 3 phases, 5 plans, 0 tasks

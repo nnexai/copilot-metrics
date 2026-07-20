@@ -10,19 +10,11 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 
 ## Current State
 
-`copilot-metrics@0.6.1` has shipped and the v0.6.0 milestone is archived. The CLI uses file-backed SQLite storage, batches refresh imports, skips unchanged configured sources, and preserves selected pricing, label-confidence, manual-label, and report semantics across local Copilot telemetry and session fallback sources.
+`copilot-metrics@0.7.0` has shipped and the v0.7.0 milestone is archived. The CLI uses incremental complete-line JSONL checkpoints, a lightweight hook executable, transactional SQLite migrations and repair markers, set-based imports, persistent hot-path indexes, and shared report context while preserving pricing, attribution, diagnostics, privacy, and human/JSON output contracts.
 
-## Current Milestone: v0.7.0 Ingestion and Reporting Scalability
+## Current Milestone
 
-**Goal:** Keep collection, incremental log ingestion, store maintenance, and reports fast as telemetry history and discovered session counts grow, without changing observable output or privacy behavior.
-
-**Target features:**
-
-- Resume append-only JSONL imports from byte checkpoints instead of rereading historical lines, with safe rotation/truncation fallback.
-- Reduce hook collection startup overhead and avoid repeated VS Code debug-log parsing within one session import.
-- Move legacy store cleanup to one-time migrations, gate historical repairs on actual need, and reduce per-record SQLite queries.
-- Add targeted indexes and shared report-query context while preserving report values, label ranking, selected pricing, diagnostics, and manual-label precedence.
-- Prove compatibility with fixture-based regression tests, scaling benchmarks, package verification, and published-package smoke checks.
+No active milestone. v0.7.0 shipped on 2026-07-20; use `$gsd-new-milestone` to define the next scope.
 
 ## Requirements
 
@@ -61,12 +53,15 @@ Give the user a trustworthy local CLI explanation of which Jira labels, repos, m
 - Validated: Configure one or more internal label extractor patterns during init/setup using repeatable `--label-patterns`, persisted as `labelPatterns` - v0.4.0 Phase 12
 - Validated: Preserve granular label association evidence and derive deterministic per-session confidence rankings from it - v0.4.0 Phase 13
 - Validated: Use top-label report semantics by default, explicit top-k/all-match inclusion, and per-session label detail rows - v0.4.0 Phase 14
+- Validated: Process append-only JSONL from complete-line byte checkpoints with safe bounded recovery and equivalent stored output - v0.7.0 Phase 20
+- Validated: Collect hooks through a lightweight executable and reuse VS Code debug evidence per import - v0.7.0 Phase 20
+- Validated: Gate schema and historical repairs with transactional versions and use set-based imports plus persistent hot-path indexes - v0.7.0 Phase 21
+- Validated: Reuse label report context while preserving deep human/JSON, pricing, confidence, and manual-label semantics - v0.7.0 Phase 21
+- Validated: Publish and verify `copilot-metrics@0.7.0` through GitHub Actions, npm, and isolated exact-version commands - v0.7.0 Phase 21
 
 ### Active
 
-- v0.7.0: Make append-only telemetry and session-log refresh cost proportional to newly appended bytes where possible.
-- v0.7.0: Reduce per-hook process startup and repeated parser/database maintenance overhead.
-- v0.7.0: Preserve selected-price, label-confidence, manual-label, diagnostics, privacy, and report output contracts.
+- None until the next milestone is defined.
 
 ### Out of Scope
 
@@ -122,7 +117,10 @@ The most important attribution convention is Jira ticket IDs such as `DEMO-12345
 | Compute label confidence from granular evidence at query/report time | Scoring algorithms can evolve later without losing per-entry evidence detail. | Validated in v0.4.0 Phase 13 |
 | Make top-label reports the default and top-k explicit | Default reports should avoid overlapping session counts; broader inclusion is useful but must be opt-in and identified. | Validated in v0.4.0 Phase 14 |
 | Treat manual session labels as highest-precedence evidence | The user needs a correction path when automatic attribution is wrong or ambiguous, without deleting the underlying evidence trail. | Pending v0.5.0 |
-| Optimize storage before changing report semantics | The v0.6.0 spike showed repeated `sql.js` full-file load/export dominates small writes; performance work must preserve report meaning while changing storage mechanics. | Pending v0.6.0 |
+| Optimize storage before changing report semantics | The v0.6.0 spike showed repeated `sql.js` full-file load/export dominates small writes; performance work must preserve report meaning while changing storage mechanics. | Validated through v0.7.0 |
+| Use versioned byte checkpoints with bounded continuity evidence | Append-only sources should pay for new bytes while retaining safe recovery without recurring full-history reads. | Validated in v0.7.0 Phase 20 |
+| Separate schema migrations from maintenance repair markers | Schema compatibility and historical cleanup have different lifecycles and must be transactional, durable, and retryable. | Validated in v0.7.0 Phase 21 |
+| Make benchmark correctness and conservative relative regression gates blocking | Performance evidence is useful only when semantic output and major non-regression are enforced. | Validated in v0.7.0 Phase 21 |
 
 ## Evolution
 
@@ -142,4 +140,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-20 after v0.7.0 milestone start*
+*Last updated: 2026-07-20 after v0.7.0 release and milestone archive*

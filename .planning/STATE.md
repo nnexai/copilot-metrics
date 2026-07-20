@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v0.7.0
 milestone_name: Ingestion and Reporting Scalability
-current_phase: 21
-current_phase_name: Store and Report Scalability and Release Verification
 status: completed
-stopped_at: Completed 21-03-PLAN.md; release-ready pending verification, audit, and publication
-last_updated: "2026-07-20T11:09:13.276Z"
+stopped_at: v0.7.0 published, verified, audited, and archived
+last_updated: "2026-07-20T11:13:11.852Z"
 last_activity: 2026-07-20
-last_activity_desc: Phase 21 complete
+last_activity_desc: Milestone v0.7.0 completed and archived
 progress:
   total_phases: 2
   completed_phases: 2
   total_plans: 6
   completed_plans: 6
+current_phase: 21
+current_phase_name: Store and Report Scalability and Release Verification
 current_plan: 3
 total_plans_in_phase: 3
 ---
@@ -21,14 +21,14 @@ total_plans_in_phase: 3
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** All phases complete
+**Status:** v0.7.0 milestone complete
 
 ## Project Reference
 
 See: `.planning/PROJECT.md` (updated 2026-07-20)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Phase 21 — Store and Report Scalability and Release Verification
+**Current focus:** Awaiting next milestone definition
 
 ## Workflow Settings
 
@@ -44,23 +44,18 @@ See: `.planning/PROJECT.md` (updated 2026-07-20)
 
 ## Current Milestone
 
-v0.7.0 Ingestion and Reporting Scalability
+No active milestone; v0.7.0 Ingestion and Reporting Scalability shipped 2026-07-20.
 
 ## Current Position
 
-Phase: 21 of 21 (Store and Report Scalability and Release Verification)
-Plan: Not started
-Status: Plan complete — release-ready pending phase verification, milestone audit, and publication
-Last activity: 2026-07-20 — Phase 21 complete
-
-Progress: [██████████] 100%
+Phase: Milestone v0.7.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-20 — Milestone v0.7.0 completed and archived
 
 ## Current Roadmap
 
-Two coarse phases execute in order:
-
-- Phase 20: incremental JSONL checkpoints plus lightweight hook/debug-log collection.
-- Phase 21: store/report scalability, benchmarks, and release verification.
+v0.7.0 phases 20-21 are archived under `.planning/milestones/v0.7.0-phases/`.
 
 ## Accumulated Context
 
@@ -80,7 +75,7 @@ Two coarse phases execute in order:
 - [Phase 21]: Require named persistent indexes for measured label, session, and VS Code backfill plans.
 - [Phase 21]: Chunk deduplicated SQLite identity inputs at 400 values with conservative bind headroom.
 - [Phase 21]: Derive manual rankings from raw join rows before usage aggregation dedupe.
-- [Phase 21]: Keep VER-03 pending until the orchestrator confirms the published npm version and isolated exact-version commands after milestone audit.
+- [Phase 21]: Confirm VER-03 only after the GitHub publish workflow, npm registry, and isolated exact-version commands succeed.
 
 ### Blockers/Concerns
 
@@ -105,12 +100,12 @@ Items acknowledged and deferred at milestone close on 2026-06-03:
 
 ## Operator Next Steps
 
-- Verify Phase 21 and audit the milestone before publishing v0.7.0.
+- Start the next milestone with /gsd-new-milestone
 
 ## Session Continuity
 
-Last session: 2026-07-20T10:38:09.049Z
-Stopped at: Completed 21-03-PLAN.md; release-ready pending verification, audit, and publication
+Last session: 2026-07-20T11:15:00Z
+Stopped at: v0.7.0 published, verified, audited, and archived
 Resume file: None
 
 ## Performance Metrics
