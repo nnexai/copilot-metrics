@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
+const BetterSqlite = require('better-sqlite3');
 const { resolvePaths } = require('../src/paths');
 const { PRICING_VERSION } = require('../src/pricing');
 const {
@@ -23,6 +24,20 @@ const {
 function tempDb() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-storage-'));
   return resolvePaths({ env: { COPILOT_METRICS_HOME: home }, cwd: process.cwd() }).usageDb;
+}
+
+function withRawDb(dbPath, callback) {
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  const db = new BetterSqlite(dbPath);
+  try {
+    return callback(db);
+  } finally {
+    db.close();
+  }
+}
+
+function schemaVersion(dbPath) {
+  return withRawDb(dbPath, (db) => Number(db.pragma('user_version', { simple: true })));
 }
 
 function fixtureImport() {
@@ -164,4 +179,121 @@ test('runtime storage no longer uses sql.js full-file export mechanics', () => {
   assert.doesNotMatch(source, /\.export\s*\(/);
   assert.doesNotMatch(source, /persistDatabase\s*\([^)]*db\.export/);
   assert.doesNotMatch(source, /db\.transaction\s*\(\s*async/);
+});
+
+test('schema migration initializes a new store with a durable current version', async () => {
+  const dbPath = tempDb();
+  await initStore(dbPath);
+
+  withRawDb(dbPath, (db) => {
+    assert.ok(schemaVersion(dbPath) > 0);
+    const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((row) => row.name));
+    for (const table of ['raw_records', 'usage_records', 'hook_events', 'label_evidence', 'manual_label_assignments', 'import_warnings', 'import_checkpoints', 'store_metadata']) {
+      assert.ok(tables.has(table), `missing table ${table}`);
+    }
+    const indexes = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all().map((row) => row.name));
+    for (const index of ['idx_raw_records_fingerprint', 'idx_usage_records_identity', 'idx_hook_events_source_file_line', 'idx_label_evidence_usage_key', 'idx_label_evidence_hook_key']) {
+      assert.ok(indexes.has(index), `missing index ${index}`);
+    }
+  });
+});
+
+test('unversioned store migration preserves rows and cleans duplicates before unique indexes', async () => {
+  const dbPath = tempDb();
+  await initStore(dbPath);
+  withRawDb(dbPath, (db) => {
+    db.pragma('user_version = 0');
+    db.exec(`
+      DROP INDEX idx_hook_events_source_file_line;
+      DROP INDEX idx_label_evidence_hook_key;
+      INSERT INTO hook_events (imported_at, source, source_file, raw_line, labels_json, payload_json)
+      VALUES ('2026-07-20', 'hooks', '/tmp/hooks.jsonl', 9, '[]', '{}');
+      INSERT INTO hook_events (imported_at, source, source_file, raw_line, labels_json, payload_json)
+      VALUES ('2026-07-20', 'hooks', '/tmp/hooks.jsonl', 9, '[]', '{}');
+      INSERT INTO label_evidence (imported_at, label, source_type, source_field, source_value, hook_event_id)
+      SELECT '2026-07-20', 'DEMO-2101', 'hook', 'cwd', '/repo/DEMO-2101', id
+      FROM hook_events WHERE raw_line = 9;
+    `);
+  });
+
+  await initStore(dbPath);
+
+  withRawDb(dbPath, (db) => {
+    assert.ok(schemaVersion(dbPath) > 0);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM hook_events WHERE raw_line = 9').get().count, 1);
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM label_evidence WHERE label = 'DEMO-2101'").get().count, 1);
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'index' AND name = 'idx_hook_events_source_file_line'").get().count, 1);
+  });
+});
+
+test('current store initialization skips legacy schema and duplicate cleanup probes', async () => {
+  const dbPath = tempDb();
+  await initStore(dbPath);
+  const currentVersion = schemaVersion(dbPath);
+  withRawDb(dbPath, (db) => {
+    db.exec(`
+      DROP INDEX idx_hook_events_source_file_line;
+      INSERT INTO hook_events (imported_at, source, source_file, raw_line, labels_json, payload_json)
+      VALUES ('2026-07-20', 'hooks', '/tmp/current.jsonl', 7, '[]', '{}');
+      INSERT INTO hook_events (imported_at, source, source_file, raw_line, labels_json, payload_json)
+      VALUES ('2026-07-20', 'hooks', '/tmp/current.jsonl', 7, '[]', '{}');
+    `);
+  });
+
+  await initStore(dbPath);
+
+  withRawDb(dbPath, (db) => {
+    assert.equal(schemaVersion(dbPath), currentVersion);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM hook_events WHERE raw_line = 7').get().count, 2);
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'index' AND name = 'idx_hook_events_source_file_line'").get().count, 0);
+  });
+});
+
+test('migration rollback leaves schema version unadvanced and retries after the blocker is removed', async () => {
+  const dbPath = tempDb();
+  withRawDb(dbPath, (db) => {
+    db.exec(`
+      CREATE TABLE raw_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        imported_at TEXT NOT NULL,
+        source TEXT NOT NULL,
+        line INTEGER NOT NULL,
+        payload_json TEXT NOT NULL
+      );
+      INSERT INTO raw_records (imported_at, source, line, payload_json)
+      VALUES ('2026-07-20', 'legacy', 1, '{}');
+      CREATE VIEW store_metadata AS SELECT 'blocked' AS key, '1' AS value;
+    `);
+  });
+
+  await assert.rejects(initStore(dbPath), /store_metadata|view/i);
+  withRawDb(dbPath, (db) => {
+    assert.equal(schemaVersion(dbPath), 0);
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM pragma_table_info('raw_records') WHERE name = 'source_file'").get().count, 0);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM raw_records').get().count, 1);
+    db.exec('DROP VIEW store_metadata');
+  });
+
+  await initStore(dbPath);
+  withRawDb(dbPath, (db) => {
+    assert.ok(schemaVersion(dbPath) > 0);
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM pragma_table_info('raw_records') WHERE name = 'source_file'").get().count, 1);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM raw_records').get().count, 1);
+  });
+});
+
+test('future schema version is rejected without modifying the store', async () => {
+  const dbPath = tempDb();
+  await initStore(dbPath);
+  const futureVersion = schemaVersion(dbPath) + 1;
+  withRawDb(dbPath, (db) => {
+    db.pragma(`user_version = ${futureVersion}`);
+    db.exec("INSERT INTO store_metadata (key, value) VALUES ('future-sentinel', 'intact')");
+  });
+
+  await assert.rejects(initStore(dbPath), new RegExp(`newer schema version ${futureVersion}`, 'i'));
+  withRawDb(dbPath, (db) => {
+    assert.equal(schemaVersion(dbPath), futureVersion);
+    assert.equal(db.prepare("SELECT value FROM store_metadata WHERE key = 'future-sentinel'").get().value, 'intact');
+  });
 });
