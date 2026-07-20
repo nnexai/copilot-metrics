@@ -11,6 +11,7 @@ const { readJsonl } = require('../src/jsonl');
 const { normalizePayload } = require('../src/otel');
 const { estimateCost, PRICING_VERSION } = require('../src/pricing');
 const {
+  applyVscodeDebugCachedTokens,
   backfillVscodeUsageResponseIds,
   configuredSourceEntries,
   ingestFile,
@@ -660,6 +661,94 @@ test('VS Code debug log cachedTokens upgrades fallback cache-read evidence', asy
   assert.equal(usage[0].estimate_confidence, 'high');
   assert.equal(usage[0].estimated_ai_credits, 0.03925);
   assert.match(usage[0].pricing_diagnostics_json, /vscode_debug_cached_tokens/);
+});
+
+test('VS Code debug log is parsed once per import and enriches every eligible usage row', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-vscode-debug-reuse-'));
+  const workspace = path.join(tmp, 'workspaceStorage', 'workspace-a');
+  const chatDir = path.join(workspace, 'chatSessions');
+  const debugDir = path.join(workspace, 'GitHub.copilot-chat', 'debug-logs', 'session-reuse');
+  fs.mkdirSync(chatDir, { recursive: true });
+  fs.mkdirSync(debugDir, { recursive: true });
+  const sessionFile = path.join(chatDir, 'session-reuse.jsonl');
+  fs.writeFileSync(sessionFile, `${JSON.stringify({
+    kind: 0,
+    v: {
+      sessionId: 'session-reuse',
+      inputState: { selectedModel: { metadata: { id: 'gpt-5-mini' } } },
+      requests: [
+        {
+          message: { text: 'First request for DEMO-883.' },
+          responseId: 'response-reuse-1',
+          resolvedModel: 'gpt-5-mini',
+          usage: { inputTokens: 1000, outputTokens: 100 },
+        },
+        {
+          message: { text: 'Second request for DEMO-883.' },
+          responseId: 'response-reuse-2',
+          resolvedModel: 'gpt-5-mini',
+          usage: { inputTokens: 500, outputTokens: 50 },
+        },
+      ],
+    },
+  })}\n`);
+  fs.writeFileSync(path.join(debugDir, 'main.jsonl'), [
+    JSON.stringify({ type: 'llm_request', attrs: { cachedTokens: 125, payload: 'do not persist this debug text' } }),
+    JSON.stringify({ type: 'llm_request', attrs: { cachedTokens: 75 } }),
+    '',
+  ].join('\n'));
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  let parseCount = 0;
+
+  await ingestFile({
+    dbPath: paths.usageDb,
+    file: sessionFile,
+    source: 'vscode-chat',
+    vscodeDebugOptions: {
+      readJsonl(debugFile) {
+        parseCount += 1;
+        return readJsonl(debugFile);
+      },
+    },
+  });
+
+  assert.equal(parseCount, 1);
+  const usage = await queryOne(paths.usageDb, `
+    SELECT span_id, cache_read_tokens, cache_read_status, pricing_diagnostics_json
+    FROM usage_records
+    ORDER BY span_id
+  `);
+  assert.deepEqual(usage.map((row) => row.span_id), ['response-reuse-1', 'response-reuse-2']);
+  assert.ok(usage.every((row) => row.cache_read_tokens === 200));
+  assert.ok(usage.every((row) => row.cache_read_status === 'known'));
+  assert.ok(usage.every((row) => row.pricing_diagnostics_json.includes('vscode_debug_cached_tokens')));
+  assert.doesNotMatch(JSON.stringify(usage), /do not persist this debug text/);
+});
+
+test('VS Code debug cache preserves explicit evidence and caches absent results', () => {
+  let resolveCount = 0;
+  let parseCount = 0;
+  const records = [
+    { session_id: 'missing', cache_read_tokens: 0, cache_read_status: 'unknown', pricing_diagnostics: [] },
+    { session_id: 'missing', cache_read_tokens: 0, cache_read_status: 'unknown', pricing_diagnostics: [] },
+    { session_id: 'known', cache_read_tokens: 44, cache_read_status: 'known', pricing_diagnostics: ['source_evidence'] },
+    { session_id: 'zero', cache_read_tokens: 0, cache_read_status: 'explicit_zero', pricing_diagnostics: ['source_evidence'] },
+  ];
+
+  const enriched = applyVscodeDebugCachedTokens(records, '/workspace/chatSessions/source.jsonl', {
+    resolveDebugFile(_sourceFile, sessionId) {
+      resolveCount += 1;
+      return sessionId === 'missing' ? '/missing/debug.jsonl' : null;
+    },
+    readJsonl() {
+      parseCount += 1;
+      return { records: [{ line: 1, value: { type: 'unrelated' } }], warnings: [] };
+    },
+  });
+
+  assert.equal(resolveCount, 1);
+  assert.equal(parseCount, 1);
+  assert.deepEqual(enriched, records);
 });
 
 test('normalizeVscodeFallbackUsage returns token-bearing request usage', () => {
