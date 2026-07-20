@@ -221,6 +221,9 @@ function fileStatContext(file) {
   return {
     size: stat.size,
     mtimeMs: Math.trunc(stat.mtimeMs),
+    identity: Number.isFinite(stat.dev) && Number.isFinite(stat.ino)
+      ? `${stat.dev}:${stat.ino}`
+      : null,
   };
 }
 
@@ -255,6 +258,9 @@ function checkpointFileStat(checkpoint) {
   return {
     size: Number(value.size || 0),
     mtimeMs: Math.trunc(Number(value.mtimeMs || 0)),
+    identity: typeof value.identity === 'string' && value.identity ? value.identity : null,
+    debugSize: Number(value.debugSize || 0),
+    debugMtimeMs: Math.trunc(Number(value.debugMtimeMs || 0)),
   };
 }
 
@@ -262,8 +268,71 @@ function sameFileStat(left, right) {
   return Boolean(left && right
     && left.size === right.size
     && left.mtimeMs === right.mtimeMs
+    && (!left.identity || !right.identity || left.identity === right.identity)
     && Number(left.debugSize || 0) === Number(right.debugSize || 0)
     && Number(left.debugMtimeMs || 0) === Number(right.debugMtimeMs || 0));
+}
+
+function normalizedJsonlCheckpoint(checkpoint) {
+  const value = checkpoint?.context?.jsonl;
+  if (!value || typeof value !== 'object' || Number(value.version) !== 1) return null;
+  const byteOffset = Number(value.byte_offset);
+  const completedLines = Number(value.completed_lines);
+  if (!Number.isSafeInteger(byteOffset) || byteOffset < 0
+    || !Number.isSafeInteger(completedLines) || completedLines < 0
+    || completedLines !== Number(checkpoint?.checkpoint_line || 0)) return null;
+  return { byteOffset, completedLines };
+}
+
+function canResumeJsonl(checkpoint, statContext) {
+  const range = normalizedJsonlCheckpoint(checkpoint);
+  if (!range) return null;
+  const previousStat = checkpointFileStat(checkpoint);
+  if (!previousStat || range.byteOffset > statContext.size || statContext.size < previousStat.size) return null;
+  if (previousStat.identity && statContext.identity && previousStat.identity !== statContext.identity) return null;
+  return range;
+}
+
+function jsonlCheckpointContext(previous, parsed, statContext = {}) {
+  const observation = parsed.observation || {};
+  return {
+    ...(previous || {}),
+    jsonl: {
+      version: 1,
+      byte_offset: parsed.nextByte,
+      completed_lines: parsed.completedLines,
+    },
+    file_stat: {
+      ...statContext,
+      size: Number(observation.size || 0),
+      mtimeMs: Math.trunc(Number(observation.mtimeMs || 0)),
+      identity: observation.identity || null,
+    },
+  };
+}
+
+function readIncrementalJsonl(file, options, checkpoint, statContext, forceReset = false) {
+  const resume = forceReset ? null : canResumeJsonl(checkpoint, statContext);
+  const readOptions = {
+    ...(options.jsonlReadOptions || {}),
+    startByte: resume?.byteOffset || 0,
+    completedLines: resume?.completedLines || 0,
+  };
+  let parsed = readJsonl(file, readOptions);
+  let resetAfterValidation = false;
+  if (parsed.resetRequired && readOptions.startByte > 0) {
+    resetAfterValidation = true;
+    parsed = readJsonl(file, {
+      ...(options.jsonlReadOptions || {}),
+      startByte: 0,
+      completedLines: 0,
+    });
+  }
+  return {
+    parsed,
+    resumed: Boolean(resume && !resetAfterValidation && !parsed.resetRequired),
+    checkpointLine: resume && !resetAfterValidation ? resume.completedLines : 0,
+  };
 }
 
 function shouldForceRefreshFile(options, checkpoint, statContext) {
@@ -773,7 +842,11 @@ async function ingestVscodeChatSessionFile(options) {
   const sourceFile = path.resolve(file);
   const checkpoint = await sourceCheckpoint(options, 'vscode-chat', sourceFile);
   const statContext = vscodeChatRefreshStatContext(sourceFile);
-  const unchangedFile = sameFileStat(checkpointFileStat(checkpoint), statContext) && Number(checkpoint?.checkpoint_line || 0) > 0;
+  const isJsonl = path.extname(sourceFile).toLowerCase() === '.jsonl';
+  const compatibleRange = isJsonl ? canResumeJsonl(checkpoint, statContext) : null;
+  const unchangedFile = sameFileStat(checkpointFileStat(checkpoint), statContext)
+    && Number(checkpoint?.checkpoint_line || 0) > 0
+    && (!isJsonl || Boolean(compatibleRange));
   if (unchangedFile) {
     return {
       source: 'vscode-chat',
@@ -794,30 +867,17 @@ async function ingestVscodeChatSessionFile(options) {
     };
   }
   const forceRead = shouldForceRefreshFile(options, checkpoint, statContext);
-  const highWaterLine = forceRead
-    ? 0
-    : Math.max(Number(checkpoint.checkpoint_line || 0), await sourceHighWater(options, 'vscode-chat', sourceFile));
-  const parsed = readSessionRecords(sourceFile, { afterLine: highWaterLine });
-  if (parsed.records.length === 0 && parsed.warnings.length === 0) {
-    if (!sameFileStat(checkpointFileStat(checkpoint), statContext)) {
-      await upsertImportCheckpoint(dbPath, 'vscode-chat', sourceFile, highWaterLine, { file_stat: statContext });
-    }
-    return {
-      source: 'vscode-chat',
-      file,
-      dbPath,
-      raw_records: 0,
-      new_raw_records: 0,
-      skipped_existing_records: highWaterLine,
-      usage_records: 0,
-      duplicate_usage_records: 0,
-      repaired_duplicate_usage_records: 0,
-      hook_events: 0,
-      label_evidence: 0,
-      warnings: [],
-      estimate_label: `estimate:${PRICING_VERSION}`,
-    };
-  }
+  const readResult = isJsonl
+    ? readIncrementalJsonl(sourceFile, options, checkpoint, statContext, forceRead)
+    : null;
+  const highWaterLine = isJsonl
+    ? readResult.checkpointLine
+    : forceRead
+      ? 0
+      : Math.max(Number(checkpoint.checkpoint_line || 0), await sourceHighWater(options, 'vscode-chat', sourceFile));
+  const parsed = isJsonl
+    ? readResult.parsed
+    : readSessionRecords(sourceFile, { afterLine: highWaterLine });
   const allRecords = parsed.records.map((record) => ({
     ...record,
     raw_fingerprint: rawFingerprint('vscode-chat', sourceFile, record),
@@ -852,6 +912,7 @@ async function ingestVscodeChatSessionFile(options) {
   }
   let importResult = null;
   let repairedDuplicateUsageRecords = 0;
+  const baseCheckpointContext = isJsonl && !readResult.resumed ? {} : checkpoint?.context || {};
   await runImportMutationBatch(dbPath, async () => {
     if (newRecords.length > 0 || fallbackUsage.length > 0 || warnings.length > 0) {
       const redactedRawRecords = newRecords.map((record) => ({
@@ -863,9 +924,14 @@ async function ingestVscodeChatSessionFile(options) {
         },
       }));
       importResult = await insertImport(dbPath, 'vscode-chat', sourceFile, redactedRawRecords, fallbackUsage, [], warnings);
-      const nextLine = newRecords.reduce((max, record) => Math.max(max, Number(record.line || 0)), highWaterLine);
-      await upsertImportCheckpoint(dbPath, 'vscode-chat', sourceFile, nextLine, { file_stat: statContext });
     }
+    const nextLine = isJsonl
+      ? parsed.completedLines
+      : newRecords.reduce((max, record) => Math.max(max, Number(record.line || 0)), highWaterLine);
+    const context = isJsonl
+      ? jsonlCheckpointContext(baseCheckpointContext, parsed, statContext)
+      : { ...baseCheckpointContext, file_stat: statContext };
+    await upsertImportCheckpoint(dbPath, 'vscode-chat', sourceFile, nextLine, context);
     repairedDuplicateUsageRecords = await repairDuplicateVscodeUsageRecords(dbPath);
   });
   return {
@@ -1001,10 +1067,12 @@ async function ingestFile(options) {
   const checkpoint = await sourceCheckpoint(options, source, sourceFile);
   const statContext = fileStatContext(sourceFile);
   const checkpointStat = checkpointFileStat(checkpoint);
-  const unchangedFile = sameFileStat(checkpointStat, statContext) && Number(checkpoint?.checkpoint_line || 0) > 0;
+  const compatibleRange = canResumeJsonl(checkpoint, statContext);
+  const unchangedFile = Boolean(compatibleRange)
+    && sameFileStat(checkpointStat, statContext)
+    && Number(checkpoint?.checkpoint_line || 0) > 0;
   const forceRead = options.forceRefresh === true && !unchangedFile;
-  const highWaterLine = forceRead ? 0 : await sourceHighWater(options, source, sourceFile);
-  const checkpointLine = forceRead ? 0 : Math.max(Number(checkpoint.checkpoint_line || 0), highWaterLine);
+  let checkpointLine = compatibleRange?.completedLines || 0;
   if (unchangedFile && backfilledUsageRecords === 0) {
     return {
       source,
@@ -1026,33 +1094,10 @@ async function ingestFile(options) {
       reason: 'unchanged_file',
     };
   }
-  const parsed = readJsonl(file, { afterLine: checkpointLine });
+  const readResult = readIncrementalJsonl(file, options, checkpoint, statContext, forceRead);
+  const parsed = readResult.parsed;
+  checkpointLine = readResult.checkpointLine;
   const warnings = [...parsed.warnings];
-  if (parsed.records.length === 0 && warnings.length === 0) {
-    if (!sameFileStat(checkpointStat, statContext)) {
-      await upsertImportCheckpoint(dbPath, source, sourceFile, checkpointLine, {
-        ...(checkpoint?.context || {}),
-        file_stat: statContext,
-      });
-    }
-    return {
-      source,
-      file,
-      dbPath,
-      raw_records: 0,
-      new_raw_records: 0,
-      skipped_existing_records: checkpointLine,
-      usage_records: 0,
-      duplicate_usage_records: 0,
-      repaired_duplicate_usage_records: 0,
-      hook_events: 0,
-      backfilled_usage_records: backfilledUsageRecords,
-      repaired_cost_records: 0,
-      label_evidence: 0,
-      warnings: [],
-      estimate_label: `estimate:${PRICING_VERSION}`,
-    };
-  }
   const parsedRecords = parsed.records.map((record) => ({
     ...record,
     raw_fingerprint: rawFingerprint(source, sourceFile, record),
@@ -1069,9 +1114,10 @@ async function ingestFile(options) {
     : importableRecords.filter((record) => !existing.has(record.raw_fingerprint));
   const usageRecords = [];
   const hookEvents = [];
+  const baseCheckpointContext = readResult.resumed ? checkpoint?.context || {} : {};
 
   if (source === 'copilot-session') {
-    const context = updateCopilotSessionContext(checkpoint?.context || {}, newRecords);
+    const context = updateCopilotSessionContext(baseCheckpointContext, newRecords);
     usageRecords.push(...normalizeCopilotSessionEvents(
       newRecords.filter(isCopilotSessionUsageRecord),
       syntheticCopilotContextRecords(context).concat(newRecords),
@@ -1109,20 +1155,19 @@ async function ingestFile(options) {
       importResult = await insertImport(dbPath, source, sourceFile, rawRecordsToInsert, enrichedUsage, enrichedHooks, warnings);
     }
     if (source === 'copilot-session') {
-      const nextLine = newRecords.reduce((max, record) => Math.max(max, Number(record.line || 0)), checkpointLine);
       const context = {
-        ...updateCopilotSessionContext(checkpoint?.context || {}, newRecords),
-        file_stat: statContext,
+        ...updateCopilotSessionContext(baseCheckpointContext, newRecords),
+        ...jsonlCheckpointContext({}, parsed, statContext),
       };
-      if (newRecords.length > 0 || nextLine > checkpointLine) {
-        await upsertImportCheckpoint(dbPath, source, sourceFile, nextLine, context);
-      }
-    } else if (parsedRecords.length > 0 || warnings.length > 0 || !sameFileStat(checkpointStat, statContext)) {
-      const nextLine = parsedRecords.reduce((max, record) => Math.max(max, Number(record.line || 0)), checkpointLine);
-      await upsertImportCheckpoint(dbPath, source, sourceFile, nextLine, {
-        ...(checkpoint?.context || {}),
-        file_stat: statContext,
-      });
+      await upsertImportCheckpoint(dbPath, source, sourceFile, parsed.completedLines, context);
+    } else {
+      await upsertImportCheckpoint(
+        dbPath,
+        source,
+        sourceFile,
+        parsed.completedLines,
+        jsonlCheckpointContext(baseCheckpointContext, parsed, statContext),
+      );
     }
     repairedCostRecords = options.repairCostEstimates === false ? 0 : await repairUsageCostEstimates(dbPath);
     repairedDuplicateUsageRecords = ['vscode', 'copilot-session'].includes(source) ? await repairDuplicateVscodeUsageRecords(dbPath) : 0;
