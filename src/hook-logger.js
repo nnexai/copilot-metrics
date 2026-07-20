@@ -70,10 +70,55 @@ async function readJsonFromStream(stream) {
   return JSON.parse(text);
 }
 
+function parseHookFlags(args) {
+  const flags = {};
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (!arg.startsWith('--')) throw new Error(`Unexpected argument "${arg}".`);
+    const [rawName, inlineValue] = arg.slice(2).split('=', 2);
+    const name = rawName.replace(/-([a-z])/g, (_, character) => character.toUpperCase());
+    if (!['event', 'home', 'includePromptPreview', 'quiet', 'json'].includes(name)) {
+      throw new Error(`Unknown option "--${rawName}".`);
+    }
+    if (inlineValue !== undefined) {
+      flags[name] = inlineValue;
+    } else if (['event', 'home'].includes(name)) {
+      if (!args[index + 1] || args[index + 1].startsWith('--')) {
+        throw new Error(`--${rawName} requires a value.`);
+      }
+      flags[name] = args[index + 1];
+      index += 1;
+    } else {
+      flags[name] = true;
+    }
+  }
+  return flags;
+}
+
+async function runHookLogger(args, io = {}) {
+  const flags = parseHookFlags(args);
+  const payload = await readJsonFromStream(io.stdin || process.stdin);
+  const result = appendHookEvent(payload, {
+    env: io.env || process.env,
+    cwd: io.cwd || process.cwd(),
+    home: flags.home,
+    event: flags.event,
+    includePromptPreview: flags.includePromptPreview === true,
+  });
+  if (flags.quiet === true) return result;
+  const stdout = io.stdout || process.stdout;
+  stdout.write(flags.json === true
+    ? `${JSON.stringify(result, null, 2)}\n`
+    : `Logged hook event: ${result.path}\n`);
+  return result;
+}
+
 module.exports = {
   LABEL_RE,
   extractLabelsFromValue,
   redactHookPayload,
   appendHookEvent,
   readJsonFromStream,
+  parseHookFlags,
+  runHookLogger,
 };
