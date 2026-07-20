@@ -60,25 +60,25 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ING-01 | TBD | Pending |
-| ING-02 | TBD | Pending |
-| ING-03 | TBD | Pending |
-| COL-01 | TBD | Pending |
-| COL-02 | TBD | Pending |
-| STR-01 | TBD | Pending |
-| STR-02 | TBD | Pending |
-| STR-03 | TBD | Pending |
-| REP-01 | TBD | Pending |
-| REP-02 | TBD | Pending |
-| VER-01 | TBD | Pending |
-| VER-02 | TBD | Pending |
-| VER-03 | TBD | Pending |
+| ING-01 | Phase 20 | Pending |
+| ING-02 | Phase 20 | Pending |
+| ING-03 | Phase 20 | Pending |
+| COL-01 | Phase 20 | Pending |
+| COL-02 | Phase 20 | Pending |
+| STR-01 | Phase 21 | Pending |
+| STR-02 | Phase 21 | Pending |
+| STR-03 | Phase 21 | Pending |
+| REP-01 | Phase 21 | Pending |
+| REP-02 | Phase 21 | Pending |
+| VER-01 | Phase 20 | Pending |
+| VER-02 | Phase 21 | Pending |
+| VER-03 | Phase 21 | Pending |
 
 **Coverage:**
 - v0.7.0 requirements: 13 total
-- Mapped to phases: 0
-- Unmapped: 13
+- Mapped to phases: 13
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-20*
-*Last updated: 2026-07-20 after milestone definition*
+*Last updated: 2026-07-20 after roadmap creation*

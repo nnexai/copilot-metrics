@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v0.7.0
 milestone_name: Ingestion and Reporting Scalability
 status: planning
-last_updated: "2026-07-20T08:56:12.464Z"
+last_updated: "2026-07-20"
 last_activity: 2026-07-20
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -16,14 +16,14 @@ progress:
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** v0.7.0 milestone planning
+**Status:** v0.7.0 ready to plan
 
 ## Project Reference
 
 See: `.planning/PROJECT.md` (updated 2026-07-20)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Defining ingestion and reporting scalability requirements
+**Current focus:** Phase 20 — Incremental JSONL and Lightweight Collection
 
 ## Workflow Settings
 
@@ -43,43 +43,30 @@ v0.7.0 Ingestion and Reporting Scalability
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 20 of 21 (Incremental JSONL and Lightweight Collection)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-07-20 — Milestone v0.7.0 started
+Status: Ready to plan
+Last activity: 2026-07-20 — v0.7.0 roadmap created with 13/13 requirements mapped
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Current Roadmap
 
-Requirements and roadmap are being defined for v0.7.0.
+Two coarse phases execute in order:
 
-## Completed Milestone
+- Phase 20: incremental JSONL checkpoints plus lightweight hook/debug-log collection.
+- Phase 21: store/report scalability, benchmarks, and release verification.
 
-v0.5.0 manual session labels completed:
+## Accumulated Context
 
-- Phase 15: manual session label assignment CLI and storage.
-- Phase 16: manual precedence ranking/report integration, stale-provenance tests, and `copilot-metrics@0.5.0` release.
+### Decisions
 
-Archived files:
+- Phase 20 owns input-side scaling and its fixture verification so recovery semantics are proven before store/report optimization.
+- Phase 21 owns store/report scaling and final benchmark/release proof while preserving all observable contracts.
 
-- `.planning/milestones/v0.5.0-ROADMAP.md`
-- `.planning/milestones/v0.5.0-REQUIREMENTS.md`
-- `.planning/milestones/v0.5.0-MILESTONE-AUDIT.md`
-- `.planning/milestones/v0.5.0-phases/`
+### Blockers/Concerns
 
-## Previous Completed Milestone
-
-v0.4.0 label association confidence completed:
-
-- Phase 12: setup-time repeatable `--label-patterns`, persisted as `labelPatterns`.
-- Phase 13: granular label evidence confidence model, `label-confidence:v1`.
-- Phase 14: top-label default reports, explicit top-k/all-match inclusion, and `--session-detail`.
-
-Archived files:
-
-- `.planning/milestones/v0.4.0-ROADMAP.md`
-- `.planning/milestones/v0.4.0-REQUIREMENTS.md`
-- `.planning/milestones/v0.4.0-MILESTONE-AUDIT.md`
-- `.planning/milestones/v0.4.0-phases/`
+None.
 
 ## Deferred Items
 
@@ -100,4 +87,10 @@ Items acknowledged and deferred at milestone close on 2026-06-03:
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Discuss or plan Phase 20.
+
+## Session Continuity
+
+Last session: 2026-07-20
+Stopped at: v0.7.0 roadmap created; Phase 20 is ready for discussion/planning.
+Resume file: None
