@@ -373,7 +373,9 @@ test('VS Code backfill index query plans avoid targeted scans and automatic inde
     db.exec(`
       WITH RECURSIVE rows(id) AS (SELECT 1 UNION ALL SELECT id + 1 FROM rows WHERE id < 5000)
       INSERT INTO raw_records (imported_at, source, source_file, line, raw_fingerprint, payload_json)
-      SELECT '2026-07-20', 'vscode', '/tmp/backfill.jsonl', id, 'raw-' || id, '{}' FROM rows;
+      SELECT '2026-07-20', 'vscode',
+        CASE WHEN id BETWEEN 2400 AND 2600 THEN '/tmp/backfill.jsonl' ELSE '/tmp/other-' || id || '.jsonl' END,
+        id, 'raw-' || id, '{}' FROM rows;
       WITH RECURSIVE rows(id) AS (SELECT 1 UNION ALL SELECT id + 1 FROM rows WHERE id < 5000)
       INSERT INTO usage_records (
         imported_at, source, raw_line, span_id, requested_model, input_tokens, output_tokens,

@@ -6,7 +6,7 @@ const BetterSqlite = require('better-sqlite3');
 const { canonicalLabel } = require('./label-extractors');
 
 let activeConnection = null;
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 const STORE_REPAIRS = Object.freeze({
   COST_ESTIMATES: 'cost_estimates',
   DUPLICATE_USAGE: 'duplicate_usage',
@@ -457,8 +457,32 @@ function migrateLegacyStoreToVersion1(db) {
   );
 }
 
+function addHotPathIndexesVersion2(db) {
+  createIndexIfMissing(
+    db,
+    'idx_label_evidence_label',
+    'CREATE INDEX idx_label_evidence_label ON label_evidence (label)',
+  );
+  createIndexIfMissing(
+    db,
+    'idx_usage_records_session',
+    'CREATE INDEX idx_usage_records_session ON usage_records (session_id)',
+  );
+  createIndexIfMissing(
+    db,
+    'idx_raw_records_source_file_line',
+    'CREATE INDEX idx_raw_records_source_file_line ON raw_records (source, source_file, line)',
+  );
+  createIndexIfMissing(
+    db,
+    'idx_usage_records_source_raw_line_span',
+    'CREATE INDEX idx_usage_records_source_raw_line_span ON usage_records (source, raw_line, span_id)',
+  );
+}
+
 const SCHEMA_MIGRATIONS = new Map([
   [1, migrateLegacyStoreToVersion1],
+  [2, addHotPathIndexesVersion2],
 ]);
 
 function schemaVersion(db) {
