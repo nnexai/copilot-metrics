@@ -1,8 +1,10 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 
 const DEFAULT_CHUNK_SIZE = 64 * 1024;
+const CONTINUITY_WINDOW_SIZE = 4 * 1024;
 
 function fileObservation(stat) {
   return {
@@ -26,6 +28,31 @@ function rejectedRange(observation, reason) {
   };
 }
 
+function continuityAt(fd, endByte) {
+  const length = Math.min(CONTINUITY_WINDOW_SIZE, endByte);
+  const bytes = Buffer.allocUnsafe(length);
+  const position = endByte - length;
+  const bytesRead = length === 0 ? 0 : fs.readSync(fd, bytes, 0, length, position);
+  if (bytesRead !== length) return null;
+  return {
+    algorithm: 'sha256',
+    bytes: length,
+    digest: crypto.createHash('sha256').update(bytes).digest('hex'),
+  };
+}
+
+function readJsonlContinuity(file, endByte) {
+  if (!Number.isSafeInteger(endByte) || endByte < 0 || !fs.existsSync(file)) return null;
+  const stat = fs.statSync(file);
+  if (endByte > stat.size) return null;
+  const fd = fs.openSync(file, 'r');
+  try {
+    return continuityAt(fd, endByte);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 function parseCompleteLine(bytes, lineNumber, records, warnings) {
   const content = bytes.length > 0 && bytes[bytes.length - 1] === 0x0d
     ? bytes.subarray(0, bytes.length - 1)
@@ -34,9 +61,14 @@ function parseCompleteLine(bytes, lineNumber, records, warnings) {
   try {
     line = new TextDecoder('utf-8', { fatal: true }).decode(content);
   } catch {
-    return false;
+    warnings.push({
+      code: 'malformed_jsonl',
+      line: lineNumber,
+      message: 'Invalid UTF-8 in JSONL record.',
+    });
+    return;
   }
-  if (!line.trim()) return true;
+  if (!line.trim()) return;
   try {
     records.push({ line: lineNumber, value: JSON.parse(line) });
   } catch (error) {
@@ -46,7 +78,6 @@ function parseCompleteLine(bytes, lineNumber, records, warnings) {
       message: error.message,
     });
   }
-  return true;
 }
 
 function readJsonlRange(file, options) {
@@ -106,9 +137,7 @@ function readJsonlRange(file, options) {
       let newline;
       while ((newline = pending.indexOf(0x0a, lineStart)) !== -1) {
         nextLine += 1;
-        if (!parseCompleteLine(pending.subarray(lineStart, newline), nextLine, records, warnings)) {
-          return rejectedRange(observation, 'invalid_utf8');
-        }
+        parseCompleteLine(pending.subarray(lineStart, newline), nextLine, records, warnings);
         nextByte += newline - lineStart + 1;
         lineStart = newline + 1;
       }
@@ -121,6 +150,7 @@ function readJsonlRange(file, options) {
       nextByte,
       completedLines: nextLine,
       observation,
+      continuity: continuityAt(fd, nextByte),
       resetRequired: false,
       resetReason: null,
     };
@@ -157,4 +187,5 @@ function readJsonl(file, options = {}) {
 
 module.exports = {
   readJsonl,
+  readJsonlContinuity,
 };

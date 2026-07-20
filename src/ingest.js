@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { readJsonl } = require('./jsonl');
+const { readJsonl, readJsonlContinuity } = require('./jsonl');
 const { normalizePayload, normalizeHookEvent, normalizeCopilotSessionEvents } = require('./otel');
 const { classifyPricing, PRICING_VERSION } = require('./pricing');
 const {
@@ -281,15 +281,31 @@ function normalizedJsonlCheckpoint(checkpoint) {
   if (!Number.isSafeInteger(byteOffset) || byteOffset < 0
     || !Number.isSafeInteger(completedLines) || completedLines < 0
     || completedLines !== Number(checkpoint?.checkpoint_line || 0)) return null;
-  return { byteOffset, completedLines };
+  const continuity = value.continuity;
+  if (!continuity || continuity.algorithm !== 'sha256'
+    || !Number.isSafeInteger(Number(continuity.bytes)) || Number(continuity.bytes) < 0
+    || typeof continuity.digest !== 'string' || !/^[a-f0-9]{64}$/.test(continuity.digest)) return null;
+  return {
+    byteOffset,
+    completedLines,
+    continuity: {
+      algorithm: 'sha256',
+      bytes: Number(continuity.bytes),
+      digest: continuity.digest,
+    },
+  };
 }
 
-function canResumeJsonl(checkpoint, statContext) {
+function canResumeJsonl(file, checkpoint, statContext) {
   const range = normalizedJsonlCheckpoint(checkpoint);
   if (!range) return null;
   const previousStat = checkpointFileStat(checkpoint);
   if (!previousStat || range.byteOffset > statContext.size || statContext.size < previousStat.size) return null;
   if (previousStat.identity && statContext.identity && previousStat.identity !== statContext.identity) return null;
+  const observedContinuity = readJsonlContinuity(file, range.byteOffset);
+  if (!observedContinuity
+    || observedContinuity.bytes !== range.continuity.bytes
+    || observedContinuity.digest !== range.continuity.digest) return null;
   return range;
 }
 
@@ -301,6 +317,7 @@ function jsonlCheckpointContext(previous, parsed, statContext = {}) {
       version: 1,
       byte_offset: parsed.nextByte,
       completed_lines: parsed.completedLines,
+      continuity: parsed.continuity,
     },
     file_stat: {
       ...statContext,
@@ -312,7 +329,7 @@ function jsonlCheckpointContext(previous, parsed, statContext = {}) {
 }
 
 function readIncrementalJsonl(file, options, checkpoint, statContext, forceReset = false) {
-  const resume = forceReset ? null : canResumeJsonl(checkpoint, statContext);
+  const resume = forceReset ? null : canResumeJsonl(file, checkpoint, statContext);
   const readOptions = {
     ...(options.jsonlReadOptions || {}),
     startByte: resume?.byteOffset || 0,
@@ -857,7 +874,7 @@ async function ingestVscodeChatSessionFile(options) {
   const checkpoint = await sourceCheckpoint(options, 'vscode-chat', sourceFile);
   const statContext = vscodeChatRefreshStatContext(sourceFile);
   const isJsonl = path.extname(sourceFile).toLowerCase() === '.jsonl';
-  const compatibleRange = isJsonl ? canResumeJsonl(checkpoint, statContext) : null;
+  const compatibleRange = isJsonl ? canResumeJsonl(sourceFile, checkpoint, statContext) : null;
   const unchangedFile = sameFileStat(checkpointFileStat(checkpoint), statContext)
     && Number(checkpoint?.checkpoint_line || 0) > 0
     && (!isJsonl || Boolean(compatibleRange));
@@ -1085,7 +1102,7 @@ async function ingestFile(options) {
   const checkpoint = await sourceCheckpoint(options, source, sourceFile);
   const statContext = fileStatContext(sourceFile);
   const checkpointStat = checkpointFileStat(checkpoint);
-  const compatibleRange = canResumeJsonl(checkpoint, statContext);
+  const compatibleRange = canResumeJsonl(sourceFile, checkpoint, statContext);
   const unchangedFile = Boolean(compatibleRange)
     && sameFileStat(checkpointStat, statContext)
     && Number(checkpoint?.checkpoint_line || 0) > 0;
