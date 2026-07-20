@@ -83,16 +83,19 @@ All five findings were resolved and independently exercised by focused regressio
 - **CR-02:** Repair marker check, candidate scan, repair writes, and marker completion now share one `BEGIN IMMEDIATE` transaction. Two-connection tests prove concurrent invalidation cannot interleave for duplicate-usage or cost-estimate repairs.
 - **WR-01:** Schema compatibility is read before write-affecting pragmas. A future-version store remains in DELETE journal mode without WAL/SHM sidecars or data changes.
 - **WR-02:** Manual usage deduplication is label-aware, preserving the second manual label in top-k and all-match details both with and without shared report context.
-- **WR-03:** Benchmarks now block on deep semantic equality, meaningful secondary-label detail coverage, and deterministic SQL/query-work reductions. Repeated warm medians remain diagnostic evidence rather than machine-sensitive gates.
+- **WR-03:** Benchmarks now block on deep semantic equality, meaningful secondary-label detail coverage, deterministic SQL/query-work reductions, and a conservative 1.5x relative non-regression limit over seven warm median samples. A focused unit test proves an injected 2x slowdown fails the gate.
 
 ### Evidence
 
 - RED regressions: `5ace842`
 - Correctness fixes: `9f8e1c1`
 - Structural benchmark gates: `7cfe2e6`
-- `npm test`: 130/130 passed
+- Relative timing benchmark gates: this remediation commit
+- `npm test`: 133/133 passed
 - `npm run check`, `npm run smoke`, `npm run verify:package`: passed
-- All four benchmarks passed with semantic equality. Storage measured 30 current-store SQL operations versus 460 legacy operations; report context measured 5 total source reads versus 60 standalone reads, with one secondary manual-label detail row.
+- `npm run verify:native-sqlite`, `npm run check:readme-version`, and `git diff --check`: passed
+- Five consecutive storage trials passed the timing gate at 0.12-0.13x of legacy maintenance; five consecutive report trials passed at 0.20-0.22x of standalone reports, always with one secondary manual-label detail row.
+- The full storage and report benchmarks retain blocking semantic equality. Storage measured 30 current-store SQL operations versus 460 legacy operations; report context measured 5 total source reads versus 60 standalone reads.
 - `npm pack --silent --dry-run --json`: `copilot-metrics@0.7.0`, 23 files, package contents verified.
 
-_Remediated and verified: 2026-07-20_
+_Remediated and verified: 2026-07-20T10:59:38Z_

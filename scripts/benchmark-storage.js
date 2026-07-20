@@ -8,6 +8,7 @@ const path = require('node:path');
 const { performance } = require('node:perf_hooks');
 const BetterSqlite = require('better-sqlite3');
 const pkg = require('../package.json');
+const { BENCHMARK_SAMPLE_COUNT, assertRelativeTiming } = require('./benchmark-utils');
 const { resolvePaths } = require('../src/paths');
 const {
   _benchmarkLegacyMaintenance,
@@ -53,7 +54,7 @@ function median(values) {
   return ordered[Math.floor(ordered.length / 2)];
 }
 
-async function timedSamples(fn, count = 5) {
+async function timedSamples(fn, count = BENCHMARK_SAMPLE_COUNT) {
   await fn();
   const samples = [];
   for (let index = 0; index < count; index += 1) samples.push((await timed(fn)).elapsed_ms);
@@ -108,6 +109,11 @@ async function main() {
     const legacySqlOperations = await measuredSqlWork(runLegacyMaintenance);
     assert.ok(optimizedSqlOperations < legacySqlOperations, `current initialization SQL work regressed: ${optimizedSqlOperations} >= ${legacySqlOperations}`);
     assert.deepEqual(await snapshot(optimizedDb), await snapshot(legacyDb));
+    const repeatedOpenTimingGate = assertRelativeTiming({
+      optimizedMedianMs: optimized.median_ms,
+      referenceMedianMs: legacy.median_ms,
+      label: 'current-store repeated open',
+    });
 
     const importDb = path.join(home, 'import.sqlite');
     fs.copyFileSync(baseDb, importDb);
@@ -143,6 +149,7 @@ async function main() {
         repeated_legacy_maintenance_sql_operations: legacySqlOperations,
         current_store_uses_less_sql_work: true,
       },
+      timing_gates: { repeated_current_store: repeatedOpenTimingGate },
       counts: { usage: importSnapshot.usage.length, evidence: importSnapshot.evidence.length },
     }, null, 2)}\n`);
   } finally {

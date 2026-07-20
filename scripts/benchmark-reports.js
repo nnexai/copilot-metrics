@@ -8,6 +8,7 @@ const path = require('node:path');
 const { performance } = require('node:perf_hooks');
 const BetterSqlite = require('better-sqlite3');
 const pkg = require('../package.json');
+const { BENCHMARK_SAMPLE_COUNT, assertRelativeTiming } = require('./benchmark-utils');
 const { ingestFile } = require('../src/ingest');
 const { resolvePaths } = require('../src/paths');
 const {
@@ -27,7 +28,7 @@ function median(values) {
   return ordered[Math.floor(ordered.length / 2)];
 }
 
-async function measureSamples(fn, count = 5) {
+async function measureSamples(fn, count = BENCHMARK_SAMPLE_COUNT) {
   await fn();
   const samples = [];
   let value;
@@ -116,6 +117,12 @@ async function main() {
       `context-backed report source reads regressed: ${contextBackedSourceReads} >= ${standaloneSourceReads}`);
     assert.ok(contextBuildSourceReads + contextBackedSourceReads < standaloneSourceReads,
       `shared report context source reads regressed: ${contextBuildSourceReads + contextBackedSourceReads} >= ${standaloneSourceReads}`);
+    const sharedContextMedianMs = contextBuild.median_ms + contextBacked.median_ms;
+    const reportTimingGate = assertRelativeTiming({
+      optimizedMedianMs: sharedContextMedianMs,
+      referenceMedianMs: standalone.median_ms,
+      label: 'shared report context',
+    });
 
     process.stdout.write(`${JSON.stringify({
       package: pkg.name, version: pkg.version, node: process.version,
@@ -128,6 +135,7 @@ async function main() {
         context_build_median_ms: contextBuild.median_ms,
         repeated_context_backed_samples_ms: contextBacked.samples_ms,
         repeated_context_backed_median_ms: contextBacked.median_ms,
+        shared_context_total_median_ms: Number(sharedContextMedianMs.toFixed(3)),
         context_backed_speedup: Number((standalone.median_ms / Math.max(contextBacked.median_ms, 0.001)).toFixed(2)),
       },
       structural_work: {
@@ -136,6 +144,7 @@ async function main() {
         context_backed_source_reads: contextBackedSourceReads,
         shared_context_uses_fewer_source_reads: true,
       },
+      timing_gates: { shared_report_context: reportTimingGate },
       output_counts: {
         labels: contextBacked.value.default.overview.length,
         details: contextBacked.value.top_k.details.length,
