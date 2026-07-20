@@ -87,63 +87,67 @@ async function main() {
   const historyRecords = positiveInteger(process.argv[2], 2000, 'history records');
   const appendedRecords = positiveInteger(process.argv[3], 10, 'appended records');
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-incremental-bench-'));
-  const incrementalFile = path.join(tempRoot, 'incremental.jsonl');
-  const completeFile = path.join(tempRoot, 'complete.jsonl');
-  const incrementalDb = resolvePaths({
-    env: { COPILOT_METRICS_HOME: path.join(tempRoot, 'incremental-home') },
-    cwd: process.cwd(),
-  }).usageDb;
-  const completeDb = resolvePaths({
-    env: { COPILOT_METRICS_HOME: path.join(tempRoot, 'complete-home') },
-    cwd: process.cwd(),
-  }).usageDb;
-  const historyPayload = payload(0, historyRecords);
-  const appendedPayload = payload(historyRecords, appendedRecords);
+  try {
+    const incrementalFile = path.join(tempRoot, 'incremental.jsonl');
+    const completeFile = path.join(tempRoot, 'complete.jsonl');
+    const incrementalDb = resolvePaths({
+      env: { COPILOT_METRICS_HOME: path.join(tempRoot, 'incremental-home') },
+      cwd: process.cwd(),
+    }).usageDb;
+    const completeDb = resolvePaths({
+      env: { COPILOT_METRICS_HOME: path.join(tempRoot, 'complete-home') },
+      cwd: process.cwd(),
+    }).usageDb;
+    const historyPayload = payload(0, historyRecords);
+    const appendedPayload = payload(historyRecords, appendedRecords);
 
-  fs.writeFileSync(incrementalFile, historyPayload);
-  await ingestFile({ dbPath: incrementalDb, file: incrementalFile, source: 'copilot-cli' });
-  fs.appendFileSync(incrementalFile, appendedPayload);
-  const incremental = await measuredImport({
-    dbPath: incrementalDb,
-    file: incrementalFile,
-    source: 'copilot-cli',
-  });
+    fs.writeFileSync(incrementalFile, historyPayload);
+    await ingestFile({ dbPath: incrementalDb, file: incrementalFile, source: 'copilot-cli' });
+    fs.appendFileSync(incrementalFile, appendedPayload);
+    const incremental = await measuredImport({
+      dbPath: incrementalDb,
+      file: incrementalFile,
+      source: 'copilot-cli',
+    });
 
-  fs.writeFileSync(completeFile, `${historyPayload}${appendedPayload}`);
-  const complete = await measuredImport({
-    dbPath: completeDb,
-    file: completeFile,
-    source: 'copilot-cli',
-  });
+    fs.writeFileSync(completeFile, `${historyPayload}${appendedPayload}`);
+    const complete = await measuredImport({
+      dbPath: completeDb,
+      file: completeFile,
+      source: 'copilot-cli',
+    });
 
-  const incrementalSnapshot = await snapshot(incrementalDb);
-  const completeSnapshot = await snapshot(completeDb);
-  assert.deepEqual(incrementalSnapshot, completeSnapshot, 'incremental and complete imports diverged');
-  assert.equal(incremental.result.usage_records, appendedRecords);
-  assert.equal(complete.result.usage_records, historyRecords + appendedRecords);
+    const incrementalSnapshot = await snapshot(incrementalDb);
+    const completeSnapshot = await snapshot(completeDb);
+    assert.deepEqual(incrementalSnapshot, completeSnapshot, 'incremental and complete imports diverged');
+    assert.equal(incremental.result.usage_records, appendedRecords);
+    assert.equal(complete.result.usage_records, historyRecords + appendedRecords);
 
-  process.stdout.write(`${JSON.stringify({
-    package: pkg.name,
-    version: pkg.version,
-    node: process.version,
-    history_records: historyRecords,
-    appended_records: appendedRecords,
-    history_bytes: Buffer.byteLength(historyPayload),
-    appended_bytes: Buffer.byteLength(appendedPayload),
-    final_bytes: Buffer.byteLength(historyPayload) + Buffer.byteLength(appendedPayload),
-    incremental_elapsed_ms: incremental.elapsedMs,
-    complete_elapsed_ms: complete.elapsedMs,
-    incremental_bytes_read: incremental.bytesRead,
-    complete_bytes_read: complete.bytesRead,
-    speedup: Number((complete.elapsedMs / Math.max(incremental.elapsedMs, 0.001)).toFixed(3)),
-    result_counts: {
-      usage: incrementalSnapshot.usage.length,
-      evidence: incrementalSnapshot.evidence.length,
-      warnings: incrementalSnapshot.warnings.length,
-      raw_records: incrementalSnapshot.raw_records,
-    },
-    semantic_equivalence: true,
-  }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({
+      package: pkg.name,
+      version: pkg.version,
+      node: process.version,
+      history_records: historyRecords,
+      appended_records: appendedRecords,
+      history_bytes: Buffer.byteLength(historyPayload),
+      appended_bytes: Buffer.byteLength(appendedPayload),
+      final_bytes: Buffer.byteLength(historyPayload) + Buffer.byteLength(appendedPayload),
+      incremental_elapsed_ms: incremental.elapsedMs,
+      complete_elapsed_ms: complete.elapsedMs,
+      incremental_bytes_read: incremental.bytesRead,
+      complete_bytes_read: complete.bytesRead,
+      speedup: Number((complete.elapsedMs / Math.max(incremental.elapsedMs, 0.001)).toFixed(3)),
+      result_counts: {
+        usage: incrementalSnapshot.usage.length,
+        evidence: incrementalSnapshot.evidence.length,
+        warnings: incrementalSnapshot.warnings.length,
+        raw_records: incrementalSnapshot.raw_records,
+      },
+      semantic_equivalence: true,
+    }, null, 2)}\n`);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
 }
 
 main().catch((error) => {
