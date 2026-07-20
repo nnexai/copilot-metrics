@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { test } = require('node:test');
 const { resolvePaths } = require('../src/paths');
 const { vscodeSettings, installVscodeSettings, copilotCliEnvironment, hookConfig, installHook, mergeGlobalSettingsHooks, setupSnapshot } = require('../src/setup');
@@ -11,6 +12,20 @@ const { appendHookEvent, redactHookPayload } = require('../src/hook-logger');
 const { parseFlags } = require('../src/cli');
 const { loadConfiguredExtractors, runLabelExtractors } = require('../src/label-extractors');
 const { version } = require('../package.json');
+
+function runHookProcess(script, args, payload, options = {}) {
+  return spawnSync(process.execPath, [script, ...args], {
+    cwd: path.join(__dirname, '..'),
+    env: { ...process.env, ...options.env },
+    input: typeof payload === 'string' ? payload : JSON.stringify(payload),
+    encoding: 'utf8',
+  });
+}
+
+function comparableHookRecord(record) {
+  const { captured_at: _capturedAt, ...comparable } = record;
+  return comparable;
+}
 
 test('resolvePaths uses COPILOT_METRICS_HOME override', () => {
   const home = path.join(os.tmpdir(), 'copilot-metrics-test-home');
@@ -327,4 +342,63 @@ test('appendHookEvent writes JSONL', () => {
   const lines = fs.readFileSync(result.path, 'utf8').trim().split('\n');
   assert.equal(lines.length, 1);
   assert.deepEqual(JSON.parse(lines[0]).labels, ['DEMO-222']);
+});
+
+test('hook-only executable preserves hook-log redaction and output behavior', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-hook-only-'));
+  const payload = {
+    sessionId: 'session-1',
+    cwd: '/work/DEMO-456',
+    prompt: 'Keep this secret while working on DEMO-456',
+  };
+  const commonArgs = ['--event', 'userPromptSubmitted', '--json'];
+  const legacy = runHookProcess('bin/copilot-metrics.js', ['hook-log', ...commonArgs], payload, {
+    env: { COPILOT_METRICS_HOME: path.join(tmp, 'legacy') },
+  });
+  const lightweight = runHookProcess('bin/copilot-metrics-hook.js', commonArgs, payload, {
+    env: { COPILOT_METRICS_HOME: path.join(tmp, 'lightweight') },
+  });
+
+  assert.equal(legacy.status, 0, legacy.stderr);
+  assert.equal(lightweight.status, 0, lightweight.stderr);
+  const legacyResult = JSON.parse(legacy.stdout);
+  const lightweightResult = JSON.parse(lightweight.stdout);
+  assert.deepEqual(
+    comparableHookRecord(lightweightResult.record),
+    comparableHookRecord(legacyResult.record),
+  );
+  assert.equal(lightweightResult.record.prompt_preview, undefined);
+  assert.doesNotMatch(fs.readFileSync(lightweightResult.path, 'utf8'), /Keep this secret/);
+
+  const quiet = runHookProcess('bin/copilot-metrics-hook.js', ['--event', 'agentStop', '--quiet'], {}, {
+    env: { COPILOT_METRICS_HOME: path.join(tmp, 'quiet') },
+  });
+  assert.equal(quiet.status, 0, quiet.stderr);
+  assert.equal(quiet.stdout, '');
+});
+
+test('hook-only executable has a narrow module graph', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-hook-modules-'));
+  const moduleReport = path.join(tmp, 'modules.json');
+  const result = runHookProcess('bin/copilot-metrics-hook.js', ['--event', 'agentStop', '--quiet'], {}, {
+    env: {
+      COPILOT_METRICS_HOME: path.join(tmp, 'home'),
+      COPILOT_METRICS_HOOK_MODULE_REPORT: moduleReport,
+    },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const loaded = JSON.parse(fs.readFileSync(moduleReport, 'utf8'));
+  for (const heavyweight of ['better-sqlite3', '/src/cli.js', '/src/ingest.js', '/src/pricing.js', '/src/reports.js']) {
+    assert.equal(loaded.some((modulePath) => modulePath.includes(heavyweight)), false, heavyweight);
+  }
+});
+
+test('hook-only executable rejects malformed JSON without appending', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-hook-invalid-'));
+  const result = runHookProcess('bin/copilot-metrics-hook.js', ['--event', 'agentStop'], '{bad json', {
+    env: { COPILOT_METRICS_HOME: tmp },
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /copilot-metrics-hook:/);
+  assert.equal(fs.existsSync(path.join(tmp, 'hooks', 'copilot-hooks.jsonl')), false);
 });
