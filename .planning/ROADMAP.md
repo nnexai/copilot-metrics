@@ -56,11 +56,11 @@
   4. Repeatable benchmarks show improved incremental refresh, hook startup, store initialization, and report performance with no selected-price, confidence, manual-label, diagnostics, privacy, or report-output drift.
   5. The full release checklist passes and the published npm package succeeds in registry checks and isolated-environment smoke verification.
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans executed
 
 - [x] 21-01-PLAN.md — Replace repeated schema/repair scans with migrations and markers, then add query-plan-proven indexes.
 - [x] 21-02-PLAN.md — Batch import identities, consolidate report context reads, and deepen milestone benchmarks.
-- [ ] 21-03-PLAN.md — Prepare v0.7.0 metadata and pass the complete local release-candidate gate before audited publication.
+- [x] 21-03-PLAN.md — Prepare v0.7.0 metadata and pass the complete local release-candidate gate before audited publication.
 
 ## Progress
 
@@ -69,7 +69,7 @@
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 20. Incremental JSONL and Lightweight Collection | v0.7.0 | 3/3 | Complete    | 2026-07-20 |
-| 21. Store and Report Scalability and Release Verification | v0.7.0 | 2/3 | In Progress|  |
+| 21. Store and Report Scalability and Release Verification | v0.7.0 | 3/3 | In Progress|  |
 
 ## Archive
 

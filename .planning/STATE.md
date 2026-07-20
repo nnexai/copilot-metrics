@@ -5,16 +5,16 @@ milestone_name: Ingestion and Reporting Scalability
 current_phase: 21
 current_phase_name: Store and Report Scalability and Release Verification
 status: executing
-stopped_at: Completed 21-02-PLAN.md
-last_updated: "2026-07-20T10:33:25.799Z"
+stopped_at: Completed 21-03-PLAN.md; release-ready pending verification, audit, and publication
+last_updated: "2026-07-20T10:38:09.058Z"
 last_activity: 2026-07-20
-last_activity_desc: Completed versioned store maintenance and persistent index plan
+last_activity_desc: Prepared and locally verified the v0.7.0 release candidate
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 6
-  completed_plans: 5
-current_plan: 1
+  completed_plans: 6
+current_plan: 3
 total_plans_in_phase: 3
 ---
 
@@ -49,11 +49,11 @@ v0.7.0 Ingestion and Reporting Scalability
 ## Current Position
 
 Phase: 21 of 21 (Store and Report Scalability and Release Verification)
-Plan: 2 of 3
-Status: Executing — Plan 21-02 complete
-Last activity: 2026-07-20 — Completed batched imports, shared report context, and semantic benchmarks
+Plan: 3 of 3
+Status: Plan complete — release-ready pending phase verification, milestone audit, and publication
+Last activity: 2026-07-20 — Prepared and locally verified the v0.7.0 release candidate
 
-Progress: [████████░░] 83%
+Progress: [██████████] 100%
 
 ## Current Roadmap
 
@@ -80,6 +80,7 @@ Two coarse phases execute in order:
 - [Phase 21]: Require named persistent indexes for measured label, session, and VS Code backfill plans.
 - [Phase 21]: Chunk deduplicated SQLite identity inputs at 400 values with conservative bind headroom.
 - [Phase 21]: Derive manual rankings from raw join rows before usage aggregation dedupe.
+- [Phase 21]: Keep VER-03 pending until the orchestrator confirms the published npm version and isolated exact-version commands after milestone audit.
 
 ### Blockers/Concerns
 
@@ -104,12 +105,12 @@ Items acknowledged and deferred at milestone close on 2026-06-03:
 
 ## Operator Next Steps
 
-- Execute Plan 21-03 release metadata and local release-candidate verification.
+- Verify Phase 21 and audit the milestone before publishing v0.7.0.
 
 ## Session Continuity
 
-Last session: 2026-07-20T10:33:25.791Z
-Stopped at: Completed 21-02-PLAN.md
+Last session: 2026-07-20T10:38:09.049Z
+Stopped at: Completed 21-03-PLAN.md; release-ready pending verification, audit, and publication
 Resume file: None
 
 ## Performance Metrics
@@ -121,3 +122,4 @@ Resume file: None
 | Phase 20 P03 | 6min | 3 tasks | 5 files |
 | Phase 21 P01 | 9min | 3 tasks | 4 files |
 | Phase 21 P02 | 12min | 3 tasks | 6 files |
+| Phase 21 P03 | 2min | 2 tasks | 4 files |
