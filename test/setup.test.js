@@ -394,6 +394,39 @@ test('hook-only executable preserves hook-log redaction and output behavior', ()
   assert.equal(quiet.stdout, '');
 });
 
+test('generated hook-only command writes equivalent redacted hook output', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-generated-hook-'));
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  const config = hookConfig(paths, {
+    cwd: process.cwd(),
+    scope: 'local',
+    command: path.join(process.cwd(), 'bin', 'copilot-metrics.js'),
+  });
+  const payload = {
+    sessionId: 'generated-session',
+    cwd: '/work/DEMO-457',
+    prompt: 'Do not retain this generated hook secret for DEMO-457',
+  };
+
+  const generated = spawnSync(config.hooks.userPromptSubmitted[0].command, {
+    cwd: path.join(__dirname, '..'),
+    env: process.env,
+    input: JSON.stringify(payload),
+    encoding: 'utf8',
+    shell: true,
+  });
+
+  assert.equal(generated.status, 0, generated.stderr);
+  assert.equal(generated.stdout, '');
+  const records = fs.readFileSync(paths.hookEventsJsonl, 'utf8').trim().split('\n').map(JSON.parse);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].session_id, 'generated-session');
+  assert.deepEqual(records[0].labels, ['DEMO-457']);
+  assert.equal(records[0].raw_prompt_stored, false);
+  assert.equal(records[0].prompt_preview, undefined);
+  assert.doesNotMatch(fs.readFileSync(paths.hookEventsJsonl, 'utf8'), /generated hook secret/);
+});
+
 test('hook-only executable has a narrow module graph', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-hook-modules-'));
   const moduleReport = path.join(tmp, 'modules.json');
