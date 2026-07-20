@@ -16,11 +16,12 @@ files_reviewed_list:
   - test/report.test.js
   - test/storage-backend.test.js
 findings:
-  critical: 2
-  warning: 3
+  critical: 0
+  warning: 0
   info: 0
-  total: 5
-status: issues_found
+  total: 0
+resolved_findings: 5
+status: passed
 ---
 
 # Phase 21: Code Review Report
@@ -28,7 +29,7 @@ status: issues_found
 **Reviewed:** 2026-07-20T10:43:56Z
 **Depth:** deep
 **Files Reviewed:** 11
-**Status:** issues_found
+**Status:** passed
 
 ## Summary
 
@@ -73,3 +74,25 @@ The Phase 21 changes improve the measured paths, and the focused tests and both 
 _Reviewed: 2026-07-20T10:43:56Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_
+
+## Remediation Verification
+
+All five findings were resolved and independently exercised by focused regressions:
+
+- **CR-01:** Usage inserts are strict again. Only a confirmed `usage_records.usage_identity` unique conflict is recovered; all other constraints throw and roll back the complete import.
+- **CR-02:** Repair marker check, candidate scan, repair writes, and marker completion now share one `BEGIN IMMEDIATE` transaction. Two-connection tests prove concurrent invalidation cannot interleave for duplicate-usage or cost-estimate repairs.
+- **WR-01:** Schema compatibility is read before write-affecting pragmas. A future-version store remains in DELETE journal mode without WAL/SHM sidecars or data changes.
+- **WR-02:** Manual usage deduplication is label-aware, preserving the second manual label in top-k and all-match details both with and without shared report context.
+- **WR-03:** Benchmarks now block on deep semantic equality, meaningful secondary-label detail coverage, and deterministic SQL/query-work reductions. Repeated warm medians remain diagnostic evidence rather than machine-sensitive gates.
+
+### Evidence
+
+- RED regressions: `5ace842`
+- Correctness fixes: `9f8e1c1`
+- Structural benchmark gates: `7cfe2e6`
+- `npm test`: 130/130 passed
+- `npm run check`, `npm run smoke`, `npm run verify:package`: passed
+- All four benchmarks passed with semantic equality. Storage measured 30 current-store SQL operations versus 460 legacy operations; report context measured 5 total source reads versus 60 standalone reads, with one secondary manual-label detail row.
+- `npm pack --silent --dry-run --json`: `copilot-metrics@0.7.0`, 23 files, package contents verified.
+
+_Remediated and verified: 2026-07-20_
