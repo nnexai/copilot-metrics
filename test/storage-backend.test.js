@@ -262,16 +262,16 @@ test('migration rollback leaves schema version unadvanced and retries after the 
       );
       INSERT INTO raw_records (imported_at, source, line, payload_json)
       VALUES ('2026-07-20', 'legacy', 1, '{}');
-      CREATE VIEW store_metadata AS SELECT 'blocked' AS key, '1' AS value;
+      CREATE TABLE idx_raw_records_fingerprint (blocked INTEGER);
     `);
   });
 
-  await assert.rejects(initStore(dbPath), /store_metadata|view/i);
+  await assert.rejects(initStore(dbPath), /idx_raw_records_fingerprint|already exists/i);
   withRawDb(dbPath, (db) => {
     assert.equal(schemaVersion(dbPath), 0);
     assert.equal(db.prepare("SELECT COUNT(*) AS count FROM pragma_table_info('raw_records') WHERE name = 'source_file'").get().count, 0);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM raw_records').get().count, 1);
-    db.exec('DROP VIEW store_metadata');
+    db.exec('DROP TABLE idx_raw_records_fingerprint');
   });
 
   await initStore(dbPath);

@@ -6,6 +6,7 @@ const BetterSqlite = require('better-sqlite3');
 const { canonicalLabel } = require('./label-extractors');
 
 let activeConnection = null;
+const CURRENT_SCHEMA_VERSION = 1;
 
 class BetterStatement {
   constructor(db, statement) {
@@ -255,13 +256,8 @@ WHERE id NOT IN (
   return before - after;
 }
 
-async function initStore(dbPath) {
-  if (activeConnection && activeConnection.dbPath === path.resolve(dbPath)) return;
-  const isNewStore = !fs.existsSync(dbPath);
-  const db = await openDatabase(dbPath);
-  try {
-    let changed = isNewStore;
-    db.run(`
+function createCurrentSchema(db) {
+  db.run(`
 CREATE TABLE IF NOT EXISTS raw_records (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   imported_at TEXT NOT NULL,
@@ -376,73 +372,115 @@ CREATE TABLE IF NOT EXISTS import_checkpoints (
   updated_at TEXT NOT NULL,
   PRIMARY KEY (source, source_file)
 );
+CREATE TABLE IF NOT EXISTS store_metadata (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 `);
-    changed = addColumnIfMissing(db, 'raw_records', 'source_file', 'TEXT') || changed;
-    changed = addColumnIfMissing(db, 'raw_records', 'raw_fingerprint', 'TEXT') || changed;
-    changed = addColumnIfMissing(db, 'hook_events', 'source_file', 'TEXT') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'usage_identity', 'TEXT') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'actual_charge_nano_aiu', 'REAL') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'actual_ai_credits', 'REAL') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'actual_usd', 'REAL') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'actual_basis', 'TEXT') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'displayed_ai_credits', 'REAL') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'displayed_usd', 'REAL') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'displayed_credit_text', 'TEXT') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'displayed_credit_basis', 'TEXT') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'inferred_cache_read_tokens', 'INTEGER') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'inferred_cache_read_reason', 'TEXT') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'upper_bound_usd', 'REAL') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'upper_bound_ai_credits', 'REAL') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'selected_ai_credits', 'REAL') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'selected_usd', 'REAL') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'selected_pricing_basis', 'TEXT') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'selected_confidence', 'TEXT') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'selected_source', 'TEXT') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'pricing_basis', "TEXT NOT NULL DEFAULT 'estimated'") || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'estimate_confidence', "TEXT NOT NULL DEFAULT 'high'") || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'cache_read_status', "TEXT NOT NULL DEFAULT 'explicit_zero'") || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'pricing_source', 'TEXT') || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'pricing_metadata_json', "TEXT NOT NULL DEFAULT '{}'") || changed;
-    changed = addColumnIfMissing(db, 'usage_records', 'pricing_diagnostics_json', "TEXT NOT NULL DEFAULT '[]'") || changed;
-    changed = createIndexIfMissing(
-      db,
-      'idx_raw_records_fingerprint',
-      'CREATE UNIQUE INDEX idx_raw_records_fingerprint ON raw_records (source, source_file, raw_fingerprint)',
-    ) || changed;
-    changed = createIndexIfMissing(
-      db,
-      'idx_usage_records_identity',
-      'CREATE UNIQUE INDEX idx_usage_records_identity ON usage_records (usage_identity) WHERE usage_identity IS NOT NULL',
-    ) || changed;
-    changed = dropIndexIfExists(db, 'idx_label_evidence_session_key') || changed;
-    changed = repairDuplicateHookEventsInDb(db) > 0 || changed;
-    changed = repairDuplicateLabelEvidenceInDb(db) > 0 || changed;
-    changed = createIndexIfMissing(
-      db,
-      'idx_hook_events_source_file_line',
-      `CREATE UNIQUE INDEX idx_hook_events_source_file_line
-       ON hook_events (source, COALESCE(source_file, ''), raw_line)`,
-    ) || changed;
-    changed = createIndexIfMissing(
-      db,
-      'idx_label_evidence_usage_key',
-      `CREATE UNIQUE INDEX idx_label_evidence_usage_key
-       ON label_evidence (label, source_type, source_field, COALESCE(source_value, ''), usage_record_id)
-       WHERE usage_record_id IS NOT NULL`,
-    ) || changed;
-    changed = createIndexIfMissing(
-      db,
-      'idx_label_evidence_hook_key',
-      `CREATE UNIQUE INDEX idx_label_evidence_hook_key
-       ON label_evidence (label, source_type, source_field, COALESCE(source_value, ''), hook_event_id)
-       WHERE usage_record_id IS NULL AND session_id IS NULL AND hook_event_id IS NOT NULL`,
-    ) || changed;
-    changed = createIndexIfMissing(
-      db,
-      'idx_manual_label_assignments_session',
-      'CREATE INDEX idx_manual_label_assignments_session ON manual_label_assignments (session_id)',
-    ) || changed;
-    if (changed) persistDatabase(dbPath, db);
+}
+
+function migrateLegacyStoreToVersion1(db) {
+  createCurrentSchema(db);
+  addColumnIfMissing(db, 'raw_records', 'source_file', 'TEXT');
+  addColumnIfMissing(db, 'raw_records', 'raw_fingerprint', 'TEXT');
+  addColumnIfMissing(db, 'hook_events', 'source_file', 'TEXT');
+  addColumnIfMissing(db, 'usage_records', 'usage_identity', 'TEXT');
+  addColumnIfMissing(db, 'usage_records', 'actual_charge_nano_aiu', 'REAL');
+  addColumnIfMissing(db, 'usage_records', 'actual_ai_credits', 'REAL');
+  addColumnIfMissing(db, 'usage_records', 'actual_usd', 'REAL');
+  addColumnIfMissing(db, 'usage_records', 'actual_basis', 'TEXT');
+  addColumnIfMissing(db, 'usage_records', 'displayed_ai_credits', 'REAL');
+  addColumnIfMissing(db, 'usage_records', 'displayed_usd', 'REAL');
+  addColumnIfMissing(db, 'usage_records', 'displayed_credit_text', 'TEXT');
+  addColumnIfMissing(db, 'usage_records', 'displayed_credit_basis', 'TEXT');
+  addColumnIfMissing(db, 'usage_records', 'inferred_cache_read_tokens', 'INTEGER');
+  addColumnIfMissing(db, 'usage_records', 'inferred_cache_read_reason', 'TEXT');
+  addColumnIfMissing(db, 'usage_records', 'upper_bound_usd', 'REAL');
+  addColumnIfMissing(db, 'usage_records', 'upper_bound_ai_credits', 'REAL');
+  addColumnIfMissing(db, 'usage_records', 'selected_ai_credits', 'REAL');
+  addColumnIfMissing(db, 'usage_records', 'selected_usd', 'REAL');
+  addColumnIfMissing(db, 'usage_records', 'selected_pricing_basis', 'TEXT');
+  addColumnIfMissing(db, 'usage_records', 'selected_confidence', 'TEXT');
+  addColumnIfMissing(db, 'usage_records', 'selected_source', 'TEXT');
+  addColumnIfMissing(db, 'usage_records', 'pricing_basis', "TEXT NOT NULL DEFAULT 'estimated'");
+  addColumnIfMissing(db, 'usage_records', 'estimate_confidence', "TEXT NOT NULL DEFAULT 'high'");
+  addColumnIfMissing(db, 'usage_records', 'cache_read_status', "TEXT NOT NULL DEFAULT 'explicit_zero'");
+  addColumnIfMissing(db, 'usage_records', 'pricing_source', 'TEXT');
+  addColumnIfMissing(db, 'usage_records', 'pricing_metadata_json', "TEXT NOT NULL DEFAULT '{}'");
+  addColumnIfMissing(db, 'usage_records', 'pricing_diagnostics_json', "TEXT NOT NULL DEFAULT '[]'");
+  createIndexIfMissing(
+    db,
+    'idx_raw_records_fingerprint',
+    'CREATE UNIQUE INDEX idx_raw_records_fingerprint ON raw_records (source, source_file, raw_fingerprint)',
+  );
+  createIndexIfMissing(
+    db,
+    'idx_usage_records_identity',
+    'CREATE UNIQUE INDEX idx_usage_records_identity ON usage_records (usage_identity) WHERE usage_identity IS NOT NULL',
+  );
+  dropIndexIfExists(db, 'idx_label_evidence_session_key');
+  repairDuplicateHookEventsInDb(db);
+  repairDuplicateLabelEvidenceInDb(db);
+  createIndexIfMissing(
+    db,
+    'idx_hook_events_source_file_line',
+    `CREATE UNIQUE INDEX idx_hook_events_source_file_line
+     ON hook_events (source, COALESCE(source_file, ''), raw_line)`,
+  );
+  createIndexIfMissing(
+    db,
+    'idx_label_evidence_usage_key',
+    `CREATE UNIQUE INDEX idx_label_evidence_usage_key
+     ON label_evidence (label, source_type, source_field, COALESCE(source_value, ''), usage_record_id)
+     WHERE usage_record_id IS NOT NULL`,
+  );
+  createIndexIfMissing(
+    db,
+    'idx_label_evidence_hook_key',
+    `CREATE UNIQUE INDEX idx_label_evidence_hook_key
+     ON label_evidence (label, source_type, source_field, COALESCE(source_value, ''), hook_event_id)
+     WHERE usage_record_id IS NULL AND session_id IS NULL AND hook_event_id IS NOT NULL`,
+  );
+  createIndexIfMissing(
+    db,
+    'idx_manual_label_assignments_session',
+    'CREATE INDEX idx_manual_label_assignments_session ON manual_label_assignments (session_id)',
+  );
+}
+
+const SCHEMA_MIGRATIONS = new Map([
+  [1, migrateLegacyStoreToVersion1],
+]);
+
+function schemaVersion(db) {
+  return Number(db.db.pragma('user_version', { simple: true }) || 0);
+}
+
+async function initStore(dbPath) {
+  if (activeConnection && activeConnection.dbPath === path.resolve(dbPath)) return;
+  const db = await openDatabase(dbPath);
+  try {
+    const currentVersion = schemaVersion(db);
+    if (currentVersion > CURRENT_SCHEMA_VERSION) {
+      throw new Error(
+        `SQLite store at ${dbPath} uses newer schema version ${currentVersion}; this binary supports through version ${CURRENT_SCHEMA_VERSION}. Upgrade copilot-metrics or use a compatible store.`,
+      );
+    }
+    for (let version = currentVersion + 1; version <= CURRENT_SCHEMA_VERSION; version += 1) {
+      const migrate = SCHEMA_MIGRATIONS.get(version);
+      if (!migrate) throw new Error(`Missing SQLite schema migration for version ${version}.`);
+      try {
+        db.run('BEGIN IMMEDIATE');
+        migrate(db);
+        db.db.pragma(`user_version = ${version}`);
+        db.run('COMMIT');
+      } catch (error) {
+        rollbackDatabase(db);
+        throw error;
+      }
+    }
+    if (currentVersion < CURRENT_SCHEMA_VERSION) persistDatabase(dbPath, db);
   } finally {
     closeDatabase(db);
   }
