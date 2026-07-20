@@ -48,6 +48,39 @@ async function timed(fn) {
   return { elapsed_ms: Number((performance.now() - started).toFixed(3)), value };
 }
 
+function median(values) {
+  const ordered = [...values].sort((left, right) => left - right);
+  return ordered[Math.floor(ordered.length / 2)];
+}
+
+async function timedSamples(fn, count = 5) {
+  await fn();
+  const samples = [];
+  for (let index = 0; index < count; index += 1) samples.push((await timed(fn)).elapsed_ms);
+  return { samples_ms: samples, median_ms: Number(median(samples).toFixed(3)) };
+}
+
+async function measuredSqlWork(fn) {
+  const originalPrepare = BetterSqlite.prototype.prepare;
+  const originalPragma = BetterSqlite.prototype.pragma;
+  let operations = 0;
+  BetterSqlite.prototype.prepare = function measuredPrepare(...args) {
+    operations += 1;
+    return originalPrepare.apply(this, args);
+  };
+  BetterSqlite.prototype.pragma = function measuredPragma(...args) {
+    operations += 1;
+    return originalPragma.apply(this, args);
+  };
+  try {
+    await fn();
+  } finally {
+    BetterSqlite.prototype.prepare = originalPrepare;
+    BetterSqlite.prototype.pragma = originalPragma;
+  }
+  return operations;
+}
+
 async function main() {
   const operations = Math.max(10, Number(process.argv[2] || 1000));
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-storage-bench-'));
@@ -67,8 +100,13 @@ async function main() {
     fs.copyFileSync(baseDb, optimizedDb);
     fs.copyFileSync(baseDb, legacyDb);
     const repeats = 10;
-    const optimized = await timed(async () => { for (let i = 0; i < repeats; i += 1) await initStore(optimizedDb); });
-    const legacy = await timed(async () => { for (let i = 0; i < repeats; i += 1) await _benchmarkLegacyMaintenance(legacyDb); });
+    const initializeCurrent = async () => { for (let i = 0; i < repeats; i += 1) await initStore(optimizedDb); };
+    const runLegacyMaintenance = async () => { for (let i = 0; i < repeats; i += 1) await _benchmarkLegacyMaintenance(legacyDb); };
+    const optimized = await timedSamples(initializeCurrent);
+    const legacy = await timedSamples(runLegacyMaintenance);
+    const optimizedSqlOperations = await measuredSqlWork(initializeCurrent);
+    const legacySqlOperations = await measuredSqlWork(runLegacyMaintenance);
+    assert.ok(optimizedSqlOperations < legacySqlOperations, `current initialization SQL work regressed: ${optimizedSqlOperations} >= ${legacySqlOperations}`);
     assert.deepEqual(await snapshot(optimizedDb), await snapshot(legacyDb));
 
     const importDb = path.join(home, 'import.sqlite');
@@ -93,10 +131,17 @@ async function main() {
       equivalence: { migration: true, repeated_maintenance: true, batch_import: true },
       timings: {
         one_time_migration_ms: migration.elapsed_ms,
-        repeated_current_store_ms: optimized.elapsed_ms,
-        repeated_legacy_maintenance_ms: legacy.elapsed_ms,
-        repeated_open_speedup: Number((legacy.elapsed_ms / Math.max(optimized.elapsed_ms, 0.001)).toFixed(2)),
+        repeated_current_store_samples_ms: optimized.samples_ms,
+        repeated_current_store_median_ms: optimized.median_ms,
+        repeated_legacy_maintenance_samples_ms: legacy.samples_ms,
+        repeated_legacy_maintenance_median_ms: legacy.median_ms,
+        repeated_open_speedup: Number((legacy.median_ms / Math.max(optimized.median_ms, 0.001)).toFixed(2)),
         mixed_batch_import_ms: batchImport.elapsed_ms,
+      },
+      structural_work: {
+        repeated_current_store_sql_operations: optimizedSqlOperations,
+        repeated_legacy_maintenance_sql_operations: legacySqlOperations,
+        current_store_uses_less_sql_work: true,
       },
       counts: { usage: importSnapshot.usage.length, evidence: importSnapshot.evidence.length },
     }, null, 2)}\n`);
