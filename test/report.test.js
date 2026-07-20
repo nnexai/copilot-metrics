@@ -6,11 +6,13 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
+const BetterSqlite = require('better-sqlite3');
 const {
   createLabelReportContext,
   formatLabels,
   labelDetails,
   labelModelBreakdown,
+  labelOverview,
   labelSessionDetails,
   labelSummary,
 } = require('../src/reports');
@@ -187,6 +189,40 @@ test('shared label report context preserves report semantics', async () => {
     await labelDetails(dbPath, 'DEMO-902', contextOptions),
     await labelDetails(dbPath, 'DEMO-902', options),
   );
+});
+
+test('report context reads evidence and raw manual joins exactly once', async () => {
+  const home = seedStore();
+  const dbPath = path.join(home, 'store', 'copilot-metrics.sqlite');
+  run(['label', 'session-cli', 'set', 'DEMO-902', 'DEMO-901', '--home', home, '--json']);
+  const originalPrepare = BetterSqlite.prototype.prepare;
+  let sourceReads = 0;
+  BetterSqlite.prototype.prepare = function instrumentedPrepare(sql, ...args) {
+    if (/\bFROM\s+label_evidence\b/i.test(sql) || /\bFROM\s+manual_label_assignments\b/i.test(sql)) sourceReads += 1;
+    return originalPrepare.call(this, sql, ...args);
+  };
+  let context;
+  try {
+    context = await createLabelReportContext(dbPath);
+  } finally {
+    BetterSqlite.prototype.prepare = originalPrepare;
+  }
+
+  assert.equal(sourceReads, 2);
+  assert.deepEqual(context.manualAssignments.map(({ session_id, label }) => ({ session_id, label })), [
+    { session_id: 'session-cli', label: 'DEMO-901' },
+    { session_id: 'session-cli', label: 'DEMO-902' },
+  ]);
+  assert.equal(context.manualRows.filter((row) => row.session_id === 'session-cli').length, 1);
+
+  for (const options of [{}, { topK: 2 }, { allMatches: true }]) {
+    const withContext = { ...options, context };
+    assert.deepEqual(await labelOverview(dbPath, withContext), await labelOverview(dbPath, options));
+    assert.deepEqual(await labelSummary(dbPath, 'DEMO-902', withContext), await labelSummary(dbPath, 'DEMO-902', options));
+    assert.deepEqual(await labelModelBreakdown(dbPath, 'DEMO-902', withContext), await labelModelBreakdown(dbPath, 'DEMO-902', options));
+    assert.deepEqual(await labelDetails(dbPath, 'DEMO-902', withContext), await labelDetails(dbPath, 'DEMO-902', options));
+    assert.deepEqual(await labelSessionDetails(dbPath, 'DEMO-902', withContext), await labelSessionDetails(dbPath, 'DEMO-902', options));
+  }
 });
 
 test('manual label CLI stores active assignments and returns post-operation JSON', async () => {
