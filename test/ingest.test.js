@@ -20,9 +20,11 @@ const {
   repairUsageCostEstimates,
 } = require('../src/ingest');
 const {
+  importCheckpoint,
   insertImport,
   queryOne,
   repairDuplicateLabelEvidence,
+  upsertImportCheckpoint,
 } = require('../src/sqlite-store');
 const { loadConfiguredExtractors, runLabelExtractors } = require('../src/label-extractors');
 
@@ -760,6 +762,121 @@ test('Copilot session-state import checkpoints appended logs without dropping ne
   const third = await ingestFile({ dbPath: paths.usageDb, file: sessionFile, source: 'copilot-session' });
   assert.equal(third.new_raw_records, 0);
   assert.equal(third.usage_records, 0);
+});
+
+function cliUsageLine(spanId, label, inputTokens = 10) {
+  return JSON.stringify({
+    name: 'copilot cli chat',
+    spanId,
+    traceId: `trace-${spanId}`,
+    attributes: {
+      'gen_ai.operation.name': 'chat',
+      'gen_ai.request.model': 'gpt-5-mini',
+      'session.id': `session-${spanId}`,
+      cwd: `/repo/${label}`,
+      'git.branch': `feature/${label}`,
+      'gen_ai.usage.input_tokens': inputTokens,
+      'gen_ai.usage.output_tokens': 5,
+    },
+  });
+}
+
+test('incremental ingest checkpoints bytes and reads only appended JSONL payload', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-incremental-'));
+  const file = path.join(tmp, 'events.jsonl');
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  fs.writeFileSync(file, `${cliUsageLine('first', 'DEMO-920')}\n`);
+  const first = await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli' });
+  assert.equal(first.usage_records, 1);
+  const initialSize = fs.statSync(file).size;
+
+  fs.appendFileSync(file, `${cliUsageLine('second', 'DEMO-921')}\n`);
+  const reads = [];
+  const second = await ingestFile({
+    dbPath: paths.usageDb,
+    file,
+    source: 'copilot-cli',
+    jsonlReadOptions: { chunkSize: 11, onRead: (read) => reads.push(read) },
+  });
+
+  assert.equal(second.new_raw_records, 1);
+  assert.equal(second.usage_records, 1);
+  assert.ok(reads.filter((read) => read.purpose === 'payload').every((read) => read.position >= initialSize));
+  const checkpoint = await importCheckpoint(paths.usageDb, 'copilot-cli', path.resolve(file));
+  assert.equal(checkpoint.checkpoint_line, 2);
+  assert.equal(checkpoint.context.jsonl.byte_offset, fs.statSync(file).size);
+  assert.equal(checkpoint.context.jsonl.completed_lines, 2);
+  assert.equal(checkpoint.context.file_stat.size, fs.statSync(file).size);
+  assert.ok(checkpoint.context.file_stat.identity || process.platform === 'win32');
+});
+
+test('incremental ingest skips unchanged files without invoking JSONL reads', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-incremental-skip-'));
+  const file = path.join(tmp, 'events.jsonl');
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  fs.writeFileSync(file, `${cliUsageLine('first', 'DEMO-922')}\n`);
+  await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli' });
+  const reads = [];
+
+  const result = await ingestFile({
+    dbPath: paths.usageDb,
+    file,
+    source: 'copilot-cli',
+    jsonlReadOptions: { onRead: (read) => reads.push(read) },
+  });
+
+  assert.equal(result.skipped, true);
+  assert.equal(result.reason, 'unchanged_file');
+  assert.deepEqual(reads, []);
+});
+
+test('incremental ingest resets after truncation and upgrades legacy line checkpoints', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-incremental-reset-'));
+  const file = path.join(tmp, 'events.jsonl');
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  fs.writeFileSync(file, `${cliUsageLine('first', 'DEMO-923')}\n${cliUsageLine('second', 'DEMO-924')}\n`);
+  await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli' });
+
+  fs.writeFileSync(file, `${cliUsageLine('replacement', 'DEMO-925', 1)}\n`);
+  const truncated = await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli' });
+  assert.equal(truncated.usage_records, 1);
+  assert.equal(truncated.skipped_existing_records, 0);
+
+  await upsertImportCheckpoint(paths.usageDb, 'copilot-cli', path.resolve(file), 1, {
+    file_stat: { size: fs.statSync(file).size, mtimeMs: Math.trunc(fs.statSync(file).mtimeMs) },
+  });
+  fs.appendFileSync(file, `${cliUsageLine('legacy-append', 'DEMO-926')}\n`);
+  const legacy = await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli' });
+  assert.equal(legacy.usage_records, 1);
+  const checkpoint = await importCheckpoint(paths.usageDb, 'copilot-cli', path.resolve(file));
+  assert.equal(checkpoint.context.jsonl.completed_lines, 2);
+  assert.equal(checkpoint.context.jsonl.byte_offset, fs.statSync(file).size);
+
+  const usage = await queryOne(paths.usageDb, 'SELECT span_id FROM usage_records ORDER BY span_id');
+  assert.deepEqual(usage.map((row) => row.span_id), ['first', 'legacy-append', 'replacement', 'second']);
+});
+
+test('incremental ingest resets when a JSONL file identity changes and on explicit refresh', async (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-incremental-rotation-'));
+  const file = path.join(tmp, 'events.jsonl');
+  const rotated = path.join(tmp, 'rotated.jsonl');
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  fs.writeFileSync(file, `${cliUsageLine('first', 'DEMO-927')}\n`);
+  await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli' });
+  const before = await importCheckpoint(paths.usageDb, 'copilot-cli', path.resolve(file));
+  if (!before.context.file_stat.identity) return t.skip('runtime does not expose stable file identity');
+
+  fs.writeFileSync(rotated, `${cliUsageLine('rotated', 'DEMO-928')}\n`);
+  fs.renameSync(rotated, file);
+  const replacement = await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli' });
+  assert.equal(replacement.usage_records, 1);
+  assert.equal(replacement.skipped_existing_records, 0);
+
+  fs.appendFileSync(file, `${cliUsageLine('refreshed', 'DEMO-929')}\n`);
+  const refreshed = await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli', forceRefresh: true });
+  assert.equal(refreshed.usage_records, 1);
+  const usage = await queryOne(paths.usageDb, 'SELECT span_id FROM usage_records');
+  assert.deepEqual(new Set(usage.map((row) => row.span_id)), new Set(['first', 'rotated', 'refreshed']));
 });
 
 test('configured source discovery keeps default fallback paths and additive custom paths', () => {
