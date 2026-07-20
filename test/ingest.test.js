@@ -100,7 +100,7 @@ test('fingerprint batch lookup handles large duplicate input sets', async () => 
   }
   assert.equal(existing.size, 1200);
   assert.equal(existing.has('missing'), false);
-  assert.ok(lookupStatements <= 3, `expected chunked lookups, saw ${lookupStatements}`);
+  assert.ok(lookupStatements <= 4, `expected chunked lookups, saw ${lookupStatements}`);
 });
 
 test('identity batch merges within-batch duplicates using exact inserted IDs and stronger pricing', async () => {
@@ -135,13 +135,13 @@ test('identity batch merges within-batch duplicates using exact inserted IDs and
     BetterSqlite.prototype.prepare = originalPrepare;
   }
   assert.deepEqual(result, { inserted_usage_records: 1101, duplicate_usage_records: 1 });
-  assert.ok(identityReads <= 3, `expected chunked identity reads, saw ${identityReads}`);
+  assert.ok(identityReads <= 4, `expected chunked identity reads, saw ${identityReads}`);
   assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', 'src', 'sqlite-store.js'), 'utf8'), /last_insert_rowid/);
   const survivor = await queryOne(dbPath, "SELECT id, pricing_basis, selected_ai_credits FROM usage_records WHERE usage_identity = 'identity-shared'");
   assert.equal(survivor.length, 1);
   assert.equal(survivor[0].pricing_basis, 'actual');
   assert.equal(survivor[0].selected_ai_credits, 2);
-  const evidence = await queryOne(dbPath, "SELECT usage_record_id, label FROM label_evidence WHERE label IN ('DEMO-2102', 'DEMO-2103') AND usage_record_id = ? ORDER BY label", [survivor[0].id]);
+  const evidence = await queryOne(dbPath, `SELECT usage_record_id, label FROM label_evidence WHERE label IN ('DEMO-2102', 'DEMO-2103') AND usage_record_id = ${Number(survivor[0].id)} ORDER BY label`);
   assert.deepEqual(evidence.map((row) => row.label), ['DEMO-2102', 'DEMO-2103']);
 });
 

@@ -608,9 +608,12 @@ function runPrepared(db, sql, rows) {
   }
 }
 
-function lastInsertId(db) {
-  const result = db.exec('SELECT last_insert_rowid() AS id');
-  return result[0].values[0][0];
+const SQLITE_IN_CHUNK_SIZE = 400;
+
+function chunks(values, size = SQLITE_IN_CHUNK_SIZE) {
+  const result = [];
+  for (let index = 0; index < values.length; index += size) result.push(values.slice(index, index + size));
+  return result;
 }
 
 function insertLabelEvidence(db, importedAt, evidenceRows) {
@@ -752,18 +755,80 @@ async function existingRawFingerprints(dbPath, source, sourceFile, fingerprints)
   await initStore(dbPath);
   const db = await openDatabase(dbPath);
   const existing = new Set();
-  const statement = db.prepare('SELECT 1 FROM raw_records WHERE source = ? AND source_file = ? AND raw_fingerprint = ? LIMIT 1');
   try {
-    for (const fingerprint of fingerprints) {
-      statement.bind([source, sourceFile, fingerprint]);
-      if (statement.step()) existing.add(fingerprint);
-      statement.reset();
+    const unique = Array.from(new Set(fingerprints));
+    for (const batch of chunks(unique)) {
+      const statement = db.prepare(`
+        SELECT raw_fingerprint
+        FROM raw_records
+        WHERE source = ? AND source_file = ?
+          AND raw_fingerprint IN (${batch.map(() => '?').join(', ')})
+      `);
+      try {
+        statement.bind([source, sourceFile, ...batch]);
+        while (statement.step()) existing.add(statement.getAsObject().raw_fingerprint);
+      } finally {
+        statement.free();
+      }
     }
   } finally {
-    statement.free();
     closeDatabase(db);
   }
   return existing;
+}
+
+const USAGE_IDENTITY_SELECT = `
+  SELECT id, usage_identity, session_id, repo, branch, cwd, timestamp,
+    actual_charge_nano_aiu, actual_ai_credits, actual_usd, actual_basis,
+    displayed_ai_credits, displayed_usd, displayed_credit_text, displayed_credit_basis,
+    inferred_cache_read_tokens, inferred_cache_read_reason, upper_bound_usd,
+    upper_bound_ai_credits, selected_ai_credits, selected_usd, selected_pricing_basis,
+    selected_confidence, selected_source, pricing_basis, estimate_confidence,
+    cache_read_status, pricing_source, pricing_metadata_json,
+    pricing_diagnostics_json, warnings_json
+  FROM usage_records`;
+
+function existingUsageIdentities(db, identities) {
+  const existing = new Map();
+  for (const batch of chunks(Array.from(new Set(identities.filter(Boolean))))) {
+    const statement = db.prepare(`${USAGE_IDENTITY_SELECT} WHERE usage_identity IN (${batch.map(() => '?').join(', ')})`);
+    try {
+      statement.bind(batch);
+      while (statement.step()) {
+        const row = statement.getAsObject();
+        existing.set(row.usage_identity, row);
+      }
+    } finally {
+      statement.free();
+    }
+  }
+  return existing;
+}
+
+function cachedInsertedUsage(id, usage) {
+  return {
+    ...usage,
+    id,
+    pricing_basis: usage.pricing_basis || 'estimated',
+    estimate_confidence: usage.estimate_confidence || 'high',
+    cache_read_status: usage.cache_read_status || 'explicit_zero',
+    pricing_metadata_json: JSON.stringify(usage.pricing_metadata || {}),
+    pricing_diagnostics_json: JSON.stringify(usage.pricing_diagnostics || []),
+    warnings_json: JSON.stringify(usage.warnings || []),
+  };
+}
+
+function cachedMergedUsage(existing, usage, merged) {
+  return {
+    ...existing,
+    ...merged,
+    cache_read_tokens: existing.cache_read_status === 'unknown' && (usage.cache_read_status || 'explicit_zero') !== 'unknown'
+      ? usage.cache_read_tokens || 0
+      : existing.cache_read_tokens,
+    pricing_metadata_json: JSON.stringify(merged.pricing_metadata || {}),
+    pricing_diagnostics_json: JSON.stringify(merged.pricing_diagnostics || []),
+    warnings_json: JSON.stringify(merged.warnings || []),
+  };
 }
 
 async function importedLineHighWater(dbPath, source, sourceFile) {
@@ -899,7 +964,7 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
     );
 
     const labelEvidence = [];
-    const usageStatement = db.prepare(`INSERT INTO usage_records (
+    const usageStatement = db.prepare(`INSERT OR IGNORE INTO usage_records (
         imported_at, source, raw_line, span_id, trace_id, parent_span_id, timestamp, surface,
         conversation_id, session_id, requested_model, resolved_model, repo, branch, cwd, commit_sha,
         input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, reasoning_tokens,
@@ -911,18 +976,8 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
         pricing_basis, estimate_confidence, cache_read_status, pricing_source,
         estimate_label, pricing_metadata_json, pricing_diagnostics_json, warnings_json, usage_identity
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-    const existingUsageStatement = db.prepare(`
-      SELECT id, session_id, repo, branch, cwd, timestamp, actual_charge_nano_aiu, actual_ai_credits,
-        actual_usd, actual_basis, displayed_ai_credits, displayed_usd, displayed_credit_text,
-        displayed_credit_basis, inferred_cache_read_tokens, inferred_cache_read_reason,
-        upper_bound_usd, upper_bound_ai_credits, selected_ai_credits, selected_usd,
-        selected_pricing_basis, selected_confidence, selected_source, pricing_basis,
-        estimate_confidence, cache_read_status, pricing_source, pricing_metadata_json,
-        pricing_diagnostics_json, warnings_json
-      FROM usage_records
-      WHERE usage_identity = ?
-      LIMIT 1
-    `);
+    const usageByIdentity = existingUsageIdentities(db, usageRecords.map((usage) => usage.usage_identity));
+    const conflictingUsageStatement = db.prepare(`${USAGE_IDENTITY_SELECT} WHERE usage_identity = ? LIMIT 1`);
     const mergeUsageStatement = db.prepare(`
       UPDATE usage_records
       SET cache_read_tokens = CASE WHEN cache_read_status = 'unknown' AND ? != 'unknown' THEN ? ELSE cache_read_tokens END,
@@ -959,9 +1014,7 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
         let usageRecordId = null;
         let existingUsage = null;
         if (usage.usage_identity) {
-          existingUsageStatement.bind([usage.usage_identity]);
-          if (existingUsageStatement.step()) existingUsage = existingUsageStatement.getAsObject();
-          existingUsageStatement.reset();
+          existingUsage = usageByIdentity.get(usage.usage_identity) || null;
         }
         if (existingUsage) {
           usageRecordId = existingUsage.id;
@@ -998,8 +1051,9 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
             JSON.stringify(merged.warnings || []),
             usageRecordId,
           ]);
+          usageByIdentity.set(usage.usage_identity, cachedMergedUsage(existingUsage, usage, merged));
         } else {
-          usageStatement.run([
+          const insertResult = usageStatement.run([
             importedAt,
             source,
             usage.raw_line,
@@ -1050,9 +1104,22 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
             JSON.stringify(usage.warnings || []),
             usage.usage_identity || null,
           ]);
-          usageRecordId = lastInsertId(db);
-          insertedUsageRecords += 1;
+          if (insertResult.changes > 0) {
+            usageRecordId = Number(insertResult.lastInsertRowid);
+            insertedUsageRecords += 1;
+            if (usage.usage_identity) usageByIdentity.set(usage.usage_identity, cachedInsertedUsage(usageRecordId, usage));
+          } else if (usage.usage_identity) {
+            conflictingUsageStatement.bind([usage.usage_identity]);
+            const conflict = conflictingUsageStatement.step() ? conflictingUsageStatement.getAsObject() : null;
+            conflictingUsageStatement.reset();
+            if (conflict) {
+              usageRecordId = conflict.id;
+              duplicateUsageRecords += 1;
+              usageByIdentity.set(usage.usage_identity, conflict);
+            }
+          }
         }
+        if (!usageRecordId) continue;
         for (const evidence of usage.label_evidence || []) {
           labelEvidence.push({
             ...evidence,
@@ -1067,7 +1134,7 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
       }
     } finally {
       usageStatement.free();
-      existingUsageStatement.free();
+      conflictingUsageStatement.free();
       mergeUsageStatement.free();
     }
 
@@ -1087,7 +1154,7 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
         let hookEventId = existingHookStatement.step() ? existingHookStatement.getAsObject().id : null;
         existingHookStatement.reset();
         if (!hookEventId) {
-          hookStatement.run([
+          const hookInsertResult = hookStatement.run([
             importedAt,
             source,
             sourceFile,
@@ -1100,8 +1167,9 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
             JSON.stringify(event.labels || []),
             JSON.stringify(event.payload),
           ]);
-          hookEventId = lastInsertId(db);
+          if (hookInsertResult.changes > 0) hookEventId = Number(hookInsertResult.lastInsertRowid);
         }
+        if (!hookEventId) continue;
         for (const evidence of event.label_evidence || []) {
           labelEvidence.push({
             ...evidence,
