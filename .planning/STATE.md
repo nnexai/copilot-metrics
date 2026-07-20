@@ -4,31 +4,31 @@ milestone: v0.7.0
 milestone_name: Ingestion and Reporting Scalability
 current_phase: 21
 current_phase_name: Store and Report Scalability and Release Verification
-status: planning
-stopped_at: Completed 20-03-PLAN.md
-last_updated: "2026-07-20T10:02:50.779Z"
+status: executing
+stopped_at: Phase 21 planned; ready to execute 21-01-PLAN.md
+last_updated: "2026-07-20T10:09:44.000Z"
 last_activity: 2026-07-20
-last_activity_desc: Phase 20 complete, transitioned to Phase 21
+last_activity_desc: Phase 21 planned in three sequential waves
 progress:
-  total_phases: 1
+  total_phases: 2
   completed_phases: 1
-  total_plans: 3
+  total_plans: 6
   completed_plans: 3
-current_plan: 3
+current_plan: 0
 total_plans_in_phase: 3
 ---
 
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** Ready to plan
+**Status:** Ready to execute
 
 ## Project Reference
 
 See: `.planning/PROJECT.md` (updated 2026-07-20)
 
 **Core value:** Give the user a trustworthy local CLI explanation of which Jira labels, repos, models, and Copilot surfaces are driving estimated AI Credit usage.
-**Current focus:** Phase 20 — Incremental JSONL and Lightweight Collection
+**Current focus:** Phase 21 — Store and Report Scalability and Release Verification
 
 ## Workflow Settings
 
@@ -49,11 +49,11 @@ v0.7.0 Ingestion and Reporting Scalability
 ## Current Position
 
 Phase: 21 of 21 (Store and Report Scalability and Release Verification)
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-07-20 — Phase 20 complete, transitioned to Phase 21
+Plan: 0 of 3
+Status: Planned — ready to execute
+Last activity: 2026-07-20 — Phase 21 planned in three sequential waves
 
-Progress: [██████████] 100%
+Progress: [█████░░░░░] 50%
 
 ## Current Roadmap
 
@@ -99,7 +99,7 @@ Items acknowledged and deferred at milestone close on 2026-06-03:
 
 ## Operator Next Steps
 
-- Execute Plan 20-03 debug-log reuse and benchmark registration.
+- Execute Plan 21-01 migrations, repair markers, and persistent query indexes.
 
 ## Session Continuity
 
