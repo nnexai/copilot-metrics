@@ -4,6 +4,11 @@
 [features]
 hooks = true
 
+# GSD Agent Configuration — managed by gsd-core installer
+
+[agents]
+max_depth = 1
+
 [agents.gsd-advisor-researcher]
 description = "Researches a single gray area decision and returns a structured comparison table with rationale. Spawned by discuss-phase advisor mode."
 config_file = "/home/nnex/dev/prj/copilot-metrics/.codex/agents/gsd-advisor-researcher.toml"
@@ -80,6 +85,10 @@ config_file = "/home/nnex/dev/prj/copilot-metrics/.codex/agents/gsd-integration-
 description = "Analyzes codebase and writes structured intel files to .planning/intel/."
 config_file = "/home/nnex/dev/prj/copilot-metrics/.codex/agents/gsd-intel-updater.toml"
 
+[agents.gsd-mempalace-curator]
+description = "Ship-time MemPalace curation — writes the session diary, proposes/creates cross-project tunnels, mirrors extract-learnings into the temporal KG, and runs wing-scoped drawer pruning. Spawned at ship:post by the mempalace capability."
+config_file = "/home/nnex/dev/prj/copilot-metrics/.codex/agents/gsd-mempalace-curator.toml"
+
 [agents.gsd-nyquist-auditor]
 description = "Fills Nyquist validation gaps by generating tests and verifying coverage for phase requirements"
 config_file = "/home/nnex/dev/prj/copilot-metrics/.codex/agents/gsd-nyquist-auditor.toml"
@@ -113,7 +122,7 @@ description = "Creates project roadmaps with phase breakdown, requirement mappin
 config_file = "/home/nnex/dev/prj/copilot-metrics/.codex/agents/gsd-roadmapper.toml"
 
 [agents.gsd-security-auditor]
-description = "Verifies threat mitigations from PLAN.md threat model exist in implemented code. Produces SECURITY.md. Spawned by $gsd-secure-phase."
+description = "Verifies threat mitigations from PLAN.md threat model exist in implemented code. Returns structured security verdict (SECURED / OPEN_THREATS / ESCALATE). Spawned by $gsd-secure-phase."
 config_file = "/home/nnex/dev/prj/copilot-metrics/.codex/agents/gsd-security-auditor.toml"
 
 [agents.gsd-ui-auditor]

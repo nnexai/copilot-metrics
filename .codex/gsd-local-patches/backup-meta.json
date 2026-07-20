@@ -1,0 +1,13 @@
+{
+  "backed_up_at": "2026-07-20T07:23:26.726Z",
+  "from_version": "1.1.0",
+  "from_manifest_timestamp": "2026-05-30T05:39:30.689Z",
+  "files": [
+    "get-shit-done/bin/lib/core.cjs",
+    "get-shit-done/bin/lib/init.cjs"
+  ],
+  "pristine_hashes": {
+    "get-shit-done/bin/lib/core.cjs": "9e7d1664219b5afb4ad5432a6f58963ebb4d592768aa0dc596ae7f37450f9799",
+    "get-shit-done/bin/lib/init.cjs": "ced4a4d7db9b1edec46eb728edbcaf670947799dc6c66137ef855d898a18d811"
+  }
+}
