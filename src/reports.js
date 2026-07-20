@@ -421,8 +421,8 @@ LEFT JOIN usage_records ur ON ur.id = le.usage_record_id
 ORDER BY le.session_id, le.usage_record_id, le.hook_event_id, le.label, le.source_type, le.source_field`);
 }
 
-async function manualLabelUsageRows(dbPath) {
-  const rows = await queryRows(dbPath, `
+async function rawManualLabelUsageRows(dbPath) {
+  return queryRows(dbPath, `
 SELECT
   NULL AS id,
   mla.created_at AS imported_at,
@@ -472,7 +472,10 @@ SELECT
 FROM manual_label_assignments mla
 LEFT JOIN usage_records ur ON ur.session_id = mla.session_id
 ORDER BY mla.session_id, mla.label, ur.id`);
-  return dedupeUsageRows(rows);
+}
+
+async function manualLabelUsageRows(dbPath) {
+  return dedupeUsageRows(await rawManualLabelUsageRows(dbPath));
 }
 
 function rankingBySession(sessionRankings) {
@@ -654,11 +657,35 @@ async function labelConfidenceRankings(dbPath) {
 
 async function createLabelReportContext(dbPath) {
   await initStore(dbPath);
-  const evidenceRows = await labelEvidenceRows(dbPath);
-  const manualAssignments = await activeManualLabelAssignments(dbPath);
-  const sessionRankings = rankSessionEvidence(evidenceRows, manualAssignments);
   const usageRows = await labelEvidenceUsageRows(dbPath);
-  const manualRows = await manualLabelUsageRows(dbPath);
+  const evidenceRows = usageRows.map((row) => ({
+    id: row.id,
+    imported_at: row.imported_at,
+    label: row.label,
+    source_type: row.source_type,
+    source_field: row.source_field,
+    source_value: row.source_value,
+    confidence: row.confidence,
+    usage_record_id: row.usage_record_id,
+    hook_event_id: row.hook_event_id,
+    session_id: row.session_id,
+    repo: row.repo,
+    branch: row.branch,
+    cwd: row.cwd,
+    timestamp: row.timestamp,
+  }));
+  const rawManualRows = await rawManualLabelUsageRows(dbPath);
+  const manualAssignments = Array.from(new Map(rawManualRows.map((row) => [
+    `${row.session_id}\0${row.label}`,
+    {
+      session_id: row.session_id,
+      label: row.label,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    },
+  ])).values());
+  const sessionRankings = rankSessionEvidence(evidenceRows, manualAssignments);
+  const manualRows = dedupeUsageRows(rawManualRows);
   return {
     evidenceRows,
     manualAssignments,
