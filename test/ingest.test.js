@@ -12,6 +12,7 @@ const { normalizePayload } = require('../src/otel');
 const { estimateCost, PRICING_VERSION } = require('../src/pricing');
 const {
   applyVscodeDebugCachedTokens,
+  autoImportConfiguredSources,
   backfillVscodeUsageResponseIds,
   configuredSourceEntries,
   ingestFile,
@@ -22,10 +23,12 @@ const {
 } = require('../src/ingest');
 const {
   importCheckpoint,
+  invalidateStoreRepair,
   insertImport,
   queryOne,
   repairDuplicateLabelEvidence,
   upsertImportCheckpoint,
+  STORE_REPAIRS,
 } = require('../src/sqlite-store');
 const { loadConfiguredExtractors, runLabelExtractors } = require('../src/label-extractors');
 
@@ -363,8 +366,16 @@ test('repairUsageCostEstimates updates existing zero-cost dated model rows', asy
     db.close();
   }
 
-  const updated = await repairUsageCostEstimates(paths.usageDb);
+  await invalidateStoreRepair(paths.usageDb, STORE_REPAIRS.COST_ESTIMATES);
+  let scans = 0;
+  await assert.rejects(
+    repairUsageCostEstimates(paths.usageDb, { onScan() { scans += 1; throw new Error('forced cost repair failure'); } }),
+    /forced cost repair failure/,
+  );
+  const updated = await repairUsageCostEstimates(paths.usageDb, { onScan() { scans += 1; } });
   assert.equal(updated, 1);
+  assert.equal(await repairUsageCostEstimates(paths.usageDb, { onScan() { scans += 1; } }), 0);
+  assert.equal(scans, 2);
 
   const usage = await queryOne(paths.usageDb, 'SELECT estimated_usd, estimated_ai_credits, selected_ai_credits, selected_usd, selected_pricing_basis, warnings_json FROM usage_records');
   assert.equal(usage[0].estimated_usd, 0.0099);
@@ -373,6 +384,27 @@ test('repairUsageCostEstimates updates existing zero-cost dated model rows', asy
   assert.equal(usage[0].selected_usd, 0.0099);
   assert.equal(usage[0].selected_pricing_basis, 'estimated');
   assert.equal(usage[0].warnings_json, '[]');
+});
+
+test('unchanged configured-source refresh does not scan repair candidates', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-repair-gating-'));
+  const paths = resolvePaths({
+    env: { COPILOT_METRICS_HOME: home, COPILOT_HOME: path.join(home, 'copilot-home'), HOME: path.join(home, 'user-home'), USERPROFILE: path.join(home, 'user-home') },
+    cwd: process.cwd(),
+  });
+  fs.mkdirSync(path.dirname(paths.vscodeOtelJsonl), { recursive: true });
+  fs.copyFileSync(path.join(fixtures, 'vscode-log-records.jsonl'), paths.vscodeOtelJsonl);
+  const scans = [];
+  const repairObserver = (repair) => scans.push(repair);
+
+  const first = await autoImportConfiguredSources(paths, { repairObserver });
+  assert.ok(first.some((result) => result.source === 'vscode' && result.usage_records > 0));
+  assert.deepEqual(new Set(scans), new Set([STORE_REPAIRS.COST_ESTIMATES, STORE_REPAIRS.DUPLICATE_USAGE]));
+
+  scans.length = 0;
+  const second = await autoImportConfiguredSources(paths, { repairObserver });
+  assert.ok(second.some((result) => result.source === 'vscode' && result.reason === 'unchanged_file'));
+  assert.deepEqual(scans, []);
 });
 
 test('ingestFile links VS Code chat labels to OTel usage by response id without storing chat raw records', async () => {

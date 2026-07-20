@@ -17,6 +17,7 @@ const {
   listManualLabels,
   queryRows,
   repairDuplicateLabelEvidence,
+  repairDuplicateVscodeUsageRecords,
   sessionExists,
   upsertImportCheckpoint,
 } = require('../src/sqlite-store');
@@ -296,4 +297,24 @@ test('future schema version is rejected without modifying the store', async () =
     assert.equal(schemaVersion(dbPath), futureVersion);
     assert.equal(db.prepare("SELECT value FROM store_metadata WHERE key = 'future-sentinel'").get().value, 'intact');
   });
+});
+
+test('usage duplicate repair marker gates scans and repair retry after failure', async () => {
+  const dbPath = tempDb();
+  const fixture = fixtureImport();
+  const duplicateUsage = fixture.usageRecords.map((usage) => ({ ...usage, usage_identity: null }));
+  await insertImport(dbPath, 'vscode', '/tmp/repair.jsonl', [], duplicateUsage, [], []);
+  await insertImport(dbPath, 'vscode', '/tmp/repair-2.jsonl', [], duplicateUsage, [], []);
+
+  let scans = 0;
+  await assert.rejects(
+    repairDuplicateVscodeUsageRecords(dbPath, { onScan() { scans += 1; throw new Error('forced repair failure'); } }),
+    /forced repair failure/,
+  );
+  assert.equal(scans, 1);
+
+  assert.equal(await repairDuplicateVscodeUsageRecords(dbPath, { onScan() { scans += 1; } }), 1);
+  assert.equal(await repairDuplicateVscodeUsageRecords(dbPath, { onScan() { scans += 1; } }), 0);
+  assert.equal(scans, 2);
+  assert.equal((await queryRows(dbPath, 'SELECT COUNT(*) AS count FROM usage_records'))[0].count, 1);
 });
