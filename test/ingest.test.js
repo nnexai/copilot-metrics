@@ -35,6 +35,98 @@ test('readJsonl skips malformed rows with warnings', () => {
   assert.equal(parsed.warnings[0].code, 'malformed_jsonl');
 });
 
+test('readJsonl incrementally reads only complete appended bytes with absolute lines', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-jsonl-reader-'));
+  const file = path.join(tmp, 'events.jsonl');
+  const initial = `${JSON.stringify({ value: 'å' })}\r\n${JSON.stringify({ value: 2 })}\r\n`;
+  fs.writeFileSync(file, initial);
+  const startByte = Buffer.byteLength(initial);
+  fs.appendFileSync(file, `${JSON.stringify({ value: 3 })}\r\n${JSON.stringify({ value: 4 })}\r\n`);
+  const reads = [];
+
+  const parsed = readJsonl(file, {
+    startByte,
+    completedLines: 2,
+    chunkSize: 7,
+    onRead: (read) => reads.push(read),
+  });
+
+  assert.deepEqual(parsed.records.map((record) => record.line), [3, 4]);
+  assert.deepEqual(parsed.records.map((record) => record.value.value), [3, 4]);
+  assert.equal(parsed.nextByte, fs.statSync(file).size);
+  assert.equal(parsed.completedLines, 4);
+  assert.ok(reads.filter((read) => read.purpose === 'payload').every((read) => read.position >= startByte));
+});
+
+test('readJsonl incremental unchanged boundary performs no payload read', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-jsonl-unchanged-'));
+  const file = path.join(tmp, 'events.jsonl');
+  fs.writeFileSync(file, '{"value":1}\n');
+  const reads = [];
+  const size = fs.statSync(file).size;
+
+  const parsed = readJsonl(file, {
+    startByte: size,
+    completedLines: 1,
+    onRead: (read) => reads.push(read),
+  });
+
+  assert.deepEqual(parsed.records, []);
+  assert.deepEqual(parsed.warnings, []);
+  assert.equal(parsed.nextByte, size);
+  assert.equal(parsed.completedLines, 1);
+  assert.equal(reads.some((read) => read.purpose === 'payload'), false);
+});
+
+test('readJsonl incremental leaves a trailing partial value uncommitted until newline', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-jsonl-partial-'));
+  const file = path.join(tmp, 'events.jsonl');
+  fs.writeFileSync(file, '{"value":1}\n{"value":2');
+  const firstLineByte = Buffer.byteLength('{"value":1}\n');
+
+  const partial = readJsonl(file, { startByte: firstLineByte, completedLines: 1, chunkSize: 4 });
+  assert.deepEqual(partial.records, []);
+  assert.deepEqual(partial.warnings, []);
+  assert.equal(partial.nextByte, firstLineByte);
+  assert.equal(partial.completedLines, 1);
+
+  fs.appendFileSync(file, '}\n');
+  const completed = readJsonl(file, { startByte: partial.nextByte, completedLines: partial.completedLines, chunkSize: 4 });
+  assert.deepEqual(completed.records, [{ line: 2, value: { value: 2 } }]);
+  assert.equal(completed.nextByte, fs.statSync(file).size);
+  assert.equal(completed.completedLines, 2);
+});
+
+test('readJsonl incremental warns for complete malformed lines at absolute line numbers', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-jsonl-warning-'));
+  const file = path.join(tmp, 'events.jsonl');
+  const prefix = '{"value":1}\n';
+  fs.writeFileSync(file, `${prefix}not-json\n`);
+
+  const parsed = readJsonl(file, { startByte: Buffer.byteLength(prefix), completedLines: 1 });
+  assert.equal(parsed.records.length, 0);
+  assert.equal(parsed.warnings.length, 1);
+  assert.equal(parsed.warnings[0].code, 'malformed_jsonl');
+  assert.equal(parsed.warnings[0].line, 2);
+  assert.equal(parsed.completedLines, 2);
+});
+
+test('readJsonl incremental rejects incompatible and non-boundary byte resumes', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-jsonl-invalid-'));
+  const file = path.join(tmp, 'events.jsonl');
+  const line = `${JSON.stringify({ value: 'å' })}\n`;
+  fs.writeFileSync(file, line);
+  const multibyteStart = Buffer.from(line).indexOf(Buffer.from('å')) + 1;
+
+  const middle = readJsonl(file, { startByte: multibyteStart, completedLines: 0 });
+  assert.equal(middle.resetRequired, true);
+  assert.equal(middle.resetReason, 'invalid_byte_boundary');
+
+  const incompatible = readJsonl(file, { startByte: Buffer.byteLength(line), completedLines: -1 });
+  assert.equal(incompatible.resetRequired, true);
+  assert.equal(incompatible.resetReason, 'incompatible_range_metadata');
+});
+
 test('normalizePayload keeps LLM spans and skips root agent spans', () => {
   const parsed = readJsonl(path.join(fixtures, 'vscode-otel.jsonl'));
   const usage = normalizePayload(parsed.records[0].value, 'vscode', parsed.records[0].line);
