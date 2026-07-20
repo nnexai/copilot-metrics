@@ -14,7 +14,7 @@
 ### Collection
 
 - [x] **COL-01**: Copilot hook events use a lightweight collection entrypoint that avoids loading SQLite, ingestion, pricing, and report modules.
-- [ ] **COL-02**: A VS Code session debug log is parsed at most once per import while preserving cached-token evidence for every matching usage record.
+- [x] **COL-02**: A VS Code session debug log is parsed at most once per import while preserving cached-token evidence for every matching usage record.
 
 ### Store maintenance
 
@@ -29,7 +29,7 @@
 
 ### Verification and release
 
-- [ ] **VER-01**: Fixture tests cover append, unchanged, truncation, rotation, malformed and partial JSONL inputs plus hook/debug-log behavior.
+- [x] **VER-01**: Fixture tests cover append, unchanged, truncation, rotation, malformed and partial JSONL inputs plus hook/debug-log behavior.
 - [ ] **VER-02**: Benchmarks demonstrate improved incremental refresh, hook startup, store initialization, and report performance without output drift.
 - [ ] **VER-03**: The npm package passes the full release checklist and the published version is verified from an isolated environment.
 
@@ -64,13 +64,13 @@
 | ING-02 | Phase 20 | Complete |
 | ING-03 | Phase 20 | Complete |
 | COL-01 | Phase 20 | Complete |
-| COL-02 | Phase 20 | Pending |
+| COL-02 | Phase 20 | Complete |
 | STR-01 | Phase 21 | Pending |
 | STR-02 | Phase 21 | Pending |
 | STR-03 | Phase 21 | Pending |
 | REP-01 | Phase 21 | Pending |
 | REP-02 | Phase 21 | Pending |
-| VER-01 | Phase 20 | Pending |
+| VER-01 | Phase 20 | Complete |
 | VER-02 | Phase 21 | Pending |
 | VER-03 | Phase 21 | Pending |
 

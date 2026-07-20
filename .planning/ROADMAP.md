@@ -37,11 +37,11 @@
   4. Each VS Code session debug log is parsed at most once per import while all matching usage records retain their cached-token evidence.
   5. Fixture-backed verification demonstrates the incremental JSONL, hook, and debug-log behaviors across normal and recovery cases.
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans executed
 
 - [x] 20-01-PLAN.md
 - [x] 20-02-PLAN.md
-- [ ] 20-03-PLAN.md
+- [x] 20-03-PLAN.md
 
 ### Phase 21: Store and Report Scalability and Release Verification
 
@@ -64,7 +64,7 @@
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 20. Incremental JSONL and Lightweight Collection | v0.7.0 | 2/3 | In Progress|  |
+| 20. Incremental JSONL and Lightweight Collection | v0.7.0 | 3/3 | In Progress|  |
 | 21. Store and Report Scalability and Release Verification | v0.7.0 | 0/TBD | Not started | - |
 
 ## Archive
