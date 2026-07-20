@@ -7,9 +7,9 @@
 
 ### Incremental ingestion
 
-- [ ] **ING-01**: Append-only JSONL imports process newly appended bytes without rereading and splitting the complete historical file.
-- [ ] **ING-02**: Incremental JSONL checkpoints recover safely when a source is truncated, replaced, rotated, malformed, or ends with a partial line.
-- [ ] **ING-03**: Incremental ingestion preserves line numbers, malformed-record warnings, deduplication, redaction, attribution, and explicit refresh behavior.
+- [x] **ING-01**: Append-only JSONL imports process newly appended bytes without rereading and splitting the complete historical file.
+- [x] **ING-02**: Incremental JSONL checkpoints recover safely when a source is truncated, replaced, rotated, malformed, or ends with a partial line.
+- [x] **ING-03**: Incremental ingestion preserves line numbers, malformed-record warnings, deduplication, redaction, attribution, and explicit refresh behavior.
 
 ### Collection
 
@@ -60,9 +60,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ING-01 | Phase 20 | Pending |
-| ING-02 | Phase 20 | Pending |
-| ING-03 | Phase 20 | Pending |
+| ING-01 | Phase 20 | Complete |
+| ING-02 | Phase 20 | Complete |
+| ING-03 | Phase 20 | Complete |
 | COL-01 | Phase 20 | Pending |
 | COL-02 | Phase 20 | Pending |
 | STR-01 | Phase 21 | Pending |
@@ -75,6 +75,7 @@
 | VER-03 | Phase 21 | Pending |
 
 **Coverage:**
+
 - v0.7.0 requirements: 13 total
 - Mapped to phases: 13
 - Unmapped: 0
