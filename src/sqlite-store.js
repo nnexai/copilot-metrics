@@ -7,6 +7,14 @@ const { canonicalLabel } = require('./label-extractors');
 
 let activeConnection = null;
 const CURRENT_SCHEMA_VERSION = 1;
+const STORE_REPAIRS = Object.freeze({
+  COST_ESTIMATES: 'cost_estimates',
+  DUPLICATE_USAGE: 'duplicate_usage',
+});
+const STORE_REPAIR_VERSIONS = Object.freeze({
+  [STORE_REPAIRS.COST_ESTIMATES]: 1,
+  [STORE_REPAIRS.DUPLICATE_USAGE]: 1,
+});
 
 class BetterStatement {
   constructor(db, statement) {
@@ -455,6 +463,69 @@ const SCHEMA_MIGRATIONS = new Map([
 
 function schemaVersion(db) {
   return Number(db.db.pragma('user_version', { simple: true }) || 0);
+}
+
+function repairMarkerKey(repair) {
+  if (!Object.hasOwn(STORE_REPAIR_VERSIONS, repair)) throw new Error(`Unknown store repair: ${repair}`);
+  return `repair:${repair}`;
+}
+
+function metadataValueInDb(db, key) {
+  const statement = db.prepare('SELECT value FROM store_metadata WHERE key = ? LIMIT 1');
+  try {
+    statement.bind([key]);
+    return statement.step() ? statement.getAsObject().value : null;
+  } finally {
+    statement.free();
+  }
+}
+
+function setMetadataValueInDb(db, key, value) {
+  db.run(`
+    INSERT INTO store_metadata (key, value, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+  `, [key, String(value), new Date().toISOString()]);
+}
+
+function invalidateStoreRepairInDb(db, repair) {
+  db.run('DELETE FROM store_metadata WHERE key = ?', [repairMarkerKey(repair)]);
+}
+
+function markStoreRepairCompleteInDb(db, repair) {
+  setMetadataValueInDb(db, repairMarkerKey(repair), STORE_REPAIR_VERSIONS[repair]);
+}
+
+async function storeRepairNeeded(dbPath, repair) {
+  await initStore(dbPath);
+  const db = await openDatabase(dbPath);
+  try {
+    return metadataValueInDb(db, repairMarkerKey(repair)) !== String(STORE_REPAIR_VERSIONS[repair]);
+  } finally {
+    closeDatabase(db);
+  }
+}
+
+async function invalidateStoreRepair(dbPath, repair) {
+  await initStore(dbPath);
+  const db = await openDatabase(dbPath);
+  try {
+    invalidateStoreRepairInDb(db, repair);
+    persistDatabase(dbPath, db);
+  } finally {
+    closeDatabase(db);
+  }
+}
+
+async function markStoreRepairComplete(dbPath, repair) {
+  await initStore(dbPath);
+  const db = await openDatabase(dbPath);
+  try {
+    markStoreRepairCompleteInDb(db, repair);
+    persistDatabase(dbPath, db);
+  } finally {
+    closeDatabase(db);
+  }
 }
 
 async function initStore(dbPath) {
@@ -1032,6 +1103,13 @@ async function insertImport(dbPath, source, sourceFile, rawRecords, usageRecords
       warnings.map((warning) => [importedAt, source, warning.line || null, warning.code, warning.message]),
     );
 
+    if (insertedUsageRecords > 0 || duplicateUsageRecords > 0) {
+      invalidateStoreRepairInDb(db, STORE_REPAIRS.COST_ESTIMATES);
+      if (['vscode', 'vscode-chat', 'copilot-session'].includes(source)) {
+        invalidateStoreRepairInDb(db, STORE_REPAIRS.DUPLICATE_USAGE);
+      }
+    }
+
     db.run('COMMIT');
     persistDatabase(dbPath, db);
   } catch (error) {
@@ -1183,6 +1261,7 @@ async function updateVscodeUsageResponseIds(dbPath, updates) {
       ]);
       updated += typeof db.getRowsModified === 'function' ? db.getRowsModified() : 0;
     }
+    if (updated > 0) invalidateStoreRepairInDb(db, STORE_REPAIRS.DUPLICATE_USAGE);
     db.run('COMMIT');
     persistDatabase(dbPath, db);
   } catch (error) {
@@ -1305,8 +1384,10 @@ function strongerUsageRow(left, right) {
   return Number(left.id) <= Number(right.id) ? left : right;
 }
 
-async function repairDuplicateVscodeUsageRecords(dbPath) {
+async function repairDuplicateVscodeUsageRecords(dbPath, options = {}) {
   await initStore(dbPath);
+  if (!(await storeRepairNeeded(dbPath, STORE_REPAIRS.DUPLICATE_USAGE))) return 0;
+  if (typeof options.onScan === 'function') options.onScan(STORE_REPAIRS.DUPLICATE_USAGE);
   const rows = await queryRows(dbPath, `
     SELECT id, source, surface, span_id, trace_id, timestamp, session_id,
       requested_model, resolved_model, actual_charge_nano_aiu, actual_ai_credits,
@@ -1331,13 +1412,12 @@ async function repairDuplicateVscodeUsageRecords(dbPath) {
     groups.get(key).push(row);
   }
   const duplicateGroups = Array.from(groups.values()).filter((group) => group.length > 1);
-  if (!duplicateGroups.length) return 0;
 
   const db = await openDatabase(dbPath);
   let repaired = 0;
   try {
     db.run('BEGIN');
-    repairDuplicateLabelEvidenceInDb(db);
+    if (duplicateGroups.length) repairDuplicateLabelEvidenceInDb(db);
     for (const group of duplicateGroups) {
       const survivor = group.reduce((best, row) => strongerUsageRow(best, row));
       const duplicates = group.filter((row) => Number(row.id) !== Number(survivor.id));
@@ -1431,7 +1511,8 @@ WHERE usage_record_id = ?
         repaired += 1;
       }
     }
-    repairDuplicateLabelEvidenceInDb(db);
+    if (duplicateGroups.length) repairDuplicateLabelEvidenceInDb(db);
+    markStoreRepairCompleteInDb(db, STORE_REPAIRS.DUPLICATE_USAGE);
     db.run('COMMIT');
     persistDatabase(dbPath, db);
   } catch (error) {
@@ -1651,6 +1732,7 @@ async function clearManualLabels(dbPath, sessionId) {
 }
 
 module.exports = {
+  STORE_REPAIRS,
   attachVscodeChatLabelEvidence,
   activeManualLabelAssignments,
   addManualLabels,
@@ -1658,6 +1740,7 @@ module.exports = {
   clearManualLabels,
   existingRawFingerprints,
   importCheckpoint,
+  invalidateStoreRepair,
   importedLineHighWater,
   initStore,
   insertImport,
@@ -1671,8 +1754,10 @@ module.exports = {
   runImportMutationBatch,
   sessionExists,
   setManualLabels,
+  storeRepairNeeded,
   upsertImportCheckpoint,
   updateUsageCostEstimates,
   updateVscodeUsageResponseIds,
   vscodeRawRecordsNeedingResponseBackfill,
+  markStoreRepairComplete,
 };

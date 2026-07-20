@@ -13,9 +13,12 @@ const {
   importCheckpoint,
   importedLineHighWater,
   initStore,
+  markStoreRepairComplete,
   insertImport,
   loadImportState,
   repairDuplicateVscodeUsageRecords,
+  STORE_REPAIRS,
+  storeRepairNeeded,
   queryRows,
   runImportMutationBatch,
   upsertImportCheckpoint,
@@ -996,7 +999,7 @@ async function ingestVscodeChatSessionFile(options) {
       ? jsonlCheckpointContext(baseCheckpointContext, parsed, statContext)
       : { ...baseCheckpointContext, file_stat: statContext };
     await upsertImportCheckpoint(dbPath, 'vscode-chat', sourceFile, nextLine, context);
-    repairedDuplicateUsageRecords = await repairDuplicateVscodeUsageRecords(dbPath);
+    repairedDuplicateUsageRecords = await repairDuplicateVscodeUsageRecords(dbPath, { onScan: options.repairObserver });
   });
   return {
     source: 'vscode-chat',
@@ -1054,8 +1057,10 @@ function parseWarningsJson(value) {
   }
 }
 
-async function repairUsageCostEstimates(dbPath) {
+async function repairUsageCostEstimates(dbPath, options = {}) {
   await initStore(dbPath);
+  if (!(await storeRepairNeeded(dbPath, STORE_REPAIRS.COST_ESTIMATES))) return 0;
+  if (typeof options.onScan === 'function') options.onScan(STORE_REPAIRS.COST_ESTIMATES);
   const rows = await queryRows(dbPath, `
     SELECT id, requested_model, resolved_model, input_tokens, output_tokens,
       cache_read_tokens, cache_creation_tokens, reasoning_tokens, cache_read_status,
@@ -1117,7 +1122,9 @@ async function repairUsageCostEstimates(dbPath) {
       warnings,
     });
   }
-  return updateUsageCostEstimates(dbPath, updates);
+  const updated = await updateUsageCostEstimates(dbPath, updates);
+  await markStoreRepairComplete(dbPath, STORE_REPAIRS.COST_ESTIMATES);
+  return updated;
 }
 
 async function ingestFile(options) {
@@ -1233,8 +1240,9 @@ async function ingestFile(options) {
         jsonlCheckpointContext(baseCheckpointContext, parsed, statContext),
       );
     }
-    repairedCostRecords = options.repairCostEstimates === false ? 0 : await repairUsageCostEstimates(dbPath);
-    repairedDuplicateUsageRecords = ['vscode', 'copilot-session'].includes(source) ? await repairDuplicateVscodeUsageRecords(dbPath) : 0;
+    const repairOptions = { onScan: options.repairObserver };
+    repairedCostRecords = options.repairCostEstimates === false ? 0 : await repairUsageCostEstimates(dbPath, repairOptions);
+    repairedDuplicateUsageRecords = ['vscode', 'copilot-session'].includes(source) ? await repairDuplicateVscodeUsageRecords(dbPath, repairOptions) : 0;
   });
 
   return {
@@ -1434,6 +1442,7 @@ async function autoImportConfiguredSources(paths, options = {}) {
           importState,
           repairCostEstimates: false,
           forceRefresh: options.forceRefresh === true,
+          repairObserver: options.repairObserver,
         }));
       } catch (error) {
         results.push({
@@ -1458,8 +1467,9 @@ async function autoImportConfiguredSources(paths, options = {}) {
   let repairedCostRecords = 0;
   let repairedDuplicateUsageRecords = 0;
   await runImportMutationBatch(paths.usageDb, async () => {
-    repairedCostRecords = await repairUsageCostEstimates(paths.usageDb);
-    repairedDuplicateUsageRecords = await repairDuplicateVscodeUsageRecords(paths.usageDb);
+    const repairOptions = { onScan: options.repairObserver };
+    repairedCostRecords = await repairUsageCostEstimates(paths.usageDb, repairOptions);
+    repairedDuplicateUsageRecords = await repairDuplicateVscodeUsageRecords(paths.usageDb, repairOptions);
   });
   if (repairedCostRecords > 0) {
     results.push({
