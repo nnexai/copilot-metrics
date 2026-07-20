@@ -114,6 +114,30 @@ test('readJsonl incremental warns for complete malformed lines at absolute line 
   assert.equal(parsed.completedLines, 2);
 });
 
+test('readJsonl incremental preserves valid rows around invalid UTF-8 with an absolute warning', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-jsonl-invalid-utf8-'));
+  const file = path.join(tmp, 'events.jsonl');
+  fs.writeFileSync(file, Buffer.concat([
+    Buffer.from('{"value":1}\n'),
+    Buffer.from([0xc3, 0x28, 0x0a]),
+    Buffer.from('{"value":3}\n'),
+  ]));
+
+  const parsed = readJsonl(file, { startByte: 0, completedLines: 0, chunkSize: 5 });
+
+  assert.deepEqual(parsed.records, [
+    { line: 1, value: { value: 1 } },
+    { line: 3, value: { value: 3 } },
+  ]);
+  assert.deepEqual(parsed.warnings.map(({ code, line }) => ({ code, line })), [
+    { code: 'malformed_jsonl', line: 2 },
+  ]);
+  assert.match(parsed.warnings[0].message, /UTF-8/i);
+  assert.equal(parsed.nextByte, fs.statSync(file).size);
+  assert.equal(parsed.completedLines, 3);
+  assert.equal(parsed.resetRequired, false);
+});
+
 test('readJsonl incremental rejects incompatible and non-boundary byte resumes', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-jsonl-invalid-'));
   const file = path.join(tmp, 'events.jsonl');
@@ -943,6 +967,59 @@ test('incremental ingest resets after truncation and upgrades legacy line checkp
 
   const usage = await queryOne(paths.usageDb, 'SELECT span_id FROM usage_records ORDER BY span_id');
   assert.deepEqual(usage.map((row) => row.span_id), ['first', 'legacy-append', 'replacement', 'second']);
+});
+
+test('incremental ingest resets when the same inode is truncated and regrown past its checkpoint', async (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-incremental-regrow-'));
+  const file = path.join(tmp, 'events.jsonl');
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  const original = cliUsageLine('same-inode-old', 'DEMO-935');
+  const replacement = cliUsageLine('same-inode-new', 'DEMO-936');
+  const appended = cliUsageLine('same-inode-add', 'DEMO-937');
+  assert.equal(Buffer.byteLength(original), Buffer.byteLength(replacement));
+  fs.writeFileSync(file, `${original}\n`);
+  await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli' });
+  const initial = fs.statSync(file);
+
+  fs.writeFileSync(file, `${replacement}\n${appended}\n`);
+  const rewritten = fs.statSync(file);
+  if (Number.isFinite(initial.ino) && Number.isFinite(rewritten.ino) && initial.ino !== rewritten.ino) {
+    return t.skip('runtime replaced the inode during in-place rewrite');
+  }
+  const changedAt = new Date(Date.now() + 2000);
+  fs.utimesSync(file, changedAt, changedAt);
+
+  const result = await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli' });
+  assert.equal(result.usage_records, 2);
+  assert.equal(result.skipped_existing_records, 0);
+  const usage = await queryOne(paths.usageDb, 'SELECT span_id FROM usage_records ORDER BY span_id');
+  assert.deepEqual(usage.map((row) => row.span_id), ['same-inode-add', 'same-inode-new', 'same-inode-old']);
+});
+
+test('incremental ingest imports valid rows surrounding invalid UTF-8 and stores its warning', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-incremental-invalid-utf8-'));
+  const file = path.join(tmp, 'events.jsonl');
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  fs.writeFileSync(file, Buffer.concat([
+    Buffer.from(`${cliUsageLine('utf8-before', 'DEMO-938')}\n`),
+    Buffer.from([0xc3, 0x28, 0x0a]),
+    Buffer.from(`${cliUsageLine('utf8-after', 'DEMO-939')}\n`),
+  ]));
+
+  const result = await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli' });
+
+  assert.equal(result.usage_records, 2);
+  assert.deepEqual(result.warnings.map(({ code, line }) => ({ code, line })), [
+    { code: 'malformed_jsonl', line: 2 },
+  ]);
+  assert.match(result.warnings[0].message, /UTF-8/i);
+  const usage = await queryOne(paths.usageDb, 'SELECT span_id FROM usage_records ORDER BY span_id');
+  assert.deepEqual(usage.map((row) => row.span_id), ['utf8-after', 'utf8-before']);
+  const warningRows = await queryOne(paths.usageDb, 'SELECT line, code, message FROM import_warnings');
+  assert.equal(warningRows.length, 1);
+  assert.equal(warningRows[0].line, 2);
+  assert.equal(warningRows[0].code, 'malformed_jsonl');
+  assert.match(warningRows[0].message, /UTF-8/i);
 });
 
 test('incremental ingest resets when a JSONL file identity changes and on explicit refresh', async (t) => {
