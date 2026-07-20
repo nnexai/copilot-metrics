@@ -11,7 +11,7 @@ const { vscodeSettings, installVscodeSettings, copilotCliEnvironment, hookConfig
 const { appendHookEvent, redactHookPayload } = require('../src/hook-logger');
 const { parseFlags } = require('../src/cli');
 const { loadConfiguredExtractors, runLabelExtractors } = require('../src/label-extractors');
-const { version } = require('../package.json');
+const { version, bin: packageBins } = require('../package.json');
 
 function runHookProcess(script, args, payload, options = {}) {
   return spawnSync(process.execPath, [script, ...args], {
@@ -190,7 +190,7 @@ test('installVscodeSettings merges telemetry settings into user settings', () =>
   assert.equal(settings['github.copilot.chat.otel.outfile'], paths.vscodeOtelJsonl);
 });
 
-test('default hook config uses CLI-compatible events for both surfaces', () => {
+test('default hook config uses hook-only commands for both surfaces', () => {
   const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: '/tmp/copilot-metrics' }, cwd: '/tmp/work' });
   const config = hookConfig(paths, { cwd: '/repo', scope: 'local', command: '/repo/bin/copilot-metrics.js' });
   assert.equal(config.version, 1);
@@ -201,10 +201,10 @@ test('default hook config uses CLI-compatible events for both surfaces', () => {
     assert.equal(commandHook.type, 'command');
     assert.match(commandHook.command, /node/);
     assert.match(commandHook.bash, /node/);
-    assert.match(commandHook.command, /hook-log/);
+    assert.doesNotMatch(commandHook.command, /hook-log/);
     assert.match(commandHook.command, /--quiet/);
     assert.match(commandHook.command, new RegExp(event));
-    assert.match(commandHook.command, /\/repo\/bin\/copilot-metrics\.js/);
+    assert.match(commandHook.command, /\/repo\/bin\/copilot-metrics-hook\.js/);
   }
   assert.ok(config.hooks.SessionStart);
   assert.ok(config.hooks.UserPromptSubmit);
@@ -216,8 +216,9 @@ test('installed executable hook commands do not wrap the shim with node', () => 
   const config = hookConfig(paths, { cwd: '/repo', scope: 'local', command: '/usr/bin/copilot-metrics' });
   const command = config.hooks.sessionStart[0].command;
   assert.match(command, /COPILOT_METRICS_HOME=/);
-  assert.match(command, /'\/usr\/bin\/copilot-metrics' hook-log/);
-  assert.doesNotMatch(command, /node '\/usr\/bin\/copilot-metrics'/);
+  assert.match(command, /'\/usr\/bin\/copilot-metrics-hook'/);
+  assert.doesNotMatch(command, /hook-log/);
+  assert.doesNotMatch(command, /node '\/usr\/bin\/copilot-metrics-hook'/);
 });
 
 test('npx cache hook commands use a stable package invocation', () => {
@@ -229,8 +230,23 @@ test('npx cache hook commands use a stable package invocation', () => {
   });
   const command = config.hooks.sessionStart[0].command;
   assert.match(command, /COPILOT_METRICS_HOME=/);
-  assert.match(command, new RegExp(`npx -y copilot-metrics@${version.replaceAll('.', '\\.')} hook-log`));
+  assert.match(command, new RegExp(`npx -y --package copilot-metrics@${version.replaceAll('.', '\\.')} copilot-metrics-hook`));
+  assert.doesNotMatch(command, /hook-log/);
   assert.doesNotMatch(command, /\.npm\/_npx/);
+});
+
+test('hook commands quote repository paths containing spaces', () => {
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: '/tmp/metrics home' }, cwd: '/tmp/work' });
+  const config = hookConfig(paths, {
+    command: '/repo with spaces/bin/copilot-metrics.js',
+  });
+  const command = config.hooks.sessionStart[0].command;
+  assert.match(command, /COPILOT_METRICS_HOME='\/tmp\/metrics home'/);
+  assert.match(command, /node '\/repo with spaces\/bin\/copilot-metrics-hook\.js'/);
+});
+
+test('package exposes the hook-only executable', () => {
+  assert.equal(packageBins['copilot-metrics-hook'], 'bin/copilot-metrics-hook.js');
 });
 
 test('copilot-cli hook config can emit CLI-native event names', () => {
@@ -288,11 +304,12 @@ test('global hook merge replaces prior copilot-metrics hooks only', () => {
       postToolUse: [
         { type: 'command', bash: 'echo keep' },
         { type: 'command', bash: 'node bin/copilot-metrics.js hook-log --event postToolUse' },
+        { type: 'command', bash: 'copilot-metrics-hook --event postToolUse --quiet' },
       ],
     },
   };
   const next = mergeGlobalSettingsHooks(existing, {
-    postToolUse: [{ type: 'command', bash: 'node /repo/bin/copilot-metrics.js hook-log --event postToolUse' }],
+    postToolUse: [{ type: 'command', bash: 'node /repo/bin/copilot-metrics-hook.js --event postToolUse --quiet' }],
   });
   assert.equal(next.model, 'gpt-5-mini');
   assert.equal(next.hooks.postToolUse.length, 2);
