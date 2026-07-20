@@ -5,6 +5,7 @@ const fs = require('node:fs');
 
 const DEFAULT_CHUNK_SIZE = 64 * 1024;
 const CONTINUITY_WINDOW_SIZE = 4 * 1024;
+const CONTINUITY_STRATEGY = 'bounded-head-tail-v1';
 
 function fileObservation(stat) {
   return {
@@ -28,16 +29,32 @@ function rejectedRange(observation, reason) {
   };
 }
 
-function continuityAt(fd, endByte) {
-  const length = Math.min(CONTINUITY_WINDOW_SIZE, endByte);
+function digestWindow(fd, position, length) {
   const bytes = Buffer.allocUnsafe(length);
-  const position = endByte - length;
   const bytesRead = length === 0 ? 0 : fs.readSync(fd, bytes, 0, length, position);
   if (bytesRead !== length) return null;
   return {
-    algorithm: 'sha256',
+    position,
     bytes: length,
     digest: crypto.createHash('sha256').update(bytes).digest('hex'),
+  };
+}
+
+function continuityAt(fd, endByte) {
+  const length = Math.min(CONTINUITY_WINDOW_SIZE, endByte);
+  const head = digestWindow(fd, 0, length);
+  const tailPosition = endByte - length;
+  const tail = tailPosition === 0 ? head : digestWindow(fd, tailPosition, length);
+  if (!head || !tail) return null;
+  // Continuity checks deliberately sample only the first and last 4 KiB of the
+  // committed prefix. Resume validation therefore stays bounded at 8 KiB while
+  // detecting both early in-place rewrites and changes near the byte checkpoint.
+  return {
+    algorithm: 'sha256',
+    strategy: CONTINUITY_STRATEGY,
+    window_bytes: CONTINUITY_WINDOW_SIZE,
+    head,
+    tail,
   };
 }
 
@@ -59,7 +76,10 @@ function parseCompleteLine(bytes, lineNumber, records, warnings) {
     : bytes;
   let line;
   try {
-    line = new TextDecoder('utf-8', { fatal: true }).decode(content);
+    // Preserve a decoded BOM so JSON.parse reports the same malformed line as
+    // the legacy whole-file parser. TextDecoder otherwise strips a leading BOM
+    // on every independently decoded JSONL line.
+    line = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(content);
   } catch {
     warnings.push({
       code: 'malformed_jsonl',

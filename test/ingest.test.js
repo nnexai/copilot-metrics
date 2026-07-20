@@ -1041,6 +1041,12 @@ test('incremental ingest detects an early same-inode rewrite when the trailing 4
   await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli' });
   const initial = fs.statSync(file);
   const firstCheckpoint = await importCheckpoint(paths.usageDb, 'copilot-cli', path.resolve(file));
+  assert.equal(firstCheckpoint.context.jsonl.version, 2);
+  assert.equal(firstCheckpoint.context.jsonl.continuity.strategy, 'bounded-head-tail-v1');
+  assert.equal(firstCheckpoint.context.jsonl.continuity.window_bytes, 4 * 1024);
+  assert.equal(firstCheckpoint.context.jsonl.continuity.head.position, 0);
+  assert.equal(firstCheckpoint.context.jsonl.continuity.head.bytes, 4 * 1024);
+  assert.equal(firstCheckpoint.context.jsonl.continuity.tail.position, Buffer.byteLength(originalContents) - (4 * 1024));
   assert.equal(firstCheckpoint.context.jsonl.continuity.tail.bytes, 4 * 1024);
 
   fs.writeFileSync(file, replacementContents);

@@ -275,25 +275,56 @@ function sameFileStat(left, right) {
 
 function normalizedJsonlCheckpoint(checkpoint) {
   const value = checkpoint?.context?.jsonl;
-  if (!value || typeof value !== 'object' || Number(value.version) !== 1) return null;
+  if (!value || typeof value !== 'object' || Number(value.version) !== 2) return null;
   const byteOffset = Number(value.byte_offset);
   const completedLines = Number(value.completed_lines);
   if (!Number.isSafeInteger(byteOffset) || byteOffset < 0
     || !Number.isSafeInteger(completedLines) || completedLines < 0
     || completedLines !== Number(checkpoint?.checkpoint_line || 0)) return null;
   const continuity = value.continuity;
+  const sampleLength = Math.min(4 * 1024, byteOffset);
+  const validSample = (sample, position) => Boolean(sample
+    && Number(sample.position) === position
+    && Number(sample.bytes) === sampleLength
+    && typeof sample.digest === 'string'
+    && /^[a-f0-9]{64}$/.test(sample.digest));
   if (!continuity || continuity.algorithm !== 'sha256'
-    || !Number.isSafeInteger(Number(continuity.bytes)) || Number(continuity.bytes) < 0
-    || typeof continuity.digest !== 'string' || !/^[a-f0-9]{64}$/.test(continuity.digest)) return null;
+    || continuity.strategy !== 'bounded-head-tail-v1'
+    || Number(continuity.window_bytes) !== 4 * 1024
+    || !validSample(continuity.head, 0)
+    || !validSample(continuity.tail, byteOffset - sampleLength)) return null;
   return {
     byteOffset,
     completedLines,
     continuity: {
       algorithm: 'sha256',
-      bytes: Number(continuity.bytes),
-      digest: continuity.digest,
+      strategy: 'bounded-head-tail-v1',
+      window_bytes: 4 * 1024,
+      head: {
+        position: Number(continuity.head.position),
+        bytes: Number(continuity.head.bytes),
+        digest: continuity.head.digest,
+      },
+      tail: {
+        position: Number(continuity.tail.position),
+        bytes: Number(continuity.tail.bytes),
+        digest: continuity.tail.digest,
+      },
     },
   };
+}
+
+function sameContinuity(left, right) {
+  return Boolean(left && right
+    && left.algorithm === right.algorithm
+    && left.strategy === right.strategy
+    && left.window_bytes === right.window_bytes
+    && left.head.position === right.head.position
+    && left.head.bytes === right.head.bytes
+    && left.head.digest === right.head.digest
+    && left.tail.position === right.tail.position
+    && left.tail.bytes === right.tail.bytes
+    && left.tail.digest === right.tail.digest);
 }
 
 function canResumeJsonl(file, checkpoint, statContext) {
@@ -303,9 +334,7 @@ function canResumeJsonl(file, checkpoint, statContext) {
   if (!previousStat || range.byteOffset > statContext.size || statContext.size < previousStat.size) return null;
   if (previousStat.identity && statContext.identity && previousStat.identity !== statContext.identity) return null;
   const observedContinuity = readJsonlContinuity(file, range.byteOffset);
-  if (!observedContinuity
-    || observedContinuity.bytes !== range.continuity.bytes
-    || observedContinuity.digest !== range.continuity.digest) return null;
+  if (!sameContinuity(observedContinuity, range.continuity)) return null;
   return range;
 }
 
@@ -314,7 +343,7 @@ function jsonlCheckpointContext(previous, parsed, statContext = {}) {
   return {
     ...(previous || {}),
     jsonl: {
-      version: 1,
+      version: 2,
       byte_offset: parsed.nextByte,
       completed_lines: parsed.completedLines,
       continuity: parsed.continuity,
