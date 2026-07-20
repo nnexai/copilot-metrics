@@ -873,10 +873,119 @@ test('incremental ingest resets when a JSONL file identity changes and on explic
   assert.equal(replacement.skipped_existing_records, 0);
 
   fs.appendFileSync(file, `${cliUsageLine('refreshed', 'DEMO-929')}\n`);
+  const refreshedAt = new Date(Date.now() + 2000);
+  fs.utimesSync(file, refreshedAt, refreshedAt);
   const refreshed = await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli', forceRefresh: true });
   assert.equal(refreshed.usage_records, 1);
   const usage = await queryOne(paths.usageDb, 'SELECT span_id FROM usage_records');
   assert.deepEqual(new Set(usage.map((row) => row.span_id)), new Set(['first', 'rotated', 'refreshed']));
+});
+
+test('incremental and complete imports produce equivalent usage, attribution, and identities', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-incremental-equivalence-'));
+  const incrementalFile = path.join(tmp, 'incremental.jsonl');
+  const completeFile = path.join(tmp, 'complete.jsonl');
+  const incrementalPaths = resolvePaths({ env: { COPILOT_METRICS_HOME: path.join(tmp, 'incremental-home') }, cwd: process.cwd() });
+  const completePaths = resolvePaths({ env: { COPILOT_METRICS_HOME: path.join(tmp, 'complete-home') }, cwd: process.cwd() });
+  const lines = [
+    cliUsageLine('equivalent-first', 'DEMO-930', 21),
+    cliUsageLine('equivalent-second', 'DEMO-931', 34),
+  ];
+  fs.writeFileSync(incrementalFile, `${lines[0]}\n`);
+  await ingestFile({ dbPath: incrementalPaths.usageDb, file: incrementalFile, source: 'copilot-cli' });
+  fs.appendFileSync(incrementalFile, `${lines[1]}\n`);
+  await ingestFile({ dbPath: incrementalPaths.usageDb, file: incrementalFile, source: 'copilot-cli' });
+  fs.writeFileSync(completeFile, `${lines.join('\n')}\n`);
+  await ingestFile({ dbPath: completePaths.usageDb, file: completeFile, source: 'copilot-cli' });
+
+  const usageSql = 'SELECT span_id, resolved_model, input_tokens, output_tokens, usage_identity FROM usage_records ORDER BY span_id';
+  assert.deepEqual(
+    await queryOne(incrementalPaths.usageDb, usageSql),
+    await queryOne(completePaths.usageDb, usageSql),
+  );
+  const evidenceSql = 'SELECT label, source_field, source_value FROM label_evidence ORDER BY label, source_field, source_value';
+  assert.deepEqual(
+    await queryOne(incrementalPaths.usageDb, evidenceSql),
+    await queryOne(completePaths.usageDb, evidenceSql),
+  );
+  const fingerprints = await queryOne(incrementalPaths.usageDb, 'SELECT raw_fingerprint FROM raw_records');
+  assert.equal(fingerprints.length, 2);
+  assert.ok(fingerprints.every((row) => /^[a-f0-9]{64}$/.test(row.raw_fingerprint)));
+});
+
+test('incremental malformed and partial lines retain complete-read warning and retry behavior', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-incremental-partial-'));
+  const file = path.join(tmp, 'events.jsonl');
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  const first = cliUsageLine('partial-first', 'DEMO-932');
+  const second = cliUsageLine('partial-second', 'DEMO-933');
+  const split = Math.floor(second.length / 2);
+  fs.writeFileSync(file, `${first}\nnot-json\n${second.slice(0, split)}`);
+
+  const partial = await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli' });
+  assert.equal(partial.usage_records, 1);
+  assert.deepEqual(partial.warnings.map(({ code, line }) => ({ code, line })), [
+    { code: 'malformed_jsonl', line: 2 },
+  ]);
+  let usage = await queryOne(paths.usageDb, 'SELECT span_id FROM usage_records ORDER BY span_id');
+  assert.deepEqual(usage.map((row) => row.span_id), ['partial-first']);
+
+  fs.appendFileSync(file, `${second.slice(split)}\n`);
+  const completed = await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli' });
+  assert.equal(completed.usage_records, 1);
+  assert.deepEqual(completed.warnings, []);
+  usage = await queryOne(paths.usageDb, 'SELECT span_id FROM usage_records ORDER BY span_id');
+  assert.deepEqual(usage.map((row) => row.span_id), ['partial-first', 'partial-second']);
+
+  const refreshedAt = new Date(Date.now() + 2000);
+  fs.utimesSync(file, refreshedAt, refreshedAt);
+  const refreshed = await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-cli', forceRefresh: true });
+  assert.equal(refreshed.usage_records, 0);
+  assert.equal(refreshed.duplicate_usage_records, 2);
+  assert.deepEqual(refreshed.warnings.map(({ code, line }) => ({ code, line })), [
+    { code: 'malformed_jsonl', line: 2 },
+  ]);
+});
+
+test('incremental Copilot session imports preserve redaction and Jira evidence across resets', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-incremental-privacy-'));
+  const file = path.join(tmp, 'events.jsonl');
+  const paths = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() });
+  const secret = 'private customer prompt DEMO-934 do not persist';
+  const start = JSON.stringify({
+    type: 'session.start',
+    data: { sessionId: 'privacy-session', context: { cwd: '/repo/DEMO-934', branch: 'feature/DEMO-934' } },
+    id: 'privacy-start',
+  });
+  const prompt = JSON.stringify({
+    type: 'hook.start',
+    data: { input: { prompt: secret } },
+    id: 'privacy-prompt',
+  });
+  const shutdown = JSON.stringify({
+    type: 'session.shutdown',
+    data: { modelMetrics: { 'gpt-5-mini': { usage: { inputTokens: 55, outputTokens: 8 } } } },
+    id: 'privacy-shutdown',
+  });
+  fs.writeFileSync(file, `${start}\n${prompt}\n`);
+  await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-session' });
+  fs.appendFileSync(file, `${shutdown}\n`);
+  await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-session' });
+
+  const raw = await queryOne(paths.usageDb, "SELECT payload_json, raw_fingerprint FROM raw_records WHERE source = 'copilot-session'");
+  assert.equal(raw.length, 3);
+  assert.doesNotMatch(raw.map((row) => row.payload_json).join('\n'), /private customer prompt/);
+  assert.ok(raw.every((row) => /^[a-f0-9]{64}$/.test(row.raw_fingerprint)));
+  const evidence = await queryOne(paths.usageDb, "SELECT label, source_field FROM label_evidence WHERE label = 'DEMO-934'");
+  assert.ok(evidence.length >= 1);
+
+  const refreshedAt = new Date(Date.now() + 2000);
+  fs.utimesSync(file, refreshedAt, refreshedAt);
+  const refreshed = await ingestFile({ dbPath: paths.usageDb, file, source: 'copilot-session', forceRefresh: true });
+  assert.equal(refreshed.usage_records, 0);
+  const usage = await queryOne(paths.usageDb, "SELECT COUNT(*) AS count, COUNT(DISTINCT usage_identity) AS identities FROM usage_records WHERE source = 'copilot-session'");
+  assert.equal(usage[0].count, 1);
+  assert.equal(usage[0].identities, 1);
 });
 
 test('configured source discovery keeps default fallback paths and additive custom paths', () => {
