@@ -18,13 +18,13 @@
 
 ### Store maintenance
 
-- [ ] **STR-01**: Store schema initialization and legacy duplicate cleanup run only when required by a schema/data migration, not on every query.
-- [ ] **STR-02**: Historical cost and duplicate repair passes run only when imported data or a versioned repair marker makes them necessary.
+- [x] **STR-01**: Store schema initialization and legacy duplicate cleanup run only when required by a schema/data migration, not on every query.
+- [x] **STR-02**: Historical cost and duplicate repair passes run only when imported data or a versioned repair marker makes them necessary.
 - [ ] **STR-03**: Large imports avoid avoidable per-record fingerprint, identity, and last-insert-id queries while retaining existing merge and uniqueness semantics.
 
 ### Reports
 
-- [ ] **REP-01**: Report queries use appropriate persistent indexes instead of automatic or full scans for label, session, and VS Code backfill lookups.
+- [x] **REP-01**: Report queries use appropriate persistent indexes instead of automatic or full scans for label, session, and VS Code backfill lookups.
 - [ ] **REP-02**: Label report context avoids redundant evidence and manual-assignment reads while producing equivalent human and JSON results.
 
 ### Verification and release
@@ -65,10 +65,10 @@
 | ING-03 | Phase 20 | Complete |
 | COL-01 | Phase 20 | Complete |
 | COL-02 | Phase 20 | Complete |
-| STR-01 | Phase 21 | Pending |
-| STR-02 | Phase 21 | Pending |
+| STR-01 | Phase 21 | Complete |
+| STR-02 | Phase 21 | Complete |
 | STR-03 | Phase 21 | Pending |
-| REP-01 | Phase 21 | Pending |
+| REP-01 | Phase 21 | Complete |
 | REP-02 | Phase 21 | Pending |
 | VER-01 | Phase 20 | Complete |
 | VER-02 | Phase 21 | Pending |

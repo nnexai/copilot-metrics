@@ -5,23 +5,23 @@ milestone_name: Ingestion and Reporting Scalability
 current_phase: 21
 current_phase_name: Store and Report Scalability and Release Verification
 status: executing
-stopped_at: Phase 21 planned; ready to execute 21-01-PLAN.md
-last_updated: "2026-07-20T10:09:44.000Z"
+stopped_at: Completed 21-01-PLAN.md
+last_updated: "2026-07-20T10:24:37.267Z"
 last_activity: 2026-07-20
-last_activity_desc: Phase 21 planned in three sequential waves
+last_activity_desc: Completed Plan 21-01 versioned store maintenance and persistent indexes
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 6
-  completed_plans: 3
-current_plan: 0
+  completed_plans: 4
+current_plan: 1
 total_plans_in_phase: 3
 ---
 
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** Ready to execute
+**Status:** Executing
 
 ## Project Reference
 
@@ -49,11 +49,11 @@ v0.7.0 Ingestion and Reporting Scalability
 ## Current Position
 
 Phase: 21 of 21 (Store and Report Scalability and Release Verification)
-Plan: 0 of 3
-Status: Planned — ready to execute
-Last activity: 2026-07-20 — Phase 21 planned in three sequential waves
+Plan: 1 of 3
+Status: Executing — Plan 21-01 complete
+Last activity: 2026-07-20 — Completed versioned store maintenance and persistent index plan
 
-Progress: [█████░░░░░] 50%
+Progress: [███████░░░] 67%
 
 ## Current Roadmap
 
@@ -75,6 +75,9 @@ Two coarse phases execute in order:
 - [Phase 20]: Use npx --package to select the secondary hook bin without embedding ephemeral cache paths.
 - [Phase 20]: Scope VS Code debug caches to one source import and key parsed results by resolved sidecar path.
 - [Phase 20]: Make benchmark correctness assertions blocking while treating elapsed timings as machine-dependent evidence.
+- [Phase 21]: Use SQLite user_version for ordered schema lifecycle and store_metadata for maintenance state.
+- [Phase 21]: Invalidate repair markers only inside relevant usage mutation transactions.
+- [Phase 21]: Require named persistent indexes for measured label, session, and VS Code backfill plans.
 
 ### Blockers/Concerns
 
@@ -99,12 +102,12 @@ Items acknowledged and deferred at milestone close on 2026-06-03:
 
 ## Operator Next Steps
 
-- Execute Plan 21-01 migrations, repair markers, and persistent query indexes.
+- Execute Plan 21-02 batched import identities, shared report context, and scalability benchmarks.
 
 ## Session Continuity
 
-Last session: 2026-07-20T09:39:51.606Z
-Stopped at: Completed 20-03-PLAN.md
+Last session: 2026-07-20T10:24:37.261Z
+Stopped at: Completed 21-01-PLAN.md
 Resume file: None
 
 ## Performance Metrics
@@ -114,3 +117,4 @@ Resume file: None
 | Phase 20 P01 | 9min | 3 tasks | 3 files |
 | Phase 20 P02 | 4min | 3 tasks | 7 files |
 | Phase 20 P03 | 6min | 3 tasks | 5 files |
+| Phase 21 P01 | 9min | 3 tasks | 4 files |
