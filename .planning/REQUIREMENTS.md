@@ -20,17 +20,17 @@
 
 - [x] **STR-01**: Store schema initialization and legacy duplicate cleanup run only when required by a schema/data migration, not on every query.
 - [x] **STR-02**: Historical cost and duplicate repair passes run only when imported data or a versioned repair marker makes them necessary.
-- [ ] **STR-03**: Large imports avoid avoidable per-record fingerprint, identity, and last-insert-id queries while retaining existing merge and uniqueness semantics.
+- [x] **STR-03**: Large imports avoid avoidable per-record fingerprint, identity, and last-insert-id queries while retaining existing merge and uniqueness semantics.
 
 ### Reports
 
 - [x] **REP-01**: Report queries use appropriate persistent indexes instead of automatic or full scans for label, session, and VS Code backfill lookups.
-- [ ] **REP-02**: Label report context avoids redundant evidence and manual-assignment reads while producing equivalent human and JSON results.
+- [x] **REP-02**: Label report context avoids redundant evidence and manual-assignment reads while producing equivalent human and JSON results.
 
 ### Verification and release
 
 - [x] **VER-01**: Fixture tests cover append, unchanged, truncation, rotation, malformed and partial JSONL inputs plus hook/debug-log behavior.
-- [ ] **VER-02**: Benchmarks demonstrate improved incremental refresh, hook startup, store initialization, and report performance without output drift.
+- [x] **VER-02**: Benchmarks demonstrate improved incremental refresh, hook startup, store initialization, and report performance without output drift.
 - [ ] **VER-03**: The npm package passes the full release checklist and the published version is verified from an isolated environment.
 
 ## Future Requirements
@@ -67,11 +67,11 @@
 | COL-02 | Phase 20 | Complete |
 | STR-01 | Phase 21 | Complete |
 | STR-02 | Phase 21 | Complete |
-| STR-03 | Phase 21 | Pending |
+| STR-03 | Phase 21 | Complete |
 | REP-01 | Phase 21 | Complete |
-| REP-02 | Phase 21 | Pending |
+| REP-02 | Phase 21 | Complete |
 | VER-01 | Phase 20 | Complete |
-| VER-02 | Phase 21 | Pending |
+| VER-02 | Phase 21 | Complete |
 | VER-03 | Phase 21 | Pending |
 
 **Coverage:**

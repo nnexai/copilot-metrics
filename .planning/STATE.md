@@ -5,15 +5,15 @@ milestone_name: Ingestion and Reporting Scalability
 current_phase: 21
 current_phase_name: Store and Report Scalability and Release Verification
 status: executing
-stopped_at: Completed 21-01-PLAN.md
-last_updated: "2026-07-20T10:24:37.267Z"
+stopped_at: Completed 21-02-PLAN.md
+last_updated: "2026-07-20T10:33:25.799Z"
 last_activity: 2026-07-20
-last_activity_desc: Completed Plan 21-01 versioned store maintenance and persistent indexes
+last_activity_desc: Completed versioned store maintenance and persistent index plan
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
 current_plan: 1
 total_plans_in_phase: 3
 ---
@@ -21,7 +21,7 @@ total_plans_in_phase: 3
 # State: Copilot Metrics
 
 **Initialized:** 2026-05-30
-**Status:** Executing
+**Status:** Ready to execute
 
 ## Project Reference
 
@@ -49,11 +49,11 @@ v0.7.0 Ingestion and Reporting Scalability
 ## Current Position
 
 Phase: 21 of 21 (Store and Report Scalability and Release Verification)
-Plan: 1 of 3
-Status: Executing — Plan 21-01 complete
-Last activity: 2026-07-20 — Completed versioned store maintenance and persistent index plan
+Plan: 2 of 3
+Status: Executing — Plan 21-02 complete
+Last activity: 2026-07-20 — Completed batched imports, shared report context, and semantic benchmarks
 
-Progress: [███████░░░] 67%
+Progress: [████████░░] 83%
 
 ## Current Roadmap
 
@@ -78,6 +78,8 @@ Two coarse phases execute in order:
 - [Phase 21]: Use SQLite user_version for ordered schema lifecycle and store_metadata for maintenance state.
 - [Phase 21]: Invalidate repair markers only inside relevant usage mutation transactions.
 - [Phase 21]: Require named persistent indexes for measured label, session, and VS Code backfill plans.
+- [Phase 21]: Chunk deduplicated SQLite identity inputs at 400 values with conservative bind headroom.
+- [Phase 21]: Derive manual rankings from raw join rows before usage aggregation dedupe.
 
 ### Blockers/Concerns
 
@@ -102,12 +104,12 @@ Items acknowledged and deferred at milestone close on 2026-06-03:
 
 ## Operator Next Steps
 
-- Execute Plan 21-02 batched import identities, shared report context, and scalability benchmarks.
+- Execute Plan 21-03 release metadata and local release-candidate verification.
 
 ## Session Continuity
 
-Last session: 2026-07-20T10:24:37.261Z
-Stopped at: Completed 21-01-PLAN.md
+Last session: 2026-07-20T10:33:25.791Z
+Stopped at: Completed 21-02-PLAN.md
 Resume file: None
 
 ## Performance Metrics
@@ -118,3 +120,4 @@ Resume file: None
 | Phase 20 P02 | 4min | 3 tasks | 7 files |
 | Phase 20 P03 | 6min | 3 tasks | 5 files |
 | Phase 21 P01 | 9min | 3 tasks | 4 files |
+| Phase 21 P02 | 12min | 3 tasks | 6 files |
