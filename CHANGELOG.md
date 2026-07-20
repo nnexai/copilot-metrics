@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.7.0 - 2026-07-20
+
+### Added
+
+- Versioned byte checkpoints for append-only JSONL sources, with complete-line commits and safe reset handling for truncated, replaced, rotated, malformed, and partial-line files.
+- A lightweight `copilot-metrics-hook` executable that records redacted hook evidence without loading the storage, ingestion, pricing, or reporting stack.
+- Persistent SQLite indexes for measured label, session, manual-label, and VS Code backfill query paths.
+- Expanded semantic benchmarks for incremental ingestion, hook startup, store initialization, batched imports, and shared report context.
+
+### Changed
+
+- VS Code chat imports parse each session debug log at most once per import and reuse cached-token evidence across matching usage records.
+- Store initialization uses ordered transactional migrations and durable repair markers so current stores avoid repeated schema, legacy-cleanup, and historical-repair scans.
+- Large imports use set-based fingerprint and usage-identity lookups plus direct SQLite insert IDs instead of avoidable per-record queries.
+- Label reports share evidence and manual-assignment reads across overview, detail, model, and session views.
+
+### Compatibility
+
+- Pricing selection, estimates, manual-label precedence, diagnostics, human and JSON output schemas, hook setup compatibility, and deduplication behavior are preserved.
+- Content capture remains disabled by default, and full prompts or responses are not persisted unless explicitly enabled.
+
 ## 0.6.1 - 2026-06-10
 
 ### Fixed
