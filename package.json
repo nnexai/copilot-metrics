@@ -36,6 +36,8 @@
     "smoke": "node scripts/smoke.js",
     "benchmark:storage": "node scripts/benchmark-storage.js",
     "benchmark:reports": "node scripts/benchmark-reports.js",
+    "benchmark:ingest": "node scripts/benchmark-incremental-jsonl.js",
+    "benchmark:hooks": "node scripts/benchmark-hook-startup.js",
     "verify:package": "node scripts/verify-package.js",
     "verify:native-sqlite": "node scripts/verify-native-sqlite-package.js",
     "test": "node --test"
