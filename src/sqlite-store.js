@@ -581,6 +581,22 @@ async function initStore(dbPath) {
   }
 }
 
+async function benchmarkLegacyMaintenance(dbPath) {
+  const db = await openDatabase(dbPath);
+  try {
+    db.run('BEGIN IMMEDIATE');
+    migrateLegacyStoreToVersion1(db);
+    addHotPathIndexesVersion2(db);
+    db.run('COMMIT');
+    persistDatabase(dbPath, db);
+  } catch (error) {
+    rollbackDatabase(db);
+    throw error;
+  } finally {
+    closeDatabase(db);
+  }
+}
+
 async function runImportMutationBatch(dbPath, fn) {
   if (typeof fn !== 'function') throw new TypeError('runImportMutationBatch requires a callback.');
   await initStore(dbPath);
@@ -1826,6 +1842,7 @@ async function clearManualLabels(dbPath, sessionId) {
 module.exports = {
   STORE_REPAIRS,
   attachVscodeChatLabelEvidence,
+  _benchmarkLegacyMaintenance: benchmarkLegacyMaintenance,
   activeManualLabelAssignments,
   addManualLabels,
   clearImportCheckpoint,
