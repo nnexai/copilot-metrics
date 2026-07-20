@@ -22,6 +22,7 @@ const {
   repairUsageCostEstimates,
 } = require('../src/ingest');
 const {
+  existingRawFingerprints,
   importCheckpoint,
   invalidateStoreRepair,
   insertImport,
@@ -33,6 +34,116 @@ const {
 const { loadConfiguredExtractors, runLabelExtractors } = require('../src/label-extractors');
 
 const fixtures = path.join(__dirname, 'fixtures');
+
+function batchUsage(identity, overrides = {}) {
+  return {
+    raw_line: 1,
+    span_id: identity,
+    trace_id: `trace-${identity}`,
+    timestamp: '2026-07-20T10:00:00.000Z',
+    surface: 'copilot-cli',
+    session_id: 'batch-session',
+    requested_model: 'gpt-5-mini',
+    resolved_model: 'gpt-5-mini',
+    input_tokens: 10,
+    output_tokens: 2,
+    cache_read_tokens: 0,
+    cache_creation_tokens: 0,
+    reasoning_tokens: 0,
+    estimated_usd: 0.001,
+    estimated_ai_credits: 0.1,
+    selected_ai_credits: 0.1,
+    selected_usd: 0.001,
+    selected_pricing_basis: 'estimated',
+    selected_confidence: 'high',
+    pricing_basis: 'estimated',
+    estimate_confidence: 'high',
+    cache_read_status: 'explicit_zero',
+    estimate_label: 'estimate:test',
+    pricing_metadata: {},
+    pricing_diagnostics: [],
+    warnings: [],
+    usage_identity: identity,
+    label_evidence: [{
+      label: 'DEMO-2102',
+      source_type: 'usage',
+      source_field: 'branch',
+      source_value: 'feature/DEMO-2102',
+      confidence: 0.9,
+    }],
+    ...overrides,
+  };
+}
+
+test('fingerprint batch lookup handles large duplicate input sets', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-fingerprint-batch-'));
+  const dbPath = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() }).usageDb;
+  const rawRecords = Array.from({ length: 1200 }, (_, index) => ({
+    line: index + 1,
+    raw_fingerprint: `fingerprint-${index}`,
+    value: { index },
+  }));
+  await insertImport(dbPath, 'benchmark', 'large.jsonl', rawRecords, [], [], []);
+
+  const input = [...rawRecords.map((record) => record.raw_fingerprint), 'missing', 'fingerprint-2'];
+  const originalPrepare = BetterSqlite.prototype.prepare;
+  let lookupStatements = 0;
+  BetterSqlite.prototype.prepare = function instrumentedPrepare(sql, ...args) {
+    if (/FROM raw_records/.test(sql) && /raw_fingerprint/.test(sql)) lookupStatements += 1;
+    return originalPrepare.call(this, sql, ...args);
+  };
+  let existing;
+  try {
+    existing = await existingRawFingerprints(dbPath, 'benchmark', 'large.jsonl', input);
+  } finally {
+    BetterSqlite.prototype.prepare = originalPrepare;
+  }
+  assert.equal(existing.size, 1200);
+  assert.equal(existing.has('missing'), false);
+  assert.ok(lookupStatements <= 3, `expected chunked lookups, saw ${lookupStatements}`);
+});
+
+test('identity batch merges within-batch duplicates using exact inserted IDs and stronger pricing', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-metrics-identity-batch-'));
+  const dbPath = resolvePaths({ env: { COPILOT_METRICS_HOME: tmp }, cwd: process.cwd() }).usageDb;
+  const first = batchUsage('identity-shared');
+  const stronger = batchUsage('identity-shared', {
+    raw_line: 2,
+    actual_ai_credits: 2,
+    actual_usd: 0.02,
+    actual_basis: 'local-charge',
+    selected_ai_credits: 2,
+    selected_usd: 0.02,
+    selected_pricing_basis: 'actual',
+    pricing_basis: 'actual',
+    label_evidence: [{
+      label: 'DEMO-2103', source_type: 'usage', source_field: 'cwd', source_value: '/tmp/DEMO-2103', confidence: 1,
+    }],
+  });
+  const bulk = Array.from({ length: 1100 }, (_, index) => batchUsage(`identity-${index}`, { raw_line: index + 3 }));
+
+  const originalPrepare = BetterSqlite.prototype.prepare;
+  let identityReads = 0;
+  BetterSqlite.prototype.prepare = function instrumentedPrepare(sql, ...args) {
+    if (/FROM usage_records/.test(sql) && /usage_identity/.test(sql)) identityReads += 1;
+    return originalPrepare.call(this, sql, ...args);
+  };
+  let result;
+  try {
+    result = await insertImport(dbPath, 'copilot-cli', 'identity.jsonl', [], [first, stronger, ...bulk], [], []);
+  } finally {
+    BetterSqlite.prototype.prepare = originalPrepare;
+  }
+  assert.deepEqual(result, { inserted_usage_records: 1101, duplicate_usage_records: 1 });
+  assert.ok(identityReads <= 3, `expected chunked identity reads, saw ${identityReads}`);
+  assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', 'src', 'sqlite-store.js'), 'utf8'), /last_insert_rowid/);
+  const survivor = await queryOne(dbPath, "SELECT id, pricing_basis, selected_ai_credits FROM usage_records WHERE usage_identity = 'identity-shared'");
+  assert.equal(survivor.length, 1);
+  assert.equal(survivor[0].pricing_basis, 'actual');
+  assert.equal(survivor[0].selected_ai_credits, 2);
+  const evidence = await queryOne(dbPath, "SELECT usage_record_id, label FROM label_evidence WHERE label IN ('DEMO-2102', 'DEMO-2103') AND usage_record_id = ? ORDER BY label", [survivor[0].id]);
+  assert.deepEqual(evidence.map((row) => row.label), ['DEMO-2102', 'DEMO-2103']);
+});
 
 test('readJsonl skips malformed rows with warnings', () => {
   const parsed = readJsonl(path.join(fixtures, 'vscode-otel.jsonl'));
