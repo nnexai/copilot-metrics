@@ -41,6 +41,10 @@ function schemaVersion(dbPath) {
   return withRawDb(dbPath, (db) => Number(db.pragma('user_version', { simple: true })));
 }
 
+function queryPlan(db, sql, params = []) {
+  return db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...params).map((row) => row.detail).join('\n');
+}
+
 function fixtureImport() {
   return {
     rawRecords: [
@@ -317,4 +321,92 @@ test('usage duplicate repair marker gates scans and repair retry after failure',
   assert.equal(await repairDuplicateVscodeUsageRecords(dbPath, { onScan() { scans += 1; } }), 0);
   assert.equal(scans, 2);
   assert.equal((await queryRows(dbPath, 'SELECT COUNT(*) AS count FROM usage_records'))[0].count, 1);
+});
+
+test('query plan uses named indexes for label lookup and manual join index', async () => {
+  const dbPath = tempDb();
+  await initStore(dbPath);
+  withRawDb(dbPath, (db) => {
+    db.exec(`
+      WITH RECURSIVE rows(id) AS (SELECT 1 UNION ALL SELECT id + 1 FROM rows WHERE id < 5000)
+      INSERT INTO usage_records (
+        id, imported_at, source, raw_line, session_id, estimate_label, warnings_json
+      ) SELECT id, '2026-07-20', 'vscode', id, 'session-' || id, 'fixture', '[]' FROM rows;
+      WITH RECURSIVE rows(id) AS (SELECT 1 UNION ALL SELECT id + 1 FROM rows WHERE id < 5000)
+      INSERT INTO label_evidence (
+        imported_at, label, source_type, source_field, confidence, usage_record_id, session_id
+      ) SELECT '2026-07-20', CASE WHEN id = 2500 THEN 'DEMO-2101' ELSE 'DEMO-OTHER' END,
+        'usage', 'branch', 0.9, id, 'session-' || id FROM rows;
+      INSERT INTO manual_label_assignments (session_id, label, created_at, updated_at)
+      VALUES ('session-2500', 'DEMO-2101', '2026-07-20', '2026-07-20');
+      ANALYZE;
+    `);
+
+    const labelPlan = queryPlan(db, `
+      SELECT le.label, ur.id AS usage_record_id, COALESCE(ur.timestamp, le.timestamp, le.imported_at) AS timestamp
+      FROM label_evidence le
+      LEFT JOIN usage_records ur ON ur.id = le.usage_record_id
+      WHERE le.label = ?
+      ORDER BY timestamp, le.source_type, le.source_field
+    `, ['DEMO-2101']);
+    assert.match(labelPlan, /idx_label_evidence_label/);
+    assert.doesNotMatch(labelPlan, /AUTOMATIC/i);
+    assert.doesNotMatch(labelPlan, /SCAN le/i);
+
+    const manualPlan = queryPlan(db, `
+      SELECT mla.label, ur.id AS usage_record_id, mla.session_id
+      FROM manual_label_assignments mla
+      LEFT JOIN usage_records ur ON ur.session_id = mla.session_id
+      ORDER BY mla.session_id, mla.label, ur.id
+    `);
+    assert.match(manualPlan, /idx_manual_label_assignments_session|sqlite_autoindex_manual_label_assignments_1/);
+    assert.match(manualPlan, /idx_usage_records_session/);
+    assert.doesNotMatch(manualPlan, /AUTOMATIC/i);
+    assert.doesNotMatch(manualPlan, /SCAN ur/i);
+  });
+});
+
+test('VS Code backfill index query plans avoid targeted scans and automatic indexes', async () => {
+  const dbPath = tempDb();
+  await initStore(dbPath);
+  withRawDb(dbPath, (db) => {
+    db.exec(`
+      WITH RECURSIVE rows(id) AS (SELECT 1 UNION ALL SELECT id + 1 FROM rows WHERE id < 5000)
+      INSERT INTO raw_records (imported_at, source, source_file, line, raw_fingerprint, payload_json)
+      SELECT '2026-07-20', 'vscode', '/tmp/backfill.jsonl', id, 'raw-' || id, '{}' FROM rows;
+      WITH RECURSIVE rows(id) AS (SELECT 1 UNION ALL SELECT id + 1 FROM rows WHERE id < 5000)
+      INSERT INTO usage_records (
+        imported_at, source, raw_line, span_id, requested_model, input_tokens, output_tokens,
+        cache_read_tokens, cache_creation_tokens, reasoning_tokens, estimate_label, warnings_json
+      ) SELECT '2026-07-20', 'vscode', id, NULL, 'gpt-5-mini', 1, 1, 0, 0, 0, 'fixture', '[]' FROM rows;
+      ANALYZE;
+    `);
+
+    const selectPlan = queryPlan(db, `
+      SELECT rr.line, rr.payload_json
+      FROM raw_records rr
+      WHERE rr.source = 'vscode'
+        AND rr.source_file = ?
+        AND EXISTS (
+          SELECT 1 FROM usage_records ur
+          WHERE ur.source = 'vscode' AND ur.raw_line = rr.line AND ur.span_id IS NULL
+        )
+    `, ['/tmp/backfill.jsonl']);
+    assert.match(selectPlan, /idx_raw_records_source_file_line/);
+    assert.match(selectPlan, /idx_usage_records_source_raw_line_span/);
+    assert.doesNotMatch(selectPlan, /AUTOMATIC/i);
+    assert.doesNotMatch(selectPlan, /SCAN (rr|ur)/i);
+
+    const updatePlan = queryPlan(db, `
+      UPDATE usage_records
+      SET span_id = ?, session_id = COALESCE(session_id, ?), timestamp = COALESCE(timestamp, ?)
+      WHERE source = 'vscode' AND raw_line = ? AND span_id IS NULL
+        AND input_tokens = ? AND output_tokens = ? AND cache_read_tokens = ?
+        AND cache_creation_tokens = ? AND reasoning_tokens = ?
+        AND COALESCE(resolved_model, requested_model, '') = COALESCE(?, '')
+    `, ['response-1', 'session-1', '2026-07-20', 1, 1, 1, 0, 0, 0, 'gpt-5-mini']);
+    assert.match(updatePlan, /idx_usage_records_source_raw_line_span/);
+    assert.doesNotMatch(updatePlan, /AUTOMATIC/i);
+    assert.doesNotMatch(updatePlan, /SCAN usage_records/i);
+  });
 });
