@@ -19,7 +19,7 @@
 
 ## Phases
 
-- [ ] **Phase 20: Incremental JSONL and Lightweight Collection** - Make append-only refresh and hook/debug collection scale with new work while preserving ingestion behavior.
+- [x] **Phase 20: Incremental JSONL and Lightweight Collection** - Make append-only refresh and hook/debug collection scale with new work while preserving ingestion behavior. (completed 2026-07-20)
 - [ ] **Phase 21: Store and Report Scalability and Release Verification** - Scale store maintenance and reports, benchmark the milestone, and verify the published package.
 
 ## Phase Details
@@ -64,7 +64,7 @@
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 20. Incremental JSONL and Lightweight Collection | v0.7.0 | 3/3 | In Progress|  |
+| 20. Incremental JSONL and Lightweight Collection | v0.7.0 | 3/3 | Complete    | 2026-07-20 |
 | 21. Store and Report Scalability and Release Verification | v0.7.0 | 0/TBD | Not started | - |
 
 ## Archive
