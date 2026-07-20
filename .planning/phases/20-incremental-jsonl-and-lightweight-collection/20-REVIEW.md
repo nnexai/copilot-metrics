@@ -1,6 +1,6 @@
 ---
 phase: 20-incremental-jsonl-and-lightweight-collection
-reviewed: 2026-07-20T10:02:00Z
+reviewed: 2026-07-20T09:57:00Z
 depth: deep
 files_reviewed: 10
 files_reviewed_list:
@@ -31,7 +31,21 @@ status: passed
 
 ## Summary
 
-All original review findings are resolved. Incremental checkpoints now validate a trailing content digest before resuming, invalid UTF-8 is reported as a line-local malformed JSONL warning without discarding surrounding valid records, and the incremental benchmark removes its temporary workspace on success or failure. Full tests, syntax checks, semantic-equivalence benchmarks, privacy/redaction coverage, and deduplication coverage pass.
+All original and re-review findings are resolved. Incremental checkpoints now validate bounded head and tail content digests before resuming, invalid UTF-8 is reported as a line-local malformed JSONL warning without discarding surrounding valid records, UTF-8 BOM handling matches the legacy parser, and the incremental benchmark removes its temporary workspace on success or failure. Full tests, syntax checks, semantic-equivalence benchmarks, privacy/redaction coverage, and deduplication coverage pass.
+
+## Resolved Re-review Blockers
+
+### RR-01: Tail-only continuity misses early rewrites in files larger than 4 KiB
+
+**Issue:** The first review fix validated only the final 4 KiB ending at the checkpoint. A same-inode file larger than 9 KiB could therefore rewrite an early record while retaining the same size and trailing 4 KiB, causing resume at EOF and skipping the replacement record.
+
+**Resolution:** Resolved in `3524322` after the failing regression in `3a047f6`. JSONL checkpoint version 2 stores SHA-256 samples for both the first and final 4 KiB of the committed prefix. Resume continuity reads at most 8 KiB regardless of history size; the test documents the sample positions and sizes and proves an early same-inode rewrite resets to byte zero. Rewrites confined entirely to the unsampled middle remain outside this explicitly bounded sampling contract.
+
+### RR-02: Per-line decoding strips BOMs that the legacy parser reports as malformed
+
+**Issue:** `TextDecoder` removes a leading UTF-8 BOM by default. Because incremental parsing decodes each JSONL row independently, BOM-prefixed rows were accepted even though the legacy whole-file parser reports them as malformed JSONL.
+
+**Resolution:** Resolved in `3524322` after the failing regression in `3a047f6`. Incremental line decoding now uses `ignoreBOM: true`, retaining the decoded BOM for `JSON.parse`; a two-line fixture asserts record and warning parity with legacy parsing for a BOM on every line.
 
 ## Resolved Critical Issues
 
@@ -41,7 +55,7 @@ All original review findings are resolved. Incremental checkpoints now validate 
 **Issue:** `canResumeJsonl` accepts any same-identity file whose current size is at least the previously observed size. If a writer truncates and rewrites the same inode between imports, then grows it to the old byte offset or beyond, the byte before the old offset can still be a newline and `readJsonlRange` resumes after it. All replacement records before that offset are silently skipped. This is not hypothetical: rewriting a one-record file in place with two same-width records reproduced a database containing the old first record and the new second record, while the new first record was never imported. The current tests cover a smaller truncation and an atomic rename with a changed inode, but not truncate-and-regrow on the same inode (`test/ingest.test.js:922-970`).
 **Fix:** Persist a small digest of bytes ending at the committed checkpoint (or another content continuity token) in `context.jsonl`, and validate it before resuming. On mismatch, reset to byte zero and rely on the existing fingerprint/identity deduplication. Add a fixture that overwrites the same path/inode with an equal-width first record plus an appended second record and asserts both replacements are considered.
 
-**Resolution:** Resolved in `aa4f43f`. Checkpoints persist a SHA-256 digest of the final 4 KiB ending at the committed byte offset. Resume validates that digest; absent legacy tokens or mismatches safely restart at byte zero. The regression added in `59b74f2` proves an equal-width same-inode rewrite imports both replacement rows while retaining the previously deduplicated row.
+**Resolution:** Resolved initially in `aa4f43f` and strengthened in `3524322`. Checkpoint version 2 persists SHA-256 digests of the first and final 4 KiB of the committed prefix. Resume validates both bounded samples; absent legacy tokens or mismatches safely restart at byte zero. The regressions prove equal-width and early same-inode rewrites are imported while retaining previously deduplicated rows.
 
 ### CR-02: Invalid UTF-8 discards valid records and produces no diagnostic
 
@@ -63,14 +77,14 @@ All original review findings are resolved. Incremental checkpoints now validate 
 
 ## Verification Evidence
 
-- `npm test` — 113/113 tests passed, including same-inode recovery, invalid UTF-8, checkpoint upgrade, privacy/redaction, and deduplication fixtures.
+- `npm test` — 115/115 tests passed, including bounded same-inode recovery, legacy BOM parity, invalid UTF-8, checkpoint upgrade, privacy/redaction, and deduplication fixtures.
 - `npm run check` — passed.
-- `npm run benchmark:ingest` — semantic equivalence true, 3,720 incremental bytes versus 745,730 complete bytes, 16.404x measured speedup.
-- `npm run benchmark:hooks` — output equivalence true, 32.366 ms lightweight median versus 51.298 ms legacy median, 1.585x measured speedup.
+- `npm run benchmark:ingest` — semantic equivalence true, 3,720 incremental payload bytes versus 745,730 complete bytes, 13.919x measured speedup; continuity sampling is separately bounded to at most 8 KiB.
+- `npm run benchmark:hooks` — output equivalence true, 37.905 ms lightweight median versus 58.384 ms legacy median, 1.540x measured speedup.
 - `git diff --check` — passed.
 
 ---
 
-_Reviewed: 2026-07-20T10:02:00Z_
+_Reviewed: 2026-07-20T09:57:00Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_

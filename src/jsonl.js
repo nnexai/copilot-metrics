@@ -48,7 +48,8 @@ function continuityAt(fd, endByte) {
   if (!head || !tail) return null;
   // Continuity checks deliberately sample only the first and last 4 KiB of the
   // committed prefix. Resume validation therefore stays bounded at 8 KiB while
-  // detecting both early in-place rewrites and changes near the byte checkpoint.
+  // detecting both early in-place rewrites and changes near the byte checkpoint;
+  // a rewrite confined to the unsampled middle is outside this bounded contract.
   return {
     algorithm: 'sha256',
     strategy: CONTINUITY_STRATEGY,
