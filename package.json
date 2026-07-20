@@ -12,7 +12,8 @@
     "url": "https://github.com/nnexai/copilot-metrics/issues"
   },
   "bin": {
-    "copilot-metrics": "bin/copilot-metrics.js"
+    "copilot-metrics": "bin/copilot-metrics.js",
+    "copilot-metrics-hook": "bin/copilot-metrics-hook.js"
   },
   "files": [
     "bin/",

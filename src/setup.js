@@ -207,15 +207,24 @@ function shellExports(env) {
 }
 
 function packageBinCommand(cwd) {
-  return path.join(cwd, 'bin', 'copilot-metrics.js');
+  return path.join(cwd, 'bin', 'copilot-metrics-hook.js');
 }
 
 function commandInvocation(command) {
   if (isEphemeralPackageShim(command)) {
-    return `npx -y copilot-metrics@${PACKAGE_VERSION}`;
+    return `npx -y --package copilot-metrics@${PACKAGE_VERSION} copilot-metrics-hook`;
   }
-  const quoted = shellQuote(command);
-  return command.endsWith('.js') ? `node ${quoted}` : quoted;
+  const hookExecutable = hookExecutableCommand(command);
+  const quoted = shellQuote(hookExecutable);
+  return hookExecutable.endsWith('.js') ? `node ${quoted}` : quoted;
+}
+
+function hookExecutableCommand(command) {
+  const basename = path.basename(command);
+  if (basename === 'copilot-metrics-hook' || basename === 'copilot-metrics-hook.js') return command;
+  const filename = basename.endsWith('.js') ? 'copilot-metrics-hook.js' : 'copilot-metrics-hook';
+  const dirname = path.dirname(command);
+  return dirname === '.' ? filename : path.join(dirname, filename);
 }
 
 function isEphemeralPackageShim(command) {
@@ -231,7 +240,7 @@ function hookEventsForSurface(surface) {
 }
 
 function hookCommand(command, event, metricsHome) {
-  return `COPILOT_METRICS_HOME=${shellQuote(metricsHome)} ${commandInvocation(command)} hook-log --event ${shellQuote(event)} --quiet`;
+  return `COPILOT_METRICS_HOME=${shellQuote(metricsHome)} ${commandInvocation(command)} --event ${shellQuote(event)} --quiet`;
 }
 
 function hookConfig(paths, options = {}) {
@@ -269,7 +278,8 @@ function mergeGlobalSettingsHooks(settings, hooks) {
   const mergedHooks = {};
   const isMetricsHook = (hook) => {
     const command = `${hook.bash || ''}\n${hook.powershell || ''}\n${hook.command || ''}`;
-    return command.includes('copilot-metrics') && command.includes('hook-log');
+    return command.includes('copilot-metrics-hook')
+      || (command.includes('copilot-metrics') && command.includes('hook-log'));
   };
 
   for (const event of new Set([...Object.keys(existingHooks), ...Object.keys(hooks)])) {
