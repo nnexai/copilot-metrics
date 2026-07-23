@@ -52,6 +52,9 @@ const { planningPaths } = planningWorkspace;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const frontmatter = require("./frontmatter.cjs");
 const { extractFrontmatter } = frontmatter;
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- phase-lifecycle.cjs is an export= CommonJS module
+const phaseLifecycle = require("./phase-lifecycle.cjs");
+const { deriveProgressFromRoadmap } = phaseLifecycle;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const stateDocument = require("./state-document.cjs");
 const { stateExtractField } = stateDocument;
@@ -245,6 +248,8 @@ function detectSignals(cwd, now = Date.now) {
         has_git: git.has_git,
         verify_failed: false,
         stale_activity: false,
+        roadmap_total_phases: null,
+        roadmap_completed_phases: null,
     };
     if (!hasPlanning)
         return empty;
@@ -291,6 +296,24 @@ function detectSignals(cwd, now = Date.now) {
     // STATUS: marker on the current phase's summary/verify artifact.
     const verifyFailed = /\bverify-fail(ed)?|verification-fail|uat-fail\b/i.test(statusRaw || '') ||
         detectVerifyFailed(cwd, currentPhaseRaw);
+    // #2427: derive global phase counts from ROADMAP.md's Progress table. These
+    // are preferred over STATE.md's cached milestone-scoped `total_phases` (which
+    // goes stale when phases are appended after a milestone switch) for the
+    // completion check. Null when ROADMAP.md is absent or has no parseable
+    // Progress table — isComplete falls back to the legacy comparison in that case.
+    let roadmapTotalPhases = null;
+    let roadmapCompletedPhases = null;
+    if (hasRoadmap) {
+        try {
+            const roadmapContent = node_fs_1.default.readFileSync(paths.roadmap, 'utf8');
+            const derived = deriveProgressFromRoadmap(roadmapContent);
+            roadmapTotalPhases = derived.totalPhases;
+            roadmapCompletedPhases = derived.completedPhases;
+        }
+        catch {
+            /* ROADMAP.md unreadable — leave null; isComplete falls back to legacy. */
+        }
+    }
     return {
         current_phase: parseIntOrNull(currentPhaseRaw),
         total_phases: parseIntOrNull(totalPhasesRaw),
@@ -305,14 +328,56 @@ function detectSignals(cwd, now = Date.now) {
         has_git: git.has_git,
         verify_failed: verifyFailed,
         stale_activity: staleActivity,
+        roadmap_total_phases: roadmapTotalPhases,
+        roadmap_completed_phases: roadmapCompletedPhases,
     };
 }
 // ─── Situation classification ─────────────────────────────────────────────────
-/** True when the workflow has fully completed all phases. */
+/**
+ * True when the workflow has fully completed all phases.
+ *
+ * #2427: completion is grounded in ROADMAP.md's Progress table (global,
+ * authoritative, never stale) when available, with a legacy fallback to
+ * STATE.md's cached `total_phases` when the roadmap has no parseable Progress
+ * table (e.g. a fresh project or a non-standard roadmap layout). The status
+ * regex was tightened to require milestone-level completion language
+ * (`milestone complete` / `all phases complete` / `complete(d)`) and no longer
+ * matches per-phase messages like "Phase X shipped — PR #N" that falsely
+ * satisfied the pre-fix alternation (`\bcomplete(d)?|done|shipped\b`).
+ */
 function isComplete(s) {
-    if (s.total_phases === null || s.current_phase === null)
-        return false;
-    return s.current_phase >= s.total_phases && /\bcomplete(d)?|done|shipped\b/i.test(s.status);
+    // Prefer ROADMAP-derived counts (global, authoritative) over STATE.md's
+    // cached milestone-scoped total_phases (stale-prone). Fall back to legacy
+    // when the roadmap has no Progress table.
+    if (s.roadmap_total_phases !== null && s.roadmap_completed_phases !== null) {
+        if (s.roadmap_total_phases === 0)
+            return false;
+        if (s.roadmap_completed_phases < s.roadmap_total_phases)
+            return false;
+    }
+    else {
+        // Legacy path: STATE.md comparison. Still subject to the two-scale bug,
+        // but only fires when ROADMAP.md is absent or has no Progress table.
+        if (s.total_phases === null || s.current_phase === null)
+            return false;
+        if (s.current_phase < s.total_phases)
+            return false;
+    }
+    // Status regex: require milestone-level completion language. The pre-fix
+    // regex matched any "shipped" / "done" substring (per-phase language).
+    // Tightened to match:
+    //   - "milestone complete" (ADR-2207 terminal status — usually written as
+    //     "<version> milestone complete", e.g. "v1.0 milestone complete"; the
+    //     substring match handles both forms)
+    //   - "all phases complete" (ADR-2207 intermediate terminal)
+    //   - "complete" / "completed" (legacy short form — STATE.md milestone
+    //     status is a single value, not a per-phase log)
+    // Intentionally does NOT match "done" alone even though normalizeStateStatus
+    // (state-document.cts) treats "done" as "completed" — in the milestone
+    // status field, "done" is per-phase noise (e.g. "Phase X done"), not a
+    // milestone-completion signal. Mirrors workstream-inventory-builder.cts's
+    // terminal pattern \bmilestone\s+complete\b.
+    return /\b(milestone\s+complete|all\s+phases\s+complete|complete(d)?)\b/i.test(s.status);
 }
 /** Idle-stranded: clean tree, committed work not shipped, optionally stale. */
 function isIdleStranded(s) {

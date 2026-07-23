@@ -18,7 +18,7 @@
  *   - ./planning-workspace.cjs (planningDir, planningRoot)
  *   - ./shell-command-projection.cjs (execGit, platformWriteSync, platformReadSync)
  *   - ./core-utils.cjs       (detectSubRepos)
- *   - ./model-catalog.cjs    (KNOWN_RUNTIMES, KNOWN_PROVIDERS)
+ *   - ./model-catalog.cjs    (KNOWN_RUNTIMES, KNOWN_PROVIDERS, ADAPTIVE_TIER_VALUES)
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -172,7 +172,11 @@ function isGitIgnored(cwd, targetPath) {
     return ignored;
 }
 // ─── Model alias resolution ───────────────────────────────────────────────────
-const RUNTIME_OVERRIDE_TIERS = new Set(['opus', 'sonnet', 'haiku']);
+// Catalog-derived (model-catalog.cts) so this vocabulary can never drift from
+// VALID_TIERS in verify.cts — see #2070 "Generative Fix Divergence". Excludes
+// 'inherit' (unlike VALID_TIERS): runtime overrides always resolve to a
+// concrete tier, never the adaptive sentinel.
+const RUNTIME_OVERRIDE_TIERS = model_catalog_cjs_1.ADAPTIVE_TIER_VALUES;
 const _warnedConfigKeys = new Set();
 function _warnUnknownProfileOverrides(parsed, configLabel) {
     if (!parsed || typeof parsed !== 'object')
@@ -687,6 +691,14 @@ function loadConfigResolved(cwd, options = {}) {
                 fast_mode: (globalDefaults['fast_mode']) || null,
                 agent_skills: (globalDefaults['agent_skills']) || {},
                 response_language: (globalDefaults['response_language']) || null,
+                // #2069: forward model_policy / model_profile_overrides / runtime so the global-defaults
+                // path is at parity with the project-config path (which forwards these three from
+                // parsed['…'] at the top of this function). Without these entries, ~/.gsd/defaults.json
+                // silently drops them — model_policy/provider/budget etc. are honored when set in a
+                // project but ignored when set globally.
+                runtime: (globalDefaults['runtime']) || null,
+                model_profile_overrides: (globalDefaults['model_profile_overrides']) || null,
+                model_policy: (globalDefaults['model_policy']) || null,
             };
             // Branch D: global-defaults
             try {

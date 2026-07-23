@@ -1,6 +1,8 @@
 name = "gsd-intel-updater"
 description = "Analyzes codebase and writes structured intel files to .planning/intel/."
 sandbox_mode = "read-only"
+model = "gpt-5.6-terra"
+model_reasoning_effort = "low"
 service_tier = "flex"
 model_verbosity = "low"
 developer_instructions = '''
